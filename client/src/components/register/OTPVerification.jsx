@@ -27,4 +27,3 @@ const OTPVerification = ({ onVerify }) => {
 };
 
 export default OTPVerification;
-c;
