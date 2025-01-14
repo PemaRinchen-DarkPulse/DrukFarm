@@ -1,13 +1,14 @@
 import React from "react";
 import { Search, ShoppingCart, User } from "react-feather";
+import { Link } from "react-router-dom";
 
 const Navbar = () => {
   return (
     <div>
-      <nav className="navbar navbar-expand-lg bg-light d-flex justify-content-between align-items-center bg-secondary">
-        <div className="navbar-brand text-primary fw-bold fs-4">Druk Style</div>
+      <nav className="d-flex justify-content-between align-items-center p-3 position-fixed fixed-top" style={{ backgroundColor: "#0a192f" }}>
+        <div className="navbar-brand text-white fw-bold fs-4">Druk Style</div>
         <div
-          className="search-bar mx-auto d-flex align-items-center bg-white rounded shadow-sm"
+          className="search-bar d-flex align-items-center bg-white p-1 rounded-3"
           style={{ flex: 1, maxWidth: "500px" }}
         >
           <input
@@ -16,12 +17,9 @@ const Navbar = () => {
             className="form-control border-0 shadow-none"
             style={{ flex: 1 }}
           />
-          <Search className="text-muted ms-2" size={18} />
+          <Search className="text-muted me-3" size={18} />
         </div>
-
-        {/* Right Section */}
         <div className="d-flex align-items-center">
-          {/* Language Dropdown */}
           <div className="dropdown me-4">
             <button
               className="btn btn-light dropdown-toggle d-flex align-items-center border shadow-sm"
@@ -31,60 +29,60 @@ const Navbar = () => {
               aria-expanded="false"
               style={{ padding: "6px 12px" }}
             >
-            ENG
+              ENG
             </button>
             <ul className="dropdown-menu shadow" aria-labelledby="languageDropdown">
               <li>
                 <a className="dropdown-item d-flex align-items-center" href="#">
-                 Dzo
+                  Dzo
                 </a>
               </li>
               <li>
                 <a className="dropdown-item d-flex align-items-center" href="#">
-                ENG
+                  ENG
                 </a>
               </li>
               <li>
                 <a className="dropdown-item d-flex align-items-center" href="#">
-                FRA
+                  FRA
                 </a>
               </li>
             </ul>
           </div>
 
           <div className="icon-container me-2">
-            <ShoppingCart className="text-dark p-1" size={30} />
+            <ShoppingCart className="text-white p-1" size={30} />
           </div>
 
           <div className="icon-container">
-            <User className="text-dark p-1" size={30} />
+            <Link to="/login"><User className="text-white p-1" size={30} /></Link>
           </div>
         </div>
       </nav>
 
       {/* All Categories Section */}
-      <div className="bg-dark text-white d-flex justify-content-between align-items-center">
-        <strong className="d-flex align-items-center mb-0">
+      <div className="d-flex justify-content-between align-items-center position-relative px-3" style={{ paddingTop: "80px", backgroundColor: "#f1f3f5" }}>
+        <strong className="d-flex align-items-center mb-0 text-dark">
           <span className="me-2">&#9776;</span> All Categories
         </strong>
         <div className="d-flex justify-content-start align-items-center">
           <div className="category-item d-flex align-items-center me-4 hover-effect">
-            <span>Home</span>
+            <span className="text-dark">Home</span>
           </div>
           <div className="category-item d-flex align-items-center me-4 hover-effect">
-            <span>Contact</span>
+            <span className="text-dark">Contact</span>
           </div>
           <div className="category-item d-flex align-items-center me-4 hover-effect">
-            <span>Today's Deal</span>
+            <span className="text-dark">Today's Deal</span>
           </div>
           <div className="category-item d-flex align-items-center me-4 hover-effect">
-            <span>About Us</span>
+            <span className="text-dark">About Us</span>
           </div>
           <div className="category-item d-flex align-items-center me-4 hover-effect">
-            <span>Sell</span>
+            <span className="text-dark">Sell</span>
           </div>
           <div className="category-item d-flex align-items-center hover-effect">
-            <span>Return an Order</span>
+            <span className="text-dark">Return an Order</span>
           </div>
         </div>
       </div>
@@ -98,10 +96,10 @@ const Navbar = () => {
           align-items: center;
           border-radius: 50%;
           cursor: pointer;
+          transition: background-color 0.3s ease;
         }
         .icon-container:hover {
-          background-color: rgba(0, 123, 255, 0.2);
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          background-color: rgba(255, 255, 255, 0.2);
         }
         .search-bar input:focus {
           outline: none;
@@ -113,22 +111,8 @@ const Navbar = () => {
           border-radius: 8px;
         }
         .hover-effect:hover {
-          background-color: rgba(0, 123, 255, 0.1);
-          color: #007bff;
-        }
-
-        .bg-dark {
-          background-color: #343a40 !important;
-        }
-        .text-white {
-          color: white !important;
-        }
-        .category-item {
-          display: flex;
-          align-items: center;
-        }
-        .category-item span {
-          font-size: 16px;
+          background-color: rgba(10, 25, 47, 0.1); /* Navy blue with 10% opacity */
+          color: #0a192f; /* Navy blue color */
         }
       `}</style>
     </div>

@@ -7,7 +7,6 @@ const BasicInformation = ({ onComplete }) => {
     // Perform validation logic here if needed
     onComplete(); // Notify the parent component to move to OTP verification
   };
-
   return (
     <div>
       <form onSubmit={handleSubmit}>
