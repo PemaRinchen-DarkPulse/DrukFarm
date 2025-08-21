@@ -7,8 +7,13 @@ import Alert from '@/components/ui/alert'
 import ForgotPasswordModal from '@/components/ForgotPasswordModal'
 import { useToast } from '@/components/ui/toast'
 
-function isValidEmail(email){
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+function isValidCID(cid){
+  return /^\d{11}$/.test(cid)
+}
+
+function onlyDigits(value, maxLen){
+  if(!value) return ''
+  return value.replace(/\D/g,'').slice(0, maxLen)
 }
 
 export default function Login(){
@@ -22,39 +27,48 @@ export default function Login(){
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError('')
-    if(!isValidEmail(email)) return setError('Please provide a valid email')
+  setError('')
+  if(!isValidCID(email)) return setError('Please provide a valid 11-digit CID')
     if(!password) return setError('Password cannot be empty')
 
     setLoading(true)
-    // Demo auth: infer role from email
-    await new Promise(r => setTimeout(r, 700))
-    setLoading(false)
-    let role = 'consumer'
-    const le = email.toLowerCase()
-    if(le.includes('farm')) role = 'farmer'
-    else if(le.includes('rest')) role = 'restaurant'
-    else if(le.includes('hotel')) role = 'hotel'
-    else if(le.includes('admin')) role = 'admin'
-
-    show('Logged in successfully')
-    // Redirect to dashboard with role
-    navigate('/dashboard', { state: { role } })
+    try {
+      const payload = { cid: email, password }
+      const res = await fetch('/api/users/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      setLoading(false)
+      if (!res.ok) {
+        const body = await res.json()
+        setError(body.error || 'Login failed')
+        return
+      }
+  const user = await res.json()
+  // persist minimal user for navbar and notify other components
+  try { localStorage.setItem('currentUser', JSON.stringify(user)); window.dispatchEvent(new Event('authChanged')) } catch(e) {}
+  show('Logged in successfully')
+  navigate('/management', { state: { role: user.role } })
+    } catch (ex) {
+      setLoading(false)
+      setError(ex.message || 'Login failed')
+    }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
-      <Card className="w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-6 md:p-8 bg-white dark:bg-slate-900">
+      <Card className="w-full max-w-lg rounded-2xl shadow-xl overflow-hidden">
+        <div className="p-8 md:p-10 bg-white dark:bg-slate-900">
           <div className="mb-4 text-center">
-            <h2 className="text-2xl font-semibold">Login to DruKFarm</h2>
+            <h2 className="text-3xl font-semibold">Login to DruKFarm</h2>
             <p className="text-sm text-slate-500">Connect with Bhutanese farmers, restaurants and hotels.</p>
           </div>
 
           {error && <Alert title="Error" description={error} variant="destructive" onClose={() => setError('')} />}
 
           <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
-            <Input label="Email" id="email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="you@domain.com" />
+            <Input label="CID" id="email" type="text" value={email} onChange={(e)=>setEmail(onlyDigits(e.target.value, 11))} placeholder="11 digit CID" />
             <Input label="Password" id="password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Enter your password" />
 
             <div className="flex items-center justify-between">

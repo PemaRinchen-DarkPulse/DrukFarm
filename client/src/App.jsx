@@ -4,7 +4,6 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard";
 import Features from "./pages/Features";
 import Category from "./pages/Category";
 import How from "./pages/How";
@@ -13,6 +12,7 @@ import Contact from "./pages/Contact";
 import ToastProvider from "./components/ui/toast";
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
+import Management from './pages/Management';
 
 function App() {
   return (
@@ -31,7 +31,8 @@ function App() {
               <Route path="/contact" element={<Contact />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/management" element={<Management />} />
+              {/* dashboard removed; management will be the post-login landing */}
             </Routes>
           </main>
 

@@ -5,8 +5,19 @@ import Input from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 
-function isValidEmail(email){
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+function isValidCID(cid){
+  // CID must be exactly 11 digits
+  return /^\d{11}$/.test(cid)
+}
+
+function isValidPhone(phone){
+  // Phone must be exactly 8 digits
+  return /^\d{8}$/.test(phone)
+}
+
+function onlyDigits(value, maxLen){
+  if(!value) return ''
+  return value.replace(/\D/g,'').slice(0, maxLen)
 }
 
 function passwordStrength(pw){
@@ -21,7 +32,7 @@ function passwordStrength(pw){
 export default function Register(){
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [email, setEmail] = useState('')
+  const [cid, setCid] = useState('')
     const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [role, setRole] = useState('consumer')
@@ -37,18 +48,39 @@ export default function Register(){
     const errs = {}
     if(!firstName) errs.firstName = 'First name is required'
     if(!lastName) errs.lastName = 'Last name is required'
-    if(!isValidEmail(email)) errs.email = 'Enter a valid email'
+  if(!isValidCID(cid)) errs.cid = 'CID must be exactly 11 digits'
     const strength = passwordStrength(password)
     if(strength < 3) errs.password = 'Password is too weak (min 8 chars, mix of letters/numbers)'
     if(password !== confirm) errs.confirm = 'Passwords do not match'
-    if(!agree) errs.agree = 'You must agree to Terms'
+  if(!isValidPhone(phone)) errs.phone = 'Phone must be exactly 8 digits'
+  if(!agree) errs.agree = 'You must agree to Terms'
     setErrors(errs)
     if(Object.keys(errs).length) return
 
-    // Demo register
-    await new Promise(r=>setTimeout(r,700))
-    show('Account created — please login')
-    navigate('/login')
+    try {
+      const payload = {
+        cid,
+        name: `${firstName} ${lastName}`,
+        password,
+        role,
+        location,
+        phoneNumber: phone
+      }
+      const res = await fetch('/api/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        show(err.error || JSON.stringify(err))
+        return
+      }
+      show('Account created — please login')
+      navigate('/login')
+    } catch (ex) {
+      show(ex.message || 'Registration failed')
+    }
   }
 
   const strength = passwordStrength(password)
@@ -75,14 +107,11 @@ export default function Register(){
                   <div className="grid grid-cols-3 gap-3">
                     {roleCards.map(r=> (
                       <button key={r.key} type="button" onClick={()=>setRole(r.key)} className={`rounded-lg p-4 text-left border transition-shadow shadow-sm ${role===r.key ? 'border-emerald-500 bg-emerald-50 transform scale-100' : 'border-slate-200 bg-white hover:shadow-md'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-md bg-emerald-600 flex items-center justify-center text-white font-semibold">{r.title[0]}</div>
                           <div>
                             <div className="font-semibold">{r.title}</div>
                             <div className="text-xs text-slate-500">{r.desc}</div>
                           </div>
-                        </div>
-                      </button>
+                        </button>
                     ))}
                   </div>
                 </div>
@@ -93,8 +122,8 @@ export default function Register(){
                     <Input label="Last Name" id="last" value={lastName} onChange={(e)=>setLastName(e.target.value)} error={errors.lastName} />
                   </div>
 
-                  <Input label="Email Address" id="email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} error={errors.email} />
-                  <Input label="Phone Number" id="phone" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="+975 XXXX XXXX" />
+                  <Input label="CID" id="cid" type="text" value={cid} onChange={(e)=>setCid(onlyDigits(e.target.value, 11))} placeholder="11 digit CID" error={errors.cid} />
+                  <Input label="Phone Number" id="phone" value={phone} onChange={(e)=>setPhone(onlyDigits(e.target.value, 8))} placeholder="8 digit phone (no country code)" error={errors.phone} />
                   <Input label="Location" id="location" value={location} onChange={(e)=>setLocation(e.target.value)} placeholder="City/District" />
 
                   <Input label="Password" id="password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} error={errors.password} />

@@ -1,10 +1,48 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { ShoppingCart } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { ShoppingCart, User, LogOut } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)
+  const [user, setUser] = useState(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const navigate = useNavigate()
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('currentUser')
+      if (raw) setUser(JSON.parse(raw))
+    } catch (e) {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    function onAuth() {
+      try {
+        const raw = localStorage.getItem('currentUser')
+        setUser(raw ? JSON.parse(raw) : null)
+      } catch (e) { setUser(null) }
+    }
+    window.addEventListener('authChanged', onAuth)
+    return () => window.removeEventListener('authChanged', onAuth)
+  }, [])
+
+  useEffect(() => {
+    function onDoc(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+    }
+    document.addEventListener('click', onDoc)
+    return () => document.removeEventListener('click', onDoc)
+  }, [])
+
+  function logout() {
+    localStorage.removeItem('currentUser')
+    setUser(null)
+    navigate('/')
+  }
 
   return (
     <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-md border-b border-slate-100 dark:bg-slate-900/60 dark:border-slate-800">
@@ -23,6 +61,7 @@ export default function Navbar() {
           <nav className="hidden md:flex items-center space-x-6">
             <Link to="/" className="text-sm font-medium text-slate-700 hover:text-slate-900">Home</Link>
             <Link to="/products" className="text-sm font-medium text-slate-700 hover:text-slate-900">Products</Link>
+            {user && <Link to="/management" className="text-sm font-medium text-slate-700 hover:text-slate-900">Management</Link>}
             <Link to="/how" className="text-sm font-medium text-slate-700 hover:text-slate-900">How It Works</Link>
             <Link to="/about" className="text-sm font-medium text-slate-700 hover:text-slate-900">About Us</Link>
             <Link to="/contact" className="text-sm font-medium text-slate-700 hover:text-slate-900">Contact</Link>
@@ -32,12 +71,28 @@ export default function Navbar() {
             {/* Desktop auth buttons */}
             <div className="hidden md:flex items-center gap-2">
               <Button variant="ghost" size="sm" className="px-2 py-1"><ShoppingCart className="w-4 h-4" /></Button>
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/login">Login</Link>
-              </Button>
-              <Button size="sm" asChild>
-                <Link to="/register">Register</Link>
-              </Button>
+              {!user ? (
+                <>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/login">Login</Link>
+                  </Button>
+                  <Button size="sm" asChild>
+                    <Link to="/register">Register</Link>
+                  </Button>
+                </>
+              ) : (
+                <div className="relative" ref={menuRef}>
+                  <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-4 h-4" />}</div>
+                  </button>
+                  {menuOpen && (
+                    <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-900 border rounded shadow-lg py-1 z-50">
+                      <Link to="/management" className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">My profile</Link>
+                      <button onClick={logout} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-4 h-4" /> Sign out</button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <button
@@ -61,7 +116,8 @@ export default function Navbar() {
           <div className={`md:hidden transition-all ${open ? 'max-h-96' : 'max-h-0 overflow-hidden'}`}>
             <div className="px-4 pb-4 space-y-2">
               <Link to="/" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Home</Link>
-              <Link to="/products" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Products</Link>
+                <Link to="/products" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Products</Link>
+                {user && <Link to="/management" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Management</Link>}
               <Link to="/how" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">How It Works</Link>
               <Link to="/about" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">About Us</Link>
               <Link to="/contact" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Contact</Link>
@@ -71,8 +127,17 @@ export default function Navbar() {
                 <div className="flex items-center gap-2">
                   <Button variant="ghost" size="sm" className="px-2 py-1"><ShoppingCart className="w-4 h-4" /></Button>
                 </div>
-                <Button variant="outline" size="sm" asChild><Link to="/login">Login</Link></Button>
-                <Button size="sm" asChild><Link to="/register">Register</Link></Button>
+                {!user ? (
+                  <>
+                    <Button variant="outline" size="sm" asChild><Link to="/login">Login</Link></Button>
+                    <Button size="sm" asChild><Link to="/register">Register</Link></Button>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <Link to="/management" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100"><div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-4 h-4" />}</div> <span className="text-sm">{user.name}</span></Link>
+                    <button onClick={logout} className="px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
