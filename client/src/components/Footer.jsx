@@ -1,9 +1,10 @@
 import React from 'react'
+import { MapPin, Mail, Phone } from 'lucide-react'
 
 export default function Footer(){
   return (
-    <footer className="bg-emerald-800 text-emerald-100 border-t border-emerald-700">
-      <div className="mx-auto max-w-7xl px-6 py-12">
+    <footer className="bg-emerald-700 text-emerald-100">
+      <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Left: brand + contact */}
           <div>
@@ -16,9 +17,9 @@ export default function Footer(){
             <p className="text-sm text-emerald-100/90 mb-4">Connecting Bhutanese farmers directly with urban consumers, restaurants, and hotels. Fresh, local, sustainable.</p>
 
             <ul className="text-sm space-y-3">
-              <li className="flex items-center gap-2 opacity-90"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5s-3 1.343-3 3 1.343 3 3 3z"/></svg> Thimphu, Bhutan</li>
-              <li className="flex items-center gap-2 opacity-90"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M16 2v6M8 2v6M3 10h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V10z"/></svg> contact@drukfarm.bt</li>
-              <li className="flex items-center gap-2 opacity-90"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M2 8.5A10 10 0 1121.5 21L22 22l-2.5-1.5A10 10 0 012 8.5z"/></svg> +975 1234 5678</li>
+              <li className="flex items-center gap-2 opacity-90"><MapPin className="w-4 h-4" /> Thimphu, Bhutan</li>
+              <li className="flex items-center gap-2 opacity-90"><Mail className="w-4 h-4" /> contact@drukfarm.bt</li>
+              <li className="flex items-center gap-2 opacity-90"><Phone className="w-4 h-4" /> +975 1234 5678</li>
             </ul>
           </div>
 
@@ -45,7 +46,7 @@ export default function Footer(){
           </div>
         </div>
 
-        <hr className="my-6 border-emerald-700" />
+    <hr className="my-6 border-emerald-600/40" />
 
   <div className="text-center text-sm opacity-90">© {new Date().getFullYear()} DruKFarm. All rights reserved. Made with <span aria-hidden>❤</span> in Bhutan.</div>
       </div>

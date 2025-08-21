@@ -1,5 +1,6 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
+import { Link } from 'react-router-dom'
 
 export default function Hero() {
   return (
@@ -16,10 +17,10 @@ export default function Hero() {
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" asChild>
-                <a href="#shop">Shop Now</a>
+                <Link to="/products">Shop Now</Link>
               </Button>
               <Button variant="outline" size="lg" asChild>
-                <a href="#become">Become a Seller</a>
+                <Link to="/register">Become a Seller</Link>
               </Button>
             </div>
 

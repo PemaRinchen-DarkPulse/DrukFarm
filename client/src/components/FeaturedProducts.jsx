@@ -1,5 +1,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
+import { Link } from 'react-router-dom'
+import { MapPin, ShoppingCart, CreditCard } from 'lucide-react'
 
 const products = [
   {
@@ -46,31 +48,32 @@ export default function FeaturedProducts(){
         <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((p, i) => (
             <article key={i} className="rounded-lg bg-white shadow-sm border border-emerald-100 overflow-hidden">
-              <div className="p-4">
-                <div className="flex gap-2">
+              <div className="relative h-64 bg-emerald-50/60">
+                {/* tags */}
+                <div className="absolute top-3 left-3 flex gap-2">
                   {p.tags.map((t, idx) => (
                     <span key={idx} className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-800">{t}</span>
                   ))}
-                  <div className="ml-auto rounded-full border p-1 text-emerald-600">♡</div>
                 </div>
+                {/* favorite */}
+                <div className="absolute top-3 right-3 rounded-full border p-2 text-emerald-600 bg-white/60">♡</div>
               </div>
-
-              <div className="h-64 bg-emerald-50/60"></div>
 
               <div className="p-4 bg-white">
                 <h3 className="text-lg font-semibold text-emerald-900">{p.title}</h3>
                 <p className="mt-2 text-sm text-slate-600">{p.desc}</p>
                 <div className="mt-3 text-sm text-slate-500 flex items-center gap-3">
-                  <span className="inline-flex items-center gap-2">📍 <span>{p.location}</span></span>
+                  <MapPin className="w-4 h-4 text-emerald-600" />
+                  <span>{p.location}</span>
                 </div>
 
-                <div className="mt-3 flex items-end justify-between">
-                  <div>
-                    <div className="text-yellow-500 font-medium">★ {p.rating} <span className="text-slate-400 text-sm">({p.reviews} reviews)</span></div>
-                    <div className="mt-2 text-2xl font-bold text-emerald-800">Nu. {p.price} <span className="text-lg font-medium text-slate-500">/{p.unit}</span></div>
-                  </div>
-                  <div className="w-40">
-                    <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white" size="sm">🛒 Add to Cart</Button>
+                <div className="mt-3">
+                  <div className="text-yellow-500 font-medium">★ {p.rating} <span className="text-slate-400 text-sm">({p.reviews} reviews)</span></div>
+                  <div className="mt-2 text-2xl font-bold text-emerald-800">Nu. {p.price} <span className="text-lg font-medium text-slate-500">/{p.unit}</span></div>
+
+                  <div className="mt-3 flex gap-3">
+                    <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
+                    <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2"><CreditCard className="w-4 h-4" /> Buy Now</Button>
                   </div>
                 </div>
               </div>
@@ -79,7 +82,9 @@ export default function FeaturedProducts(){
         </div>
 
         <div className="mt-8 text-center">
-          <Button className="bg-emerald-700 hover:bg-emerald-600 text-white">View All Products →</Button>
+          <Button className="bg-emerald-700 hover:bg-emerald-600 text-white" asChild>
+            <Link to="/products">View All Products →</Link>
+          </Button>
         </div>
       </div>
     </section>

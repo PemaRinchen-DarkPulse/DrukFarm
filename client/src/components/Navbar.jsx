@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { ShoppingCart } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export default function Navbar() {
@@ -21,7 +22,7 @@ export default function Navbar() {
 
           <nav className="hidden md:flex items-center space-x-6">
             <Link to="/" className="text-sm font-medium text-slate-700 hover:text-slate-900">Home</Link>
-            <Link to="/features" className="text-sm font-medium text-slate-700 hover:text-slate-900">Crop Listings</Link>
+            <Link to="/products" className="text-sm font-medium text-slate-700 hover:text-slate-900">Products</Link>
             <Link to="/how" className="text-sm font-medium text-slate-700 hover:text-slate-900">How It Works</Link>
             <Link to="/about" className="text-sm font-medium text-slate-700 hover:text-slate-900">About Us</Link>
             <Link to="/contact" className="text-sm font-medium text-slate-700 hover:text-slate-900">Contact</Link>
@@ -30,6 +31,7 @@ export default function Navbar() {
           <div className="flex items-center gap-3">
             {/* Desktop auth buttons */}
             <div className="hidden md:flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="px-2 py-1"><ShoppingCart className="w-4 h-4" /></Button>
               <Button variant="outline" size="sm" asChild>
                 <Link to="/login">Login</Link>
               </Button>
@@ -59,13 +61,16 @@ export default function Navbar() {
           <div className={`md:hidden transition-all ${open ? 'max-h-96' : 'max-h-0 overflow-hidden'}`}>
             <div className="px-4 pb-4 space-y-2">
               <Link to="/" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Home</Link>
-              <Link to="/features" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Crop Listings</Link>
+              <Link to="/products" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Products</Link>
               <Link to="/how" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">How It Works</Link>
               <Link to="/about" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">About Us</Link>
               <Link to="/contact" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Contact</Link>
 
               {/* Mobile auth buttons */}
               <div className="pt-2 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" className="px-2 py-1"><ShoppingCart className="w-4 h-4" /></Button>
+                </div>
                 <Button variant="outline" size="sm" asChild><Link to="/login">Login</Link></Button>
                 <Button size="sm" asChild><Link to="/register">Register</Link></Button>
               </div>
