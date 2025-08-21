@@ -47,7 +47,7 @@ export default function Login(){
       <Card className="w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
         <div className="p-6 md:p-8 bg-white dark:bg-slate-900">
           <div className="mb-4 text-center">
-            <h2 className="text-2xl font-semibold">Login to Farm2Dzong</h2>
+            <h2 className="text-2xl font-semibold">Login to DruKFarm</h2>
             <p className="text-sm text-slate-500">Connect with Bhutanese farmers, restaurants and hotels.</p>
           </div>
 

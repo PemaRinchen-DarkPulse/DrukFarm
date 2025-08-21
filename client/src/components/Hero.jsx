@@ -12,7 +12,7 @@ export default function Hero() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-slate-900 dark:text-white">Connecting Farmers to Markets in Bhutan</h1>
-            <p className="mt-6 max-w-xl text-lg text-slate-700 dark:text-slate-300">Farm2Dzong connects Bhutanese farmers directly with urban consumers, restaurants, and hotels — fair prices, fresh produce, and traceable logistics.</p>
+            <p className="mt-6 max-w-xl text-lg text-slate-700 dark:text-slate-300">DruKFarm connects Bhutanese farmers directly with urban consumers, restaurants, and hotels — fair prices, fresh produce, and traceable logistics.</p>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" asChild>

@@ -13,7 +13,7 @@ export default function Navbar() {
               <div className="flex items-center space-x-2">
                 <div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold">FD</div>
                 <div>
-                  <Link to="/" className="text-lg font-semibold text-slate-900 dark:text-slate-100">Farm2Dzong</Link>
+                  <Link to="/" className="text-lg font-semibold text-slate-900 dark:text-slate-100">DruKFarm</Link>
                   <p className="text-xs text-slate-500">Farm to Table — Bhutan</p>
                 </div>
               </div>
