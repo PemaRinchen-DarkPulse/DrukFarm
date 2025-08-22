@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 
 function Stat({label, children}){
   return (
@@ -64,8 +65,8 @@ export default function About(){
         <h2 className="text-xl font-semibold mb-3">Get Involved / Contact</h2>
         <p className="text-slate-700 mb-4">Want to partner, buy produce, or learn how to list your farm? Reach out — we’re happy to help.</p>
         <div className="flex flex-col sm:flex-row gap-3">
-          <a href="/contact" className="inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Contact Us</a>
-          <a href="/register" className="inline-block border border-green-600 text-green-600 px-4 py-2 rounded hover:bg-green-50">Register Your Farm</a>
+          <Link to="/contact" className="inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Contact Us</Link>
+          <Link to="/register" className="inline-block border border-green-600 text-green-600 px-4 py-2 rounded hover:bg-green-50">Register Your Farm</Link>
         </div>
       </section>
 

@@ -1,5 +1,6 @@
 import React from 'react'
 import { MapPin, Mail, Phone } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 export default function Footer(){
   return (
@@ -27,10 +28,10 @@ export default function Footer(){
           <div>
             <h4 className="text-base font-semibold mb-4">Quick Links</h4>
             <ul className="space-y-3 text-sm opacity-95">
-              <li><a href="/features" className="hover:underline">Browse Products</a></li>
-              <li><a href="/register" className="hover:underline">Sell Your Crops</a></li>
-              <li><a href="/about" className="hover:underline">About Us</a></li>
-              <li><a href="/contact" className="hover:underline">Contact</a></li>
+              <li><Link to="/features" className="hover:underline">Browse Products</Link></li>
+              <li><Link to="/register" className="hover:underline">Sell Your Crops</Link></li>
+              <li><Link to="/about" className="hover:underline">About Us</Link></li>
+              <li><Link to="/contact" className="hover:underline">Contact</Link></li>
             </ul>
           </div>
 
@@ -38,10 +39,10 @@ export default function Footer(){
           <div>
             <h4 className="text-base font-semibold mb-4">Support</h4>
             <ul className="space-y-3 text-sm opacity-95">
-              <li><a href="/help" className="hover:underline">Help Center</a></li>
-              <li><a href="/terms" className="hover:underline">Terms of Service</a></li>
-              <li><a href="/privacy" className="hover:underline">Privacy Policy</a></li>
-              <li><a href="/farmers-guide" className="hover:underline">Farmer's Guide</a></li>
+              <li><Link to="/help" className="hover:underline">Help Center</Link></li>
+              <li><Link to="/terms" className="hover:underline">Terms of Service</Link></li>
+              <li><Link to="/privacy" className="hover:underline">Privacy Policy</Link></li>
+              <li><Link to="/farmers-guide" className="hover:underline">Farmer's Guide</Link></li>
             </ul>
           </div>
         </div>
