@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import './Management.css'
 import MyProducts from './MyProducts'
 import Orders from './Orders'
 import Profile from './Profile'
 import AddProductModal from '@/components/AddProductModal'
+import api from '@/lib/api'
+import { useToast } from '@/components/ui/toast'
 
 const Management = () => {
   // Robust farmer detection: check role/user in storage and decode JWTs
@@ -60,6 +61,7 @@ const Management = () => {
 
   const [tab, setTab] = useState('Overview')
   const [showAddModal, setShowAddModal] = useState(false)
+  const { show } = useToast()
 
   const stats = [
     {
@@ -115,6 +117,38 @@ const Management = () => {
   // single-page layout: header always visible; show access or selected tab below
   return (
     <div className="management-page">
+      <style>{`
+        /* Management page scoped styles (embedded to avoid external files) */
+        .management-page { background: linear-gradient(180deg, #f7fbf6 0%, #f6fbf9 100%); font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color: #052e1f; }
+        .mf-container{ max-width: 1280px; margin: 0 auto; padding: 28px 28px; }
+        .mf-navbar{ background: rgba(255,255,255,0.96); backdrop-filter: blur(6px); box-shadow: 0 8px 30px rgba(11,47,26,0.04); border-radius: 14px; margin: 18px auto; padding: 10px 0; border: 1px solid rgba(9,30,14,0.03); }
+        .tabs{ list-style:none; display:flex; gap:12px; padding:0; margin:0; align-items:center }
+        .tab{ padding:8px 14px; border-radius:999px; color:#6b7280; cursor:pointer; font-weight:700; transition:all .18s ease }
+        .tab:hover{ transform:translateY(-2px) }
+        .tab.active{ background:#2e8b57; color:white; box-shadow: 0 10px 24px rgba(46,139,87,0.12) }
+        .cards-row{ display:grid; grid-template-columns: repeat(4, 1fr); gap:18px; margin-bottom:18px }
+        .stat-card{ background:white; border-radius:12px; padding:18px; display:flex; align-items:center; gap:12px; box-shadow: 0 8px 30px rgba(11,47,26,0.04); transition:transform .18s ease, box-shadow .18s ease }
+        .stat-card:hover{ transform:translateY(-6px); box-shadow:0 20px 40px rgba(11,47,26,0.06) }
+        .icon{ width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:10px; background: linear-gradient(180deg, rgba(46,139,87,0.06), rgba(46,139,87,0.02)); color:#2e8b57 }
+        .stat .value{ font-size:20px; font-weight:800; color:#0b2f1f }
+        .quick-actions{ margin-top:8px; background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,252,246,0.97)); padding:18px; border-radius:12px; box-shadow: 0 8px 30px rgba(11,47,26,0.04); border:1px solid rgba(9,30,14,0.03) }
+        .actions-row{ display:flex; gap:20px; align-items:center }
+        .btn{ flex:1; display:inline-flex; align-items:center; justify-content:center; gap:10px; padding:12px 16px; border-radius:12px; border:1px solid rgba(15,23,42,0.04); cursor:pointer; font-weight:700; font-size:14px }
+        .btn-primary{ background: linear-gradient(180deg,#2e8b57,#256a44); color:#fff; box-shadow: 0 10px 24px rgba(46,139,87,0.12); border:none }
+        .products-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:18px }
+        /* product card polish - aligns with shared card CSS but ensures hover + spacing here when management page hosts them */
+        .product-card{ transition: transform .18s ease, box-shadow .18s ease }
+        .product-card:hover{ transform:translateY(-6px); box-shadow:0 24px 48px rgba(11,47,26,0.07) }
+        .product-image{ height:16rem; background:linear-gradient(180deg,#f6fbf7,#ffffff); display:flex; align-items:center; justify-content:center }
+        .product-body{ padding:14px; display:flex; flex-direction:column }
+        .product-title{ font-weight:800; color:#0b2f1f; margin:0 }
+        .product-desc{ color:#6b7280; margin:6px 0; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
+  .card-actions{ margin-top:.75rem; display:flex; gap:.5rem }
+        .card-actions > *{ flex:1 }
+        /* responsive tweaks */
+        @media (max-width: 1000px){ .cards-row{ grid-template-columns: repeat(2, 1fr) } }
+        @media (max-width: 640px){ .cards-row{ grid-template-columns: 1fr } .actions-row{ flex-direction:column } }
+      `}</style>
       <header className="mf-navbar">
         <div className="mf-container">
           <nav>
@@ -188,14 +222,34 @@ const Management = () => {
 
             {tab === 'Products' && <MyProducts onAdd={() => setShowAddModal(true)} />}
             {showAddModal && (
-              <AddProductModal
-                onClose={() => setShowAddModal(false)}
-                onSave={(product) => {
-                  // temporary: log the product; real integration would add it to the product list
-                  console.log('New product saved:', product)
-                  setShowAddModal(false)
-                }}
-              />
+                <AddProductModal
+                  onClose={() => setShowAddModal(false)}
+                  onSave={async (dto, id) => {
+                    try {
+                      if (id) {
+                        await api.updateProduct(id, dto)
+                        show('Product updated', { duration: 3000 })
+                      } else {
+                        await api.createProduct(dto)
+                        show('Product created', { duration: 3000 })
+                      }
+                      // switch to Products tab and show MyProducts
+                      setTab('Products')
+                    } catch (e) {
+                      console.error(e)
+                      const body = e?.body
+                      let msg = 'Save failed'
+                      if (body) {
+                        if (typeof body === 'string') msg = body
+                        else if (body.error) msg = body.error
+                        else msg = JSON.stringify(body)
+                      }
+                      show(msg, { duration: 4000 })
+                    } finally {
+                      setShowAddModal(false)
+                    }
+                  }}
+                />
             )}
             {tab === 'Orders' && <Orders />}
             {tab === 'Profile' && <Profile />}

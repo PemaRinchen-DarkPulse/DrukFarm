@@ -6,7 +6,6 @@ import Testimonials from '@/components/Testimonials'
 import FeaturedProducts from '@/components/FeaturedProducts'
 import ShopByCategory from '@/components/ShopByCategory'
 import CTA from '@/components/CTA'
-import Footer from '@/components/Footer'
 
 export default function Home(){
   return (

@@ -1,13 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { MapPin, ShoppingCart, CreditCard } from 'lucide-react'
+import api from '@/lib/api'
 
-const products = [
-  { id: 1, title: 'Organic Red Rice', desc: 'Premium red rice', seller: 'Tashi Farms', price: '120', unit: 'kg', tags: ['Grains', 'Organic'], location: 'Thimphu' },
-  { id: 2, title: 'Local Carrots', desc: 'Fresh carrots', seller: 'Pem Organic', price: '45', unit: 'kg', tags: ['Vegetables'], location: 'Paro' },
-  { id: 3, title: 'Fresh Chillies', desc: 'Spicy chillies', seller: 'Thimphu Market', price: '60', unit: 'kg', tags: ['Vegetables', 'Spices'], location: 'Thimphu' },
-  { id: 4, title: 'Cow Milk', desc: 'Raw fresh milk', seller: 'Nima Dairy', price: '40', unit: 'litre', tags: ['Dairy'], location: 'Bumthang' },
-]
+let initialProducts = []
 
 export default function Features(){
   const [query, setQuery] = useState('')
@@ -15,13 +11,33 @@ export default function Features(){
 
   const categories = ['all','Vegetables','Fruits','Grains','Spices','Dairy','Processed']
 
+  const [products, setProducts] = useState(initialProducts)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(()=>{
+    setLoading(true)
+    api.fetchProducts()
+      .then(list => setProducts(list.map(p => ({
+        id: p.productId,
+        title: p.productName,
+        desc: p.description,
+        price: p.price,
+        unit: p.unit,
+        tags: [],
+        location: p.categoryName || '' ,
+        image: p.productImageBase64 ? `data:image/*;base64,${p.productImageBase64}` : null
+      }))))
+      .catch(e => console.error(e))
+      .finally(()=> setLoading(false))
+  }, [])
+
   const filtered = useMemo(()=> {
     return products.filter(p => {
-      if(category !== 'all' && !p.tags.includes(category)) return false
-      if(query && !(`${p.title} ${p.desc} ${p.seller}`.toLowerCase().includes(query.toLowerCase()))) return false
+      if(category !== 'all' && (!p.tags || !p.tags.includes(category))) return false
+      if(query && !(`${p.title} ${p.desc}`.toLowerCase().includes(query.toLowerCase()))) return false
       return true
     })
-  }, [query, category])
+  }, [query, category, products])
 
   return (
     <div className="max-w-7xl mx-auto p-6">

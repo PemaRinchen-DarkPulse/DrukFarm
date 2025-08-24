@@ -1,49 +1,85 @@
-import React from 'react'
-import './Management.css'
+import React, { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Box } from "lucide-react" // cube icon
+import api from "@/lib/api"
 
-const sampleOrders = [] // start empty for placeholder
+export default function Orders() {
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(false)
 
-export default function Orders(){
-  const orders = sampleOrders
+  useEffect(() => {
+    let mounted = true
+    setLoading(true)
+    api
+      .fetchOrders?.()
+      .then((list) => {
+        if (!mounted) return
+        setOrders(list || [])
+      })
+      .catch((e) => console.error(e))
+      .finally(() => setLoading(false))
 
-  if (!orders || orders.length === 0) {
-    return (
-      <section className="orders-placeholder">
-        <div className="placeholder-card large">
-          <h3>Recent Orders</h3>
-          <p className="subtitle">Track and manage your customer orders</p>
-          <div className="placeholder-body">
-            <div className="placeholder-icon">📦</div>
-            <h4>No orders yet</h4>
-            <p>Orders from customers will appear here once they start purchasing your products.</p>
-          </div>
-        </div>
-      </section>
-    )
-  }
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   return (
-    <section className="orders-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Product Name</th>
-            <th>Customer Location</th>
-            <th>Quantity</th>
-            <th>Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map(o => (
-            <tr key={o.id}>
-              <td>{o.product}</td>
-              <td>{o.location}</td>
-              <td>{o.quantity}</td>
-              <td>{o.date}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <section className="orders">
+      <style>{`
+        .orders .orders-header {
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:16px;
+          margin-bottom:18px;
+          padding-top:6px;
+        }
+        .orders .orders-title {
+          font-size:26px;
+          color:#0b2f1f;
+          margin:0;
+          font-weight:800;
+        }
+      `}</style>
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="orders-header">
+          <h2 className="orders-title">My Orders</h2>
+        </div>
+
+        {/* Empty State */}
+        {orders.length === 0 && !loading ? (
+          <div className="text-center py-20 bg-gray-50 rounded-2xl shadow-sm border border-dashed border-gray-300">
+            <Box className="mx-auto h-16 w-16 text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-700">
+              No orders yet
+            </h3>
+            <p className="text-gray-500 mb-6">
+              Orders from customers will appear here once they start purchasing
+              your products.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Later you can map over orders here */}
+            {orders.map((order) => (
+              <div
+                key={order.id}
+                className="p-6 bg-white rounded-xl shadow-sm border"
+              >
+                <h4 className="font-semibold text-gray-800">
+                  Order #{order.id}
+                </h4>
+                <p className="text-sm text-gray-500">
+                  {order.items?.length} items • {order.status}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   )
 }
