@@ -4,6 +4,7 @@ import Card from '@/components/ui/card'
 import Input from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
+import { registerUser } from '@/lib/api'
 
 function isValidCID(cid){
   // CID must be exactly 11 digits
@@ -66,16 +67,7 @@ export default function Register(){
         location,
         phoneNumber: phone
       }
-  const res = await fetch('http://localhost:5000/api/users/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        show(err.error || JSON.stringify(err))
-        return
-      }
+  await registerUser(payload)
       show('Account created — please login')
       navigate('/login')
     } catch (ex) {

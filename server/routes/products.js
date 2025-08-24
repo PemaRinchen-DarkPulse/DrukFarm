@@ -78,6 +78,22 @@ router.get('/', async (_req, res) => {
 	}
 })
 
+// GET /api/products/category/:categoryId -> Fetch products by category
+router.get('/category/:categoryId', async (req, res) => {
+	try {
+		const { categoryId } = req.params
+		if (!mongoose.Types.ObjectId.isValid(String(categoryId))) {
+			return res.status(400).json({ success: false, error: 'Invalid category id' })
+		}
+		const products = await Product.find({ categoryId }).sort({ createdAt: -1 })
+		const category = await Category.findById(categoryId)
+		res.json(products.map(p => mapProduct(p, category)))
+	} catch (err) {
+		console.error('Fetch products by category error:', err)
+		res.status(500).json({ success: false, error: 'Failed to fetch products by category' })
+	}
+})
+
 // GET /api/products/:id -> Fetch one
 router.get('/:id', async (req, res) => {
 	try {

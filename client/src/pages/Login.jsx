@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import Alert from '@/components/ui/alert'
 import ForgotPasswordModal from '@/components/ForgotPasswordModal'
 import { useToast } from '@/components/ui/toast'
+import { loginUser } from '@/lib/api'
 
 function isValidCID(cid){
   return /^\d{11}$/.test(cid)
@@ -34,18 +35,8 @@ export default function Login(){
     setLoading(true)
     try {
       const payload = { cid: email, password }
-  const res = await fetch('http://localhost:5000/api/users/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
+      const user = await loginUser(payload)
       setLoading(false)
-      if (!res.ok) {
-        const body = await res.json()
-        setError(body.error || 'Login failed')
-        return
-      }
-  const user = await res.json()
   // persist minimal user for navbar and notify other components
   try { localStorage.setItem('currentUser', JSON.stringify(user)); window.dispatchEvent(new Event('authChanged')) } catch(e) {}
   show('Logged in successfully')
