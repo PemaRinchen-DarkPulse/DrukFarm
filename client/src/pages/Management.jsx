@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import MyProducts from './MyProducts'
 import Orders from './Orders'
 import Profile from './Profile'
@@ -59,7 +60,42 @@ const Management = () => {
 
   const farmer = isFarmer()
 
-  const [tab, setTab] = useState('Overview')
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const initialTab = (() => {
+    try {
+      const usp = new URLSearchParams(window.location.search)
+      const t = (usp.get('tab') || '').toLowerCase()
+      if (t === 'products') return 'Products'
+      if (t === 'orders') return 'Orders'
+      if (t === 'profile') return 'Profile'
+    } catch (e) {}
+    return 'Overview'
+  })()
+  const [tab, setTab] = useState(initialTab)
+
+  // Keep the URL query param in sync with the active tab
+  useEffect(() => {
+    const to = tab.toLowerCase()
+    const usp = new URLSearchParams(location.search)
+    const current = (usp.get('tab') || '').toLowerCase()
+    if (current !== to) {
+      navigate(`/management?tab=${to}`, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
+  // Keep the active tab in sync when the URL query changes externally
+  useEffect(() => {
+    try {
+      const usp = new URLSearchParams(location.search)
+      const q = (usp.get('tab') || '').toLowerCase()
+      const mapped = q === 'products' ? 'Products' : q === 'orders' ? 'Orders' : q === 'profile' ? 'Profile' : 'Overview'
+      if (mapped !== tab) setTab(mapped)
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search])
   const [showAddModal, setShowAddModal] = useState(false)
   const { show } = useToast()
 

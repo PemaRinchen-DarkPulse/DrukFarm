@@ -46,20 +46,32 @@ export default function MyProducts({ onAdd }) {
     api.fetchProducts()
       .then(list => {
         if (!mounted) return
+        const guessMimeFromBase64 = (b64) => {
+          if (!b64 || typeof b64 !== 'string') return null
+          const s = b64.slice(0, 12)
+          if (s.startsWith('/9j/')) return 'image/jpeg' // JPEG
+          if (s.startsWith('iVBORw0KG')) return 'image/png' // PNG
+          if (s.startsWith('R0lGODdh') || s.startsWith('R0lGODlh')) return 'image/gif' // GIF
+          if (s.startsWith('UklGR')) return 'image/webp' // WEBP (lossless)
+          if (s.startsWith('RIFF')) return 'image/webp' // WEBP (RIFF)
+          return 'image/jpeg'
+        }
+
         setProducts(
-          list.map(p => ({
-            id: p.productId,
-            title: p.productName,
-            desc: p.description,
-            price: p.price,
-            unit: p.unit,
-            stock: p.stockQuantity,
-            image: p.productImageBase64
-              ? `data:image/*;base64,${p.productImageBase64}`
-              : null,
-            categoryId: p.categoryId,
-            categoryName: p.categoryName
-          }))
+          list.map(p => {
+            const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
+            return {
+              id: p.productId,
+              title: p.productName,
+              desc: p.description,
+              price: p.price,
+              unit: p.unit,
+              stock: p.stockQuantity,
+              image: p.productImageBase64 && mime ? `data:${mime};base64,${p.productImageBase64}` : null,
+              categoryId: p.categoryId,
+              categoryName: p.categoryName
+            }
+          })
         )
       })
       .catch(e => console.error(e))
@@ -97,9 +109,12 @@ export default function MyProducts({ onAdd }) {
                   price: updated.price,
                   unit: updated.unit,
                   stock: updated.stockQuantity,
-                  image: updated.productImageBase64
-                    ? `data:image/*;base64,${updated.productImageBase64}`
-                    : null,
+                  image: (() => {
+                    if (!updated.productImageBase64) return null
+                    const s = updated.productImageBase64.slice(0, 12)
+                    const mime = s.startsWith('/9j/') ? 'image/jpeg' : s.startsWith('iVBORw0KG') ? 'image/png' : s.startsWith('R0lGODd') ? 'image/gif' : s.startsWith('UklGR') || s.startsWith('RIFF') ? 'image/webp' : 'image/jpeg'
+                    return `data:${mime};base64,${updated.productImageBase64}`
+                  })(),
                   categoryId: updated.categoryId,
                   categoryName: updated.categoryName
                 }
@@ -115,9 +130,12 @@ export default function MyProducts({ onAdd }) {
           price: created.price,
           unit: created.unit,
           stock: created.stockQuantity,
-          image: created.productImageBase64
-            ? `data:image/*;base64,${created.productImageBase64}`
-            : null,
+          image: (() => {
+            if (!created.productImageBase64) return null
+            const s = created.productImageBase64.slice(0, 12)
+            const mime = s.startsWith('/9j/') ? 'image/jpeg' : s.startsWith('iVBORw0KG') ? 'image/png' : s.startsWith('R0lGODd') ? 'image/gif' : s.startsWith('UklGR') || s.startsWith('RIFF') ? 'image/webp' : 'image/jpeg'
+            return `data:${mime};base64,${created.productImageBase64}`
+          })(),
           categoryId: created.categoryId,
           categoryName: created.categoryName
         }

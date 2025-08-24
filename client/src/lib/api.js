@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8080/api'
+const API_BASE = 'http://localhost:5000/api'
 
 async function request(path, opts = {}){
   const res = await fetch(`${API_BASE}${path}`, {
@@ -38,6 +38,11 @@ export async function updateProduct(id, dto){
   return request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(dto) })
 }
 
+export async function saveProduct(dto, id){
+  if (id) return updateProduct(id, dto)
+  return createProduct(dto)
+}
+
 export async function deleteProduct(id){
   return request(`/products/${id}`, { method: 'DELETE' })
 }
@@ -63,11 +68,15 @@ export async function registerUser(dto){
   return request('/users/register', { method: 'POST', body: JSON.stringify(dto) })
 }
 
+export async function loginUser(dto){
+  return request('/users/login', { method: 'POST', body: JSON.stringify(dto) })
+}
+
 export async function fetchUsers(){
   return request('/users')
 }
 
 export default {
-  fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, deleteProduct,
-  fetchCategories, createCategory, fetchOrders, registerUser, fetchUsers
+  fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
+  fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers
 }

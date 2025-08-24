@@ -20,7 +20,7 @@ export default function Hero() {
                 <Link to="/products">Shop Now</Link>
               </Button>
               <Button variant="outline" size="lg" asChild>
-                <Link to="/register">Become a Seller</Link>
+                <Link to="/register">Join as Farmer</Link>
               </Button>
             </div>
 

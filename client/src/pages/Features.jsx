@@ -17,16 +17,30 @@ export default function Features(){
   useEffect(()=>{
     setLoading(true)
     api.fetchProducts()
-      .then(list => setProducts(list.map(p => ({
-        id: p.productId,
-        title: p.productName,
-        desc: p.description,
-        price: p.price,
-        unit: p.unit,
-        tags: [],
-        location: p.categoryName || '' ,
-        image: p.productImageBase64 ? `data:image/*;base64,${p.productImageBase64}` : null
-      }))))
+      .then(list => {
+        const guessMimeFromBase64 = (b64) => {
+          if (!b64 || typeof b64 !== 'string') return null
+          const s = b64.slice(0, 12)
+          if (s.startsWith('/9j/')) return 'image/jpeg'
+          if (s.startsWith('iVBORw0KG')) return 'image/png'
+          if (s.startsWith('R0lGODdh') || s.startsWith('R0lGODlh')) return 'image/gif'
+          if (s.startsWith('UklGR') || s.startsWith('RIFF')) return 'image/webp'
+          return 'image/jpeg'
+        }
+        setProducts(list.map(p => {
+          const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
+          return {
+            id: p.productId,
+            title: p.productName,
+            desc: p.description,
+            price: p.price,
+            unit: p.unit,
+            tags: [],
+            location: p.categoryName || '' ,
+            image: p.productImageBase64 && mime ? `data:${mime};base64,${p.productImageBase64}` : null
+          }
+        }))
+      })
       .catch(e => console.error(e))
       .finally(()=> setLoading(false))
   }, [])
@@ -58,13 +72,18 @@ export default function Features(){
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map((p) => (
           <article key={p.id} className="rounded-lg bg-white shadow-sm border border-emerald-100 overflow-hidden">
-            <div className="relative h-64 bg-emerald-50/60">
+            <div className="relative h-64 bg-emerald-50/60 overflow-hidden">
               <div className="absolute top-3 left-3 flex gap-2">
                 {p.tags.map((t, idx) => (
                   <span key={idx} className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-800">{t}</span>
                 ))}
               </div>
               <div className="absolute top-3 right-3 rounded-full border p-2 text-emerald-600 bg-white/60">♡</div>
+              {p.image ? (
+                <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full" />
+              )}
             </div>
 
               <div className="p-4 bg-white">

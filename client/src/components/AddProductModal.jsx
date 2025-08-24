@@ -4,7 +4,7 @@ import { getCurrentCid } from '@/lib/auth'
 import { useToast } from "@/components/ui/toast"
 
 export default function AddProductModal({ onClose, onSave, initial }) {
-  const { toast } = useToast()  // ✅ init toast
+  const { show } = useToast()  // ✅ init toast
 
   const [title, setTitle] = useState(initial?.productName || '')
   const [category, setCategory] = useState(initial?.categoryName || '')
@@ -63,20 +63,13 @@ export default function AddProductModal({ onClose, onSave, initial }) {
       try { 
         await onSave(dto, initial?.productId)
 
-        // ✅ success toast
-        toast({
-          title: "✅ Product Saved",
-          description: initial ? "Product updated successfully." : "New product added successfully!",
-          variant: "success"
-        })
+  // ✅ success toast + timed redirect matching toast auto-dismiss
+  const duration = 2000
+  show(initial ? "✅ Product updated successfully" : "✅ Product added successfully", { duration })
 
-        // ✅ close modal
-        onClose()
-
-        // ✅ refresh + redirect to product tab
-        setTimeout(() => {
-          window.location.href = "/dashboard?tab=products"
-        }, 800)
+  // ✅ close modal now; redirect after toast hides
+  onClose()
+  setTimeout(() => { window.location.href = "/management?tab=products" }, duration + 100)
 
       } catch (err) {
         console.error(err)
@@ -84,11 +77,7 @@ export default function AddProductModal({ onClose, onSave, initial }) {
         let msg = 'Save failed'
         if (body) msg = typeof body === 'string' ? body : (body.error || JSON.stringify(body))
 
-        toast({
-          title: "❌ Save Failed",
-          description: msg,
-          variant: "destructive"
-        })
+  show(`❌ Save failed: ${msg}`)
 
       } finally { setSubmitting(false) }
     }
