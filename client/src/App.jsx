@@ -13,6 +13,7 @@ import ToastProvider from "./components/ui/toast";
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import Management from './pages/Management';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/management" element={<Management />} />
+              <Route path="/profile" element={<Profile />} />
               {/* dashboard removed; management will be the post-login landing */}
             </Routes>
           </main>

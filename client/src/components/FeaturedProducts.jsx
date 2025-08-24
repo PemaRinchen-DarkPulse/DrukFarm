@@ -1,43 +1,51 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Link } from 'react-router-dom'
 import { MapPin, ShoppingCart, CreditCard } from 'lucide-react'
 import ProductCard from './ProductCard'
-
-const products = [
-  {
-    title: 'Organic Red Rice',
-    desc: 'Premium quality red rice grown in the hills of Thimphu',
-    location: 'Pema Dorji, Thimphu',
-    price: '120',
-    unit: 'kg',
-    rating: 4.8,
-    reviews: 24,
-    tags: ['Premium', 'Organic']
-  },
-  {
-    title: 'Fresh Chili Peppers',
-    desc: 'Locally grown spicy chili peppers perfect for traditional dishes.',
-    location: 'Tenzin Lhamo, Paro',
-    price: '80',
-    unit: 'kg',
-    rating: 4.6,
-    reviews: 18,
-    tags: ['Organic']
-  },
-  {
-    title: 'Mountain Potatoes',
-    desc: 'Fresh potatoes grown in high altitude mountain regions',
-    location: 'Karma Tshering, Bumthang',
-    price: '45',
-    unit: 'kg',
-    rating: 4.7,
-    reviews: 32,
-    tags: []
-  }
-]
+import api from '@/lib/api'
 
 export default function FeaturedProducts(){
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const guessMimeFromBase64 = (b64) => {
+      if (!b64 || typeof b64 !== 'string') return null
+      const s = b64.slice(0, 12)
+      if (s.startsWith('/9j/')) return 'image/jpeg'
+      if (s.startsWith('iVBORw0KG')) return 'image/png'
+      if (s.startsWith('R0lGODdh') || s.startsWith('R0lGODlh')) return 'image/gif'
+      if (s.startsWith('UklGR') || s.startsWith('RIFF')) return 'image/webp'
+      return 'image/jpeg'
+    }
+
+    setLoading(true)
+    api.fetchProducts()
+      .then(list => {
+        const top3 = [...list]
+          .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+          .slice(0, 3)
+          .map(p => {
+            const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
+            return {
+              id: p.productId,
+              title: p.productName,
+              desc: p.description,
+              price: p.price,
+              unit: p.unit,
+              rating: p.rating || 0,
+              reviews: p.reviews || 0,
+              tags: [],
+              location: p.categoryName || '',
+              image: p.productImageBase64 && mime ? `data:${mime};base64,${p.productImageBase64}` : null
+            }
+          })
+        setItems(top3)
+      })
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false))
+  }, [])
   return (
     <section id="featured-products" className="py-16 bg-emerald-50/10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -47,8 +55,8 @@ export default function FeaturedProducts(){
         </div>
 
         <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((p, i) => (
-            <ProductCard key={i} product={{...p, image: null}}>
+          {items.map((p) => (
+            <ProductCard key={p.id || p.title} product={p}>
               <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
               <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2"><CreditCard className="w-4 h-4" /> Buy Now</Button>
             </ProductCard>

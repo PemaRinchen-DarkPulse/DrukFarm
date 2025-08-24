@@ -57,6 +57,8 @@ function mapProduct(p, categoryDoc) {
 		stockQuantity: p.stockQuantity,
 		productImageBase64: p.productImageBase64,
 		createdBy: p.createdBy,
+		rating: p.rating,
+		reviews: p.reviews,
 		createdAt: p.createdAt,
 		updatedAt: p.updatedAt,
 	}

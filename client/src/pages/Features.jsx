@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { MapPin, ShoppingCart, CreditCard } from 'lucide-react'
 import api from '@/lib/api'
+import { getCurrentCid } from '@/lib/auth'
 
 let initialProducts = []
 
@@ -14,10 +15,12 @@ export default function Features(){
   const [products, setProducts] = useState(initialProducts)
   const [loading, setLoading] = useState(false)
 
-  useEffect(()=>{
+  const load = () => {
     setLoading(true)
     api.fetchProducts()
       .then(list => {
+        const currentCid = getCurrentCid()
+        const visible = currentCid ? list.filter(p => !p.createdBy || p.createdBy !== currentCid) : list
         const guessMimeFromBase64 = (b64) => {
           if (!b64 || typeof b64 !== 'string') return null
           const s = b64.slice(0, 12)
@@ -27,7 +30,7 @@ export default function Features(){
           if (s.startsWith('UklGR') || s.startsWith('RIFF')) return 'image/webp'
           return 'image/jpeg'
         }
-        setProducts(list.map(p => {
+        setProducts(visible.map(p => {
           const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
           return {
             id: p.productId,
@@ -43,6 +46,13 @@ export default function Features(){
       })
       .catch(e => console.error(e))
       .finally(()=> setLoading(false))
+  }
+
+  useEffect(()=>{
+    load()
+    const onAuthChanged = () => load()
+    window.addEventListener('authChanged', onAuthChanged)
+    return () => window.removeEventListener('authChanged', onAuthChanged)
   }, [])
 
   const filtered = useMemo(()=> {

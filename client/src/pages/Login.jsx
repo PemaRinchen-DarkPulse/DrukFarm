@@ -49,7 +49,7 @@ export default function Login(){
   // persist minimal user for navbar and notify other components
   try { localStorage.setItem('currentUser', JSON.stringify(user)); window.dispatchEvent(new Event('authChanged')) } catch(e) {}
   show('Logged in successfully')
-  navigate('/management', { state: { role: user.role } })
+  navigate(`/management?tab=overview`, { state: { role: user.role } })
     } catch (ex) {
       setLoading(false)
       setError(ex.message || 'Login failed')

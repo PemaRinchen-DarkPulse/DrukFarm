@@ -7,8 +7,10 @@ export default function Navbar() {
   const [open, setOpen] = useState(false)
   const [user, setUser] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [mgmtOpen, setMgmtOpen] = useState(false)
   const navigate = useNavigate()
   const menuRef = useRef(null)
+  const mgmtRef = useRef(null)
 
   useEffect(() => {
     try {
@@ -32,7 +34,8 @@ export default function Navbar() {
 
   useEffect(() => {
     function onDoc(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+  if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+  if (mgmtRef.current && !mgmtRef.current.contains(e.target)) setMgmtOpen(false)
     }
     document.addEventListener('click', onDoc)
     return () => document.removeEventListener('click', onDoc)
@@ -40,6 +43,7 @@ export default function Navbar() {
 
   function logout() {
     localStorage.removeItem('currentUser')
+  try { window.dispatchEvent(new Event('authChanged')) } catch(e) {}
     setUser(null)
     navigate('/')
   }
@@ -61,7 +65,27 @@ export default function Navbar() {
           <nav className="hidden md:flex items-center space-x-6">
             <Link to="/" className="text-sm font-medium text-slate-700 hover:text-slate-900">Home</Link>
             <Link to="/products" className="text-sm font-medium text-slate-700 hover:text-slate-900">Products</Link>
-            {user && <Link to="/management" className="text-sm font-medium text-slate-700 hover:text-slate-900">Management</Link>}
+            {user && (
+              <div className="relative" ref={mgmtRef}>
+                <button
+                  type="button"
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 inline-flex items-center gap-1"
+                  onClick={() => setMgmtOpen(o => !o)}
+                >
+                  Management
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+                {mgmtOpen && (
+                  <div className="absolute left-0 mt-2 w-44 bg-white dark:bg-slate-900 border rounded shadow-lg py-1 z-50">
+                    <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=overview') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Overview</button>
+                    {user?.role === 'farmer' && (
+                      <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Products</button>
+                    )}
+                    <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">{user?.role === 'farmer' ? 'Orders' : 'My Orders'}</button>
+                  </div>
+                )}
+              </div>
+            )}
             <Link to="/how" className="text-sm font-medium text-slate-700 hover:text-slate-900">How It Works</Link>
             <Link to="/about" className="text-sm font-medium text-slate-700 hover:text-slate-900">About Us</Link>
             <Link to="/contact" className="text-sm font-medium text-slate-700 hover:text-slate-900">Contact</Link>
@@ -85,9 +109,9 @@ export default function Navbar() {
                   <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800">
                     <div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-4 h-4" />}</div>
                   </button>
-                  {menuOpen && (
+          {menuOpen && (
                     <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-900 border rounded shadow-lg py-1 z-50">
-                      <Link to="/management" className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">My profile</Link>
+                      <Link to="/profile" className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">My profile</Link>
                       <button onClick={logout} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-4 h-4" /> Sign out</button>
                     </div>
                   )}
@@ -117,7 +141,23 @@ export default function Navbar() {
             <div className="px-4 pb-4 space-y-2">
               <Link to="/" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Home</Link>
                 <Link to="/products" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Products</Link>
-                {user && <Link to="/management" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Management</Link>}
+                {user && (
+                  <div className="bg-white rounded-md border">
+                    <button onClick={() => setMgmtOpen(o=>!o)} className="w-full text-left px-3 py-2 text-slate-700 flex items-center justify-between">
+                      <span>Management</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
+                    {mgmtOpen && (
+                      <div className="px-1 pb-2">
+                        <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=overview') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Overview</button>
+                        {user?.role === 'farmer' && (
+                          <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Products</button>
+                        )}
+                        <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">{user?.role === 'farmer' ? 'Orders' : 'My Orders'}</button>
+                      </div>
+                    )}
+                  </div>
+                )}
               <Link to="/how" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">How It Works</Link>
               <Link to="/about" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">About Us</Link>
               <Link to="/contact" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Contact</Link>
@@ -134,7 +174,7 @@ export default function Navbar() {
                   </>
                 ) : (
                   <div className="flex items-center justify-between">
-                    <Link to="/management" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100"><div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-4 h-4" />}</div> <span className="text-sm">{user.name}</span></Link>
+                    <Link to="/profile" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100"><div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-4 h-4" />}</div> <span className="text-sm">{user.name}</span></Link>
                     <button onClick={logout} className="px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
                   </div>
                 )}

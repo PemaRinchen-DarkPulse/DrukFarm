@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import MyProducts from './MyProducts'
 import Orders from './Orders'
@@ -8,8 +8,8 @@ import api from '@/lib/api'
 import { useToast } from '@/components/ui/toast'
 
 const Management = () => {
-  // Robust farmer detection: check role/user in storage and decode JWTs
-  const isFarmer = () => {
+  // Determine role: check currentUser in storage and fallbacks
+  const getRole = () => {
     const containsFarmer = (value) => {
       if (!value && value !== 0) return false
       try {
@@ -22,16 +22,25 @@ const Management = () => {
     }
 
     // check localStorage and sessionStorage keys
-    const keys = ['role', 'user', 'authUser', 'currentUser']
+    try {
+      const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser')
+      if (raw) {
+        const obj = JSON.parse(raw)
+        if (obj && typeof obj.role === 'string') return obj.role
+      }
+    } catch (e) {}
+
+    const keys = ['role', 'user', 'authUser']
     for (const k of keys) {
       try {
         const v = localStorage.getItem(k) || sessionStorage.getItem(k)
         if (!v) continue
-        if (containsFarmer(v)) return true
+        if (containsFarmer(v)) return 'farmer'
         // try parse json
         try {
           const p = JSON.parse(v)
-          if (containsFarmer(p)) return true
+          if (containsFarmer(p)) return 'farmer'
+          if (p && typeof p.role === 'string') return p.role
         } catch (e) {}
       } catch (e) {}
     }
@@ -49,16 +58,17 @@ const Management = () => {
           const b64 = payload.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((payload.length + 3) % 4)
           try {
             const json = JSON.parse(atob(b64))
-            if (containsFarmer(json)) return true
+            if (containsFarmer(json)) return 'farmer'
+            if (json && typeof json.role === 'string') return json.role
           } catch (e) {}
         }
       } catch (e) {}
     }
 
-    return false
+    return 'consumer' // default minimal privileges
   }
-
-  const farmer = isFarmer()
+  const role = getRole()
+  const isFarmer = role === 'farmer'
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -67,7 +77,7 @@ const Management = () => {
     try {
       const usp = new URLSearchParams(window.location.search)
       const t = (usp.get('tab') || '').toLowerCase()
-      if (t === 'products') return 'Products'
+      if (t === 'products' && isFarmer) return 'Products'
       if (t === 'orders') return 'Orders'
       if (t === 'profile') return 'Profile'
     } catch (e) {}
@@ -75,9 +85,16 @@ const Management = () => {
   })()
   const [tab, setTab] = useState(initialTab)
 
+  // Allowed tabs depend on role
+  const allowedTabs = useMemo(() => (isFarmer ? ['Overview', 'Products', 'Orders', 'Profile'] : ['Overview', 'Orders', 'Profile']), [isFarmer])
+  // Navbar now controls tab selection; no in-page tab selector needed
+
   // Keep the URL query param in sync with the active tab
   useEffect(() => {
-    const to = tab.toLowerCase()
+    // Coerce tab to an allowed value for the current role
+    const effectiveTab = allowedTabs.includes(tab) ? tab : 'Overview'
+    if (effectiveTab !== tab) setTab(effectiveTab)
+    const to = effectiveTab.toLowerCase()
     const usp = new URLSearchParams(location.search)
     const current = (usp.get('tab') || '').toLowerCase()
     if (current !== to) {
@@ -91,11 +108,12 @@ const Management = () => {
     try {
       const usp = new URLSearchParams(location.search)
       const q = (usp.get('tab') || '').toLowerCase()
-      const mapped = q === 'products' ? 'Products' : q === 'orders' ? 'Orders' : q === 'profile' ? 'Profile' : 'Overview'
+      let mapped = q === 'products' ? 'Products' : q === 'orders' ? 'Orders' : q === 'profile' ? 'Profile' : 'Overview'
+      if (!allowedTabs.includes(mapped)) mapped = 'Overview'
       if (mapped !== tab) setTab(mapped)
     } catch (e) {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search])
+  }, [location.search, allowedTabs.join('|')])
   const [showAddModal, setShowAddModal] = useState(false)
   const { show } = useToast()
 
@@ -158,10 +176,10 @@ const Management = () => {
         .management-page { background: linear-gradient(180deg, #f7fbf6 0%, #f6fbf9 100%); font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color: #052e1f; }
         .mf-container{ max-width: 1280px; margin: 0 auto; padding: 28px 28px; }
         .mf-navbar{ background: rgba(255,255,255,0.96); backdrop-filter: blur(6px); box-shadow: 0 8px 30px rgba(11,47,26,0.04); border-radius: 14px; margin: 18px auto; padding: 10px 0; border: 1px solid rgba(9,30,14,0.03); }
-        .tabs{ list-style:none; display:flex; gap:12px; padding:0; margin:0; align-items:center }
-        .tab{ padding:8px 14px; border-radius:999px; color:#6b7280; cursor:pointer; font-weight:700; transition:all .18s ease }
-        .tab:hover{ transform:translateY(-2px) }
-        .tab.active{ background:#2e8b57; color:white; box-shadow: 0 10px 24px rgba(46,139,87,0.12) }
+        .tabbar{ display:flex; gap:12px; align-items:center; justify-content:space-between }
+        .tab-select{ appearance:none; -webkit-appearance:none; -moz-appearance:none; padding:10px 14px; border-radius:12px; border:1px solid rgba(15,23,42,0.08); background:white; color:#052e1f; font-weight:700; cursor:pointer; box-shadow: 0 6px 14px rgba(11,47,26,0.04) }
+        .tab-select:focus{ outline:none; border-color:#2e8b57; box-shadow: 0 0 0 3px rgba(46,139,87,0.12) }
+        .tab-label{ font-size:14px; color:#6b7280; font-weight:600 }
         .cards-row{ display:grid; grid-template-columns: repeat(4, 1fr); gap:18px; margin-bottom:18px }
         .stat-card{ background:white; border-radius:12px; padding:18px; display:flex; align-items:center; gap:12px; box-shadow: 0 8px 30px rgba(11,47,26,0.04); transition:transform .18s ease, box-shadow .18s ease }
         .stat-card:hover{ transform:translateY(-6px); box-shadow:0 20px 40px rgba(11,47,26,0.06) }
@@ -185,39 +203,11 @@ const Management = () => {
         @media (max-width: 1000px){ .cards-row{ grid-template-columns: repeat(2, 1fr) } }
         @media (max-width: 640px){ .cards-row{ grid-template-columns: 1fr } .actions-row{ flex-direction:column } }
       `}</style>
-      <header className="mf-navbar">
-        <div className="mf-container">
-          <nav>
-            <ul className="tabs">
-              <li
-                className={`tab ${tab === 'Overview' ? 'active' : ''}`}
-                onClick={() => setTab('Overview')}
-              >Overview</li>
-              <li
-                className={`tab ${tab === 'Products' ? 'active' : ''}`}
-                onClick={() => setTab('Products')}
-              >Products</li>
-              <li
-                className={`tab ${tab === 'Orders' ? 'active' : ''}`}
-                onClick={() => setTab('Orders')}
-              >Orders</li>
-              <li
-                className={`tab ${tab === 'Profile' ? 'active' : ''}`}
-                onClick={() => setTab('Profile')}
-              >Profile</li>
-            </ul>
-          </nav>
-        </div>
-      </header>
+  {/* Header with in-page tab selector removed; navbar dropdown controls tab */}
 
       <main className="mf-container content">
-        {!farmer ? (
-          <div className="access-denied">
-            <h3>Access restricted</h3>
-            <p>This area is available only to farmer accounts. Please switch to a farmer account or contact support for access.</p>
-          </div>
-        ) : (
-          <>
+        {/* All roles can access management; features vary by role */}
+        <>
             {tab === 'Overview' && (
               <>
                 <section className="cards-row" aria-label="summary cards">
@@ -236,11 +226,13 @@ const Management = () => {
                 <section className="quick-actions">
                   <h2>Manage your farm business efficiently</h2>
                   <div className="actions-row">
-                    <button className="btn btn-primary" aria-label="Add New Product" onClick={() => setShowAddModal(true)}>
-                      <span className="btn-icon">+
-                      </span>
-                      <span>Add New Product</span>
-                    </button>
+                    {isFarmer && (
+                      <button className="btn btn-primary" aria-label="Add New Product" onClick={() => setShowAddModal(true)}>
+                        <span className="btn-icon">+
+                        </span>
+                        <span>Add New Product</span>
+                      </button>
+                    )}
 
                     <div className="spacer" />
 
@@ -255,8 +247,7 @@ const Management = () => {
                 </section>
               </>
             )}
-
-            {tab === 'Products' && <MyProducts onAdd={() => setShowAddModal(true)} />}
+            {isFarmer && tab === 'Products' && <MyProducts onAdd={() => setShowAddModal(true)} />}
             {showAddModal && (
                 <AddProductModal
                   onClose={() => setShowAddModal(false)}
@@ -269,8 +260,8 @@ const Management = () => {
                         await api.createProduct(dto)
                         show('Product created', { duration: 3000 })
                       }
-                      // switch to Products tab and show MyProducts
-                      setTab('Products')
+                      // switch to Products tab if farmer; otherwise go to Orders
+                      setTab(isFarmer ? 'Products' : 'Orders')
                     } catch (e) {
                       console.error(e)
                       const body = e?.body
@@ -289,8 +280,7 @@ const Management = () => {
             )}
             {tab === 'Orders' && <Orders />}
             {tab === 'Profile' && <Profile />}
-          </>
-        )}
+        </>
       </main>
     </div>
   )
