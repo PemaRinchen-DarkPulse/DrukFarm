@@ -27,6 +27,13 @@ function createApp() {
     })
   )
 
+  // Root - helpful landing for the API base
+  app.get('/', (_req, res) => {
+    res.status(200).send(
+      'DrukFarm API is running. See /api/health, /api/products, /api/categories, /api/users'
+    )
+  })
+
   // Health check
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' })
@@ -36,6 +43,12 @@ function createApp() {
   app.use('/api/users', usersRouter)
   app.use('/api/categories', categoriesRouter)
   app.use('/api/products', productsRouter)
+
+  // 404 for unmatched routes
+  app.use((req, res, next) => {
+    if (res.headersSent) return next()
+    res.status(404).json({ error: 'Not Found', path: req.originalUrl })
+  })
 
   // Global error handler (fallback)
   // eslint-disable-next-line no-unused-vars
