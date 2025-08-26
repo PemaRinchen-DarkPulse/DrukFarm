@@ -1,5 +1,15 @@
-// API base from environment. Provide either VITE_API_BASE (full) or VITE_BACKEND_URL and we append /api.
-const API_BASE = (import.meta.env.VITE_API_BASE || ((import.meta.env.VITE_BACKEND_URL || import.meta.env.BACKEND_URL || '').replace(/\/$/, '') + '/api'))
+// API base from environment.
+// Options:
+// - VITE_API_BASE: full base including /api
+// - VITE_BACKEND_URL(_PROD): backend origin; we append /api
+const isProd = import.meta.env.PROD
+const backendOrigin = isProd
+  ? (import.meta.env.VITE_BACKEND_URL_PROD || import.meta.env.VITE_BACKEND_URL)
+  : import.meta.env.VITE_BACKEND_URL
+const API_BASE = (
+  import.meta.env.VITE_API_BASE ||
+  (((backendOrigin || import.meta.env.BACKEND_URL || '').replace(/\/$/, '')) + '/api')
+)
 
 async function request(path, opts = {}){
   const res = await fetch(`${API_BASE}${path}`, {
