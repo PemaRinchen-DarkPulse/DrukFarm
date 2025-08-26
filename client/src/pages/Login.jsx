@@ -29,12 +29,13 @@ export default function Login(){
   const handleSubmit = async (e) => {
     e.preventDefault()
   setError('')
-  if(!isValidCID(email)) return setError('Please provide a valid 11-digit CID')
+  const cid = String(email || '').trim()
+  if(!isValidCID(cid)) return setError('Please provide a valid 11-digit CID')
     if(!password) return setError('Password cannot be empty')
 
     setLoading(true)
     try {
-      const payload = { cid: email, password }
+  const payload = { cid, password }
       const user = await loginUser(payload)
       setLoading(false)
   // persist minimal user for navbar and notify other components
@@ -43,7 +44,8 @@ export default function Login(){
   navigate(`/management?tab=overview`, { state: { role: user.role } })
     } catch (ex) {
       setLoading(false)
-      setError(ex.message || 'Login failed')
+      const srv = ex?.body?.error
+      setError(srv || ex.message || 'Login failed')
     }
   }
 

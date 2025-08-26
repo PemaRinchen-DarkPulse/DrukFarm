@@ -71,7 +71,8 @@ export default function Register(){
       show('Account created — please login')
       navigate('/login')
     } catch (ex) {
-      show(ex.message || 'Registration failed')
+      const srv = ex?.body?.error
+      show(srv || ex.message || 'Registration failed', { variant: 'error' })
     }
   }
 

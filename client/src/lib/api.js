@@ -6,9 +6,13 @@ const isProd = import.meta.env.PROD
 const backendOrigin = isProd
   ? (import.meta.env.VITE_BACKEND_URL_PROD || import.meta.env.VITE_BACKEND_URL)
   : import.meta.env.VITE_BACKEND_URL
+// In dev, if no backend origin/proxy is configured, default to localhost:5000
+const devFallback = (!isProd && !import.meta.env.VITE_API_BASE && !backendOrigin)
+  ? 'http://localhost:5000'
+  : ''
 const API_BASE = (
   import.meta.env.VITE_API_BASE ||
-  (((backendOrigin || import.meta.env.BACKEND_URL || '').replace(/\/$/, '')) + '/api')
+  (((backendOrigin || devFallback || import.meta.env.BACKEND_URL || '').replace(/\/$/, '')) + '/api')
 )
 
 async function request(path, opts = {}){
@@ -67,12 +71,8 @@ export async function createCategory(dto){
 }
 
 export async function fetchOrders(){
-  // backend does not currently expose orders in this project; attempt and return [] on error
-  try {
-    return await request('/orders')
-  } catch (e) {
-    return []
-  }
+  // Orders endpoint is not implemented on the backend yet; avoid network calls to prevent 404s
+  return []
 }
 
 export async function registerUser(dto){

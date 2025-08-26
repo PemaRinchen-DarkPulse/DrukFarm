@@ -18,7 +18,11 @@ function isStrongPassword(pw) {
 // POST /api/users/register
 router.post('/register', async (req, res) => {
 	try {
-		const { cid, name, password, role, location, phoneNumber } = req.body || {}
+	let { cid, name, password, role, location, phoneNumber } = req.body || {}
+	cid = typeof cid === 'string' ? cid.trim().replace(/\D/g, '') : cid
+	name = typeof name === 'string' ? name.trim() : name
+	location = typeof location === 'string' ? location.trim() : ''
+	phoneNumber = typeof phoneNumber === 'string' ? phoneNumber.trim() : phoneNumber
 
 		// Basic validations
 		if (!cid || !/^\d{11}$/.test(cid)) {
@@ -69,7 +73,8 @@ router.post('/register', async (req, res) => {
 // POST /api/users/login
 router.post('/login', async (req, res) => {
 	try {
-		const { cid, password } = req.body || {}
+		let { cid, password } = req.body || {}
+	cid = typeof cid === 'string' ? cid.trim().replace(/\D/g, '') : cid
 		if (!cid || !/^\d{11}$/.test(cid) || !password) {
 			return res.status(400).json({ error: 'Invalid CID or password' })
 		}
@@ -77,7 +82,27 @@ router.post('/login', async (req, res) => {
 		const user = await User.findOne({ cid })
 		if (!user) return res.status(401).json({ error: 'Invalid CID or password' })
 
-		const match = await bcrypt.compare(password, user.password)
+		let match = false
+		try {
+			match = await bcrypt.compare(password, user.password)
+		} catch (e) {
+			match = false
+		}
+
+		// Backward-compatibility: if stored password is plaintext (not a bcrypt hash),
+		// allow login once if plaintext matches and upgrade it to a bcrypt hash.
+		if (!match) {
+			const looksHashed = typeof user.password === 'string' && /^\$2[aby]\$\d{2}\$/.test(user.password)
+			if (!looksHashed && password === user.password) {
+				// Upgrade to bcrypt hash
+				const salt = await bcrypt.genSalt(10)
+				const hash = await bcrypt.hash(password, salt)
+				user.password = hash
+				await user.save()
+				match = true
+			}
+		}
+
 		if (!match) return res.status(401).json({ error: 'Invalid CID or password' })
 
 		return res.json(user.toJSONSafe())
