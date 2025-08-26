@@ -29,13 +29,7 @@ export default function ShopByCategory(){
             </article>
           ))}
 
-          {/* Add more category card */}
-          <article className="bg-white rounded-lg shadow-sm border-dashed border-2 border-emerald-100 p-6 text-center flex flex-col items-center justify-center">
-            <div className="mx-auto w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-700 mb-4">＋</div>
-            <h3 className="font-semibold text-emerald-700 mb-2">Add Category</h3>
-            <p className="text-sm text-slate-500 mb-4">Add a new product category</p>
-            <Link to="/categories" className="mt-2 inline-flex items-center gap-2 rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-emerald-50">Manage Categories</Link>
-          </article>
+          {/* Removed Add Category card */}
         </div>
 
         <div className="mt-8 text-center">

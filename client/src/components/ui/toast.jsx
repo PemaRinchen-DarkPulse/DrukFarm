@@ -17,9 +17,15 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={{ show, remove }}>
       {children}
       <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
-        {toasts.map(t => (
-          <div key={t.id} className="bg-emerald-600 text-white px-4 py-2 rounded shadow">{t.message}</div>
-        ))}
+        {toasts.map(t => {
+          const isError = t.variant === 'error' || t.variant === 'destructive'
+          const classes = isError
+            ? 'bg-red-600 text-white px-4 py-2 rounded shadow'
+            : 'bg-emerald-600 text-white px-4 py-2 rounded shadow'
+          return (
+            <div key={t.id} className={classes}>{t.message}</div>
+          )
+        })}
       </div>
     </ToastContext.Provider>
   )

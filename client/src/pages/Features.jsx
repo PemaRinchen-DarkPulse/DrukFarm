@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button'
 import { MapPin, ShoppingCart, CreditCard } from 'lucide-react'
 import api from '@/lib/api'
 import { getCurrentCid } from '@/lib/auth'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useToast } from '@/components/ui/toast'
 
 let initialProducts = []
 
@@ -14,6 +16,9 @@ export default function Features(){
 
   const [products, setProducts] = useState(initialProducts)
   const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { show } = useToast()
 
   const load = () => {
     setLoading(true)
@@ -54,6 +59,21 @@ export default function Features(){
     window.addEventListener('authChanged', onAuthChanged)
     return () => window.removeEventListener('authChanged', onAuthChanged)
   }, [])
+
+  const handleAdd = async (productId) => {
+    const cid = getCurrentCid()
+    if (!cid) {
+      navigate('/login', { state: { from: location }, replace: true })
+      return
+    }
+    try {
+      await api.addToCart({ productId, quantity: 1, cid })
+      show('Added to cart')
+    } catch (e) {
+      const msg = e?.status === 409 ? 'This product is already in your cart' : (e?.body?.error || e.message || 'Failed to add to cart')
+      show(msg, { variant: 'error' })
+    }
+  }
 
   const filtered = useMemo(()=> {
     return products.filter(p => {
@@ -107,7 +127,7 @@ export default function Features(){
                 <div className="mt-3">
                   <div className="mt-2 text-2xl font-bold text-emerald-800">Nu. {p.price} <span className="text-lg font-medium text-slate-500">/{p.unit}</span></div>
                   <div className="mt-3 flex gap-3">
-                    <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
+                    <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
                     <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2"><CreditCard className="w-4 h-4" /> Buy Now</Button>
                   </div>
                 </div>

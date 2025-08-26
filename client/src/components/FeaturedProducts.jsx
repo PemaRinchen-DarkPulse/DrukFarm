@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { MapPin, ShoppingCart, CreditCard } from 'lucide-react'
 import ProductCard from './ProductCard'
 import api from '@/lib/api'
+import { getCurrentCid } from '@/lib/auth'
+import { useToast } from '@/components/ui/toast'
 
 export default function FeaturedProducts(){
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { show } = useToast()
 
   useEffect(() => {
     const guessMimeFromBase64 = (b64) => {
@@ -46,6 +51,21 @@ export default function FeaturedProducts(){
       .catch(() => setItems([]))
       .finally(() => setLoading(false))
   }, [])
+  
+  const handleAdd = async (productId) => {
+    const cid = getCurrentCid()
+    if (!cid) {
+      navigate('/login', { state: { from: location }, replace: true })
+      return
+    }
+    try {
+      await api.addToCart({ productId, quantity: 1, cid })
+      show('Added to cart')
+    } catch (e) {
+      const msg = e?.status === 409 ? 'This product is already in your cart' : (e?.body?.error || e.message || 'Failed to add to cart')
+      show(msg, { variant: 'error' })
+    }
+  }
   return (
     <section id="featured-products" className="py-16 bg-emerald-50/10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -55,9 +75,9 @@ export default function FeaturedProducts(){
         </div>
 
         <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {items.map((p) => (
+      {items.map((p) => (
             <ProductCard key={p.id || p.title} product={p}>
-              <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
+        <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
               <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2"><CreditCard className="w-4 h-4" /> Buy Now</Button>
             </ProductCard>
           ))}

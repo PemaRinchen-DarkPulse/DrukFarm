@@ -1,13 +1,11 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Link } from 'react-router-dom'
+import heroImage from '@/assets/heroimage.jpg'
 
 export default function Hero() {
   return (
-    <section id="home" className="relative overflow-hidden bg-gradient-to-b from-emerald-50 to-white dark:from-slate-900 dark:to-slate-900">
-      <div className="absolute inset-0">
-        <img src="/public/vite.svg" alt="farm bg" className="w-full h-full object-cover opacity-10" />
-      </div>
+  <section id="home" className="relative overflow-hidden bg-gradient-to-b from-emerald-50 to-white dark:from-slate-900 dark:to-slate-900">
 
       <div className="relative mx-auto max-w-7xl px-4 py-20 sm:py-28 lg:py-32">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -34,7 +32,7 @@ export default function Hero() {
 
           <div className="order-first lg:order-last">
             <div className="rounded-2xl bg-white shadow-lg overflow-hidden ring-1 ring-slate-100 dark:bg-slate-800">
-              <img src="/src/assets/farm-placeholder.jpg" alt="Bhutan farm" className="w-full h-80 object-cover sm:h-96" />
+              <img src={heroImage} alt="Bhutan farm" className="w-full h-80 object-cover sm:h-96" />
             </div>
           </div>
         </div>

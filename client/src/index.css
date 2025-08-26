@@ -118,3 +118,37 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Prevent layout 'bumps' when vertical scrollbar appears/disappears */
+html {
+  /* Reserve space for the scrollbar so content width stays stable */
+  scrollbar-gutter: stable both-edges;
+}
+
+/* Smooth page transitions and avoid end-of-page jank */
+body {
+  /* Always reserve vertical scrollbar for stability across routes */
+  overflow-y: scroll;
+  /* Smooth anchor and programmatic scroll */
+  scroll-behavior: smooth;
+  /* Avoid scroll chaining rubber-band at edges */
+  overscroll-behavior-y: none;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  body { scroll-behavior: auto; }
+}
+
+/* Hide number input spinners (Chrome, Safari, Edge) */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Hide number input spinners (Firefox) */
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

@@ -2,12 +2,15 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { ShoppingCart, User, LogOut } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
+import api from '@/lib/api'
+import { getCurrentCid } from '@/lib/auth'
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)
   const [user, setUser] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [mgmtOpen, setMgmtOpen] = useState(false)
+  const [cartCount, setCartCount] = useState(0)
   const navigate = useNavigate()
   const menuRef = useRef(null)
   const mgmtRef = useRef(null)
@@ -19,6 +22,7 @@ export default function Navbar() {
     } catch (e) {
       // ignore
     }
+  refreshCart()
   }, [])
 
   useEffect(() => {
@@ -27,8 +31,11 @@ export default function Navbar() {
         const raw = localStorage.getItem('currentUser')
         setUser(raw ? JSON.parse(raw) : null)
       } catch (e) { setUser(null) }
+      refreshCart()
     }
     window.addEventListener('authChanged', onAuth)
+    const onCart = () => refreshCart()
+    window.addEventListener('cartChanged', onCart)
     return () => window.removeEventListener('authChanged', onAuth)
   }, [])
 
@@ -46,6 +53,18 @@ export default function Navbar() {
   try { window.dispatchEvent(new Event('authChanged')) } catch(e) {}
     setUser(null)
     navigate('/')
+  }
+
+  async function refreshCart(){
+    try {
+      const cid = getCurrentCid()
+      if (!cid) { setCartCount(0); return }
+      const resp = await api.getCart({ cid })
+      const count = Array.isArray(resp?.cart?.items) ? resp.cart.items.reduce((s,i)=>s + Number(i.quantity||0), 0) : 0
+      setCartCount(count)
+    } catch (e) {
+      setCartCount(0)
+    }
   }
 
   return (
@@ -94,7 +113,12 @@ export default function Navbar() {
           <div className="flex items-center gap-3">
             {/* Desktop auth buttons */}
             <div className="hidden md:flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="px-2 py-1"><ShoppingCart className="w-4 h-4" /></Button>
+              <div className="relative inline-flex">
+                <Button variant="ghost" size="sm" className="px-2 py-1" onClick={()=>navigate('/cart')}><ShoppingCart className="w-4 h-4" /></Button>
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[10px] leading-[18px] text-center">{cartCount}</span>
+                )}
+              </div>
               {!user ? (
                 <>
                   <Button variant="outline" size="sm" asChild>
@@ -165,7 +189,12 @@ export default function Navbar() {
               {/* Mobile auth buttons */}
               <div className="pt-2 flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" className="px-2 py-1"><ShoppingCart className="w-4 h-4" /></Button>
+                  <div className="relative inline-flex">
+                    <Button variant="ghost" size="sm" className="px-2 py-1" onClick={()=>{ setOpen(false); navigate('/cart') }}><ShoppingCart className="w-4 h-4" /></Button>
+                    {cartCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[10px] leading-[18px] text-center">{cartCount}</span>
+                    )}
+                  </div>
                 </div>
                 {!user ? (
                   <>

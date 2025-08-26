@@ -14,6 +14,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import Management from './pages/Management';
 import Profile from './pages/Profile';
+import Cart from './pages/Cart';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/management" element={<Management />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/cart" element={<Cart />} />
               {/* dashboard removed; management will be the post-login landing */}
             </Routes>
           </main>

@@ -77,7 +77,34 @@ export async function fetchUsers(){
   return request('/users')
 }
 
+export async function addToCart({ productId, quantity = 1, cid }){
+  const body = { productId, quantity }
+  if (cid) body.cid = cid
+  const resp = await request('/cart', { method: 'POST', body: JSON.stringify(body) })
+  try { window.dispatchEvent(new Event('cartChanged')) } catch(e) {}
+  return resp
+}
+
+export async function getCart({ cid } = {}){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request('/cart', { headers })
+}
+
+export async function updateCartItem({ itemId, quantity, cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request(`/cart/${itemId}`, { method: 'PATCH', headers, body: JSON.stringify({ quantity }) })
+}
+
+export async function removeCartItem({ itemId, cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request(`/cart/${itemId}`, { method: 'DELETE', headers })
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
-  fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers
+  fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
+  addToCart, getCart, updateCartItem, removeCartItem
 }
