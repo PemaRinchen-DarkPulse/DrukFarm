@@ -4,8 +4,9 @@ import { Link } from 'react-router-dom'
 
 export default function Footer(){
   return (
-    <footer className="bg-emerald-700 text-emerald-100">
-      <div className="mx-auto max-w-7xl px-6 py-8">
+    <footer className="relative bg-emerald-700 text-emerald-100">
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_30%)] pointer-events-none" aria-hidden />
+      <div className="mx-auto max-w-7xl px-6 pt-10 md:pt-12 pb-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Left: brand + contact */}
           <div>
@@ -47,7 +48,7 @@ export default function Footer(){
           </div>
         </div>
 
-    <hr className="my-6 border-emerald-600/40" />
+  <hr className="my-6 border-emerald-600/40" />
 
   <div className="text-center text-sm opacity-90">© {new Date().getFullYear()} DruKFarm. All rights reserved. Made with <span aria-hidden>❤</span> in Bhutan.</div>
       </div>
