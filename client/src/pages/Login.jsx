@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import Card from '@/components/ui/card'
 import Input from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,7 @@ export default function Login(){
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
   const { show } = useToast()
 
   const handleSubmit = async (e) => {
@@ -41,7 +42,12 @@ export default function Login(){
   // persist minimal user for navbar and notify other components
   try { localStorage.setItem('currentUser', JSON.stringify(user)); window.dispatchEvent(new Event('authChanged')) } catch(e) {}
   show('Logged in successfully')
-  navigate(`/management?tab=overview`, { state: { role: user.role } })
+  const redirectTo = location.state?.redirectTo
+  if (redirectTo && typeof redirectTo === 'string') {
+    navigate(redirectTo, { replace: true })
+  } else {
+    navigate(`/management?tab=overview`, { state: { role: user.role } })
+  }
     } catch (ex) {
       setLoading(false)
       const srv = ex?.body?.error

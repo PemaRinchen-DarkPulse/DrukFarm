@@ -15,7 +15,7 @@ import Footer from './components/Footer'
 import Management from './pages/Management';
 import Profile from './pages/Profile';
 import Cart from './pages/Cart';
-
+import BuyProducts from './pages/BuyProducts';
 function App() {
   return (
     <ToastProvider>
@@ -36,6 +36,7 @@ function App() {
               <Route path="/management" element={<Management />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/cart" element={<Cart />} />
+              <Route path="/buy" element={<BuyProducts />} />
               {/* dashboard removed; management will be the post-login landing */}
             </Routes>
           </main>

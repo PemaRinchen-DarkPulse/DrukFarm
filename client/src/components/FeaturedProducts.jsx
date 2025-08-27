@@ -66,6 +66,24 @@ export default function FeaturedProducts(){
       show(msg, { variant: 'error' })
     }
   }
+
+  const handleBuyNow = async (productId) => {
+    const cid = getCurrentCid()
+    if (!cid) {
+      navigate('/login', { state: { from: location, redirectTo: `/buy?pid=${productId}` }, replace: true })
+      return
+    }
+    try {
+      await api.addToCart({ productId, quantity: 1, cid })
+    } catch (e) {
+      if (e?.status !== 409) {
+        const msg = e?.body?.error || e.message || 'Failed to start checkout'
+        show(msg, { variant: 'error' })
+        return
+      }
+    }
+    navigate(`/buy?pid=${productId}`)
+  }
   return (
     <section id="featured-products" className="py-16 bg-emerald-50/10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -78,7 +96,7 @@ export default function FeaturedProducts(){
       {items.map((p) => (
             <ProductCard key={p.id || p.title} product={p}>
         <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
-              <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2"><CreditCard className="w-4 h-4" /> Buy Now</Button>
+              <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2" onClick={()=>handleBuyNow(p.id)}><CreditCard className="w-4 h-4" /> Buy Now</Button>
             </ProductCard>
           ))}
         </div>

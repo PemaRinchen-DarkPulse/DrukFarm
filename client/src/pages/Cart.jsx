@@ -199,8 +199,8 @@ export default function Cart(){
   }
 
   return (
-    <div className="bg-gradient-to-b from-emerald-50/60 to-transparent">
-      <div className="max-w-7xl mx-auto p-6 min-h-screen">
+    <div className="bg-gradient-to-b from-emerald-50/60 to-transparent tabular-nums" style={{ fontVariantNumeric: 'tabular-nums' }}>
+  <div className="max-w-7xl mx-auto p-6 min-h-screen pb-24">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-2xl md:text-3xl font-bold text-emerald-900">Your Cart</h1>
           <Button asChild variant="ghost" className="text-emerald-700 hover:text-emerald-800">
@@ -240,7 +240,7 @@ export default function Cart(){
                         <div className="text-slate-700"><span className="text-slate-900 font-semibold text-[18px] md:text-[20px]">{i.sellerName || '—'}</span></div>
                         <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-emerald-600" /><span className="text-slate-800 truncate">{i.sellerLocation || '—'}</span></div>
                         <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-emerald-600" />{i.sellerPhoneNumber ? (<a className="text-emerald-700 hover:underline" href={`tel:${i.sellerPhoneNumber}`}>{i.sellerPhoneNumber}</a>) : (<span className="text-slate-800">—</span>)}</div>
-                        <div className="flex items-center gap-2"><Banknote className="w-4 h-4 text-emerald-600" /><span className="text-emerald-900 font-semibold text-[18px] md:text-[20px]">Nu. {i.price}</span><span className="text-slate-600">/ {i.unit}</span></div>
+                        <div className="flex items-center gap-2"><Banknote className="w-4 h-4 text-emerald-600" /><span className="text-emerald-900 font-semibold text-[18px] md:text-[20px] tabular-nums">Nu. {i.price}</span><span className="text-slate-600">/ {i.unit}</span></div>
                         <div className="inline-flex items-center gap-2">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${Number(i.stockQuantity) > 0 ? 'border-emerald-200 text-emerald-700' : 'border-red-200 text-red-700'}`}>
                             <Package className="w-4 h-4" />
@@ -319,9 +319,9 @@ export default function Cart(){
                             +
                           </button>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0 w-32" style={{ fontVariantNumeric: 'tabular-nums' }}>
                           <div className="text-sm text-slate-600 whitespace-nowrap">Item total</div>
-                          <div className="text-lg md:text-xl font-bold text-emerald-800 whitespace-nowrap">Nu. {(Number(i.price) * (draftQty[i.itemId] === '' ? 0 : Number(draftQty[i.itemId] ?? i.quantity))).toFixed(2)}</div>
+                          <div className="text-lg md:text-xl font-bold text-emerald-800 whitespace-nowrap tabular-nums">Nu. {(Number(i.price) * (draftQty[i.itemId] === '' ? 0 : Number(draftQty[i.itemId] ?? i.quantity))).toFixed(2)}</div>
                         </div>
                       </div>
                     </div>
@@ -332,12 +332,21 @@ export default function Cart(){
           ))}
         </div>
         <div className="lg:sticky lg:top-28 self-start">
-          <Card className="p-7 shadow-md ring-1 ring-slate-100">
+          <Card className="p-7 shadow-md ring-1 ring-slate-100 lg:max-h-[80vh] lg:overflow-auto">
             <div className="text-xl md:text-2xl font-semibold text-emerald-900">Order Summary</div>
             <div className="mt-4 space-y-3 text-base">
-              <div className="flex justify-between"><span className="text-slate-700">Subtotal</span><span className="text-lg font-semibold">Nu. {subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-700">Delivery</span><span className="text-lg font-semibold">Nu. {deliveryFee.toFixed(2)}</span></div>
-              <div className="border-t pt-3 flex justify-between"><span className="text-xl font-semibold">Total</span><span className="text-2xl font-bold text-emerald-800">Nu. {total.toFixed(2)}</span></div>
+              <div className="flex justify-between items-baseline" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <span className="text-slate-700">Subtotal</span>
+                <span className="text-lg font-semibold tabular-nums inline-block text-right w-28 md:w-32">Nu. {subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-baseline" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <span className="text-slate-700">Delivery</span>
+                <span className="text-lg font-semibold tabular-nums inline-block text-right w-28 md:w-32">Nu. {deliveryFee.toFixed(2)}</span>
+              </div>
+              <div className="border-t pt-3 flex justify-between items-baseline" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <span className="text-xl font-semibold">Total</span>
+                <span className="text-2xl font-bold text-emerald-800 tabular-nums inline-block text-right w-28 md:w-32">Nu. {total.toFixed(2)}</span>
+              </div>
             </div>
 
             <div className="mt-5">
@@ -364,7 +373,7 @@ export default function Cart(){
             </div>
 
             <div className="mt-7">
-              <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-lg">Checkout</Button>
+              <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-lg">Place Order</Button>
             </div>
           </Card>
         </div>

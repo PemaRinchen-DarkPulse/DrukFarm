@@ -83,6 +83,25 @@ export default function Features(){
     })
   }, [query, category, products])
 
+  const handleBuyNow = async (productId) => {
+    const cid = getCurrentCid()
+    if (!cid) {
+      navigate('/login', { state: { from: location, redirectTo: `/buy?pid=${productId}` }, replace: true })
+      return
+    }
+    try {
+      await api.addToCart({ productId, quantity: 1, cid })
+    } catch (e) {
+      // If already in cart (409), proceed; otherwise surface error
+      if (e?.status !== 409) {
+        const msg = e?.body?.error || e.message || 'Failed to start checkout'
+        show(msg, { variant: 'error' })
+        return
+      }
+    }
+    navigate(`/buy?pid=${productId}`)
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
@@ -128,7 +147,7 @@ export default function Features(){
                   <div className="mt-2 text-2xl font-bold text-emerald-800">Nu. {p.price} <span className="text-lg font-medium text-slate-500">/{p.unit}</span></div>
                   <div className="mt-3 flex gap-3">
                     <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
-                    <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2"><CreditCard className="w-4 h-4" /> Buy Now</Button>
+                    <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2" onClick={()=>handleBuyNow(p.id)}><CreditCard className="w-4 h-4" /> Buy Now</Button>
                   </div>
                 </div>
               </div>
