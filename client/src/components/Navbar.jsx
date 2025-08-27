@@ -70,25 +70,25 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-md border-b border-slate-100 dark:bg-slate-900/60 dark:border-slate-800">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex h-20 items-center justify-between">
+          <div className="flex items-center gap-4 -ml-4 sm:-ml-6 lg:-ml-15">
               <div className="flex items-center space-x-2">
-                <div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold">FD</div>
+                <div className="h-12 w-12 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold">FD</div>
                 <div>
-                  <Link to="/" className="text-lg font-semibold text-slate-900 dark:text-slate-100">DruKFarm</Link>
+                  <Link to="/" className="text-xl font-semibold text-slate-900 dark:text-slate-100">DruKFarm</Link>
                   <p className="text-xs text-slate-500">Farm to Table — Bhutan</p>
                 </div>
               </div>
           </div>
 
           <nav className="hidden md:flex items-center space-x-6">
-            <Link to="/" className="text-sm font-medium text-slate-700 hover:text-slate-900">Home</Link>
-            <Link to="/products" className="text-sm font-medium text-slate-700 hover:text-slate-900">Products</Link>
+            <Link to="/" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">Home</Link>
+            <Link to="/products" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">Products</Link>
             {user && (
               <div className="relative" ref={mgmtRef}>
                 <button
                   type="button"
-                  className="text-sm font-medium text-slate-700 hover:text-slate-900 inline-flex items-center gap-1"
+                  className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900 inline-flex items-center gap-1"
                   onClick={() => setMgmtOpen(o => !o)}
                 >
                   Management
@@ -105,18 +105,18 @@ export default function Navbar() {
                 )}
               </div>
             )}
-            <Link to="/how" className="text-sm font-medium text-slate-700 hover:text-slate-900">How It Works</Link>
-            <Link to="/about" className="text-sm font-medium text-slate-700 hover:text-slate-900">About Us</Link>
-            <Link to="/contact" className="text-sm font-medium text-slate-700 hover:text-slate-900">Contact</Link>
+            <Link to="/how" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">How It Works</Link>
+            <Link to="/about" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">About Us</Link>
+            <Link to="/contact" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">Contact</Link>
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 -mr-4 sm:-mr-6 lg:-mr-15">
             {/* Desktop auth buttons */}
             <div className="hidden md:flex items-center gap-2">
               <div className="relative inline-flex">
-                <Button variant="ghost" size="sm" className="px-2 py-1" onClick={()=>navigate('/cart')}><ShoppingCart className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="lg" className="mt-1" onClick={()=>navigate('/cart')}><ShoppingCart className="size-7" /></Button>
                 {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[10px] leading-[18px] text-center">{cartCount}</span>
+                  <span className="absolute -top-2 -right-2 min-w-[20px] h-[20px] px-1 rounded-full bg-emerald-600 text-white text-[11px] leading-[20px] text-center">{cartCount}</span>
                 )}
               </div>
               {!user ? (
@@ -131,12 +131,12 @@ export default function Navbar() {
               ) : (
                 <div className="relative" ref={menuRef}>
                   <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800">
-                    <div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-4 h-4" />}</div>
+                    <div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-base">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-5 h-5" />}</div>
                   </button>
           {menuOpen && (
                     <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-900 border rounded shadow-lg py-1 z-50">
                       <Link to="/profile" className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">My profile</Link>
-                      <button onClick={logout} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-4 h-4" /> Sign out</button>
+                      <button onClick={logout} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-5 h-5" /> Sign out</button>
                     </div>
                   )}
                 </div>
@@ -148,7 +148,7 @@ export default function Navbar() {
               className="md:hidden p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               onClick={() => setOpen(!open)}
             >
-              <svg className="w-6 h-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-7 h-7 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 {open ? (
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 ) : (
@@ -190,9 +190,9 @@ export default function Navbar() {
               <div className="pt-2 flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <div className="relative inline-flex">
-                    <Button variant="ghost" size="sm" className="px-2 py-1" onClick={()=>{ setOpen(false); navigate('/cart') }}><ShoppingCart className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="lg" className="px-3 py-2" onClick={()=>{ setOpen(false); navigate('/cart') }}><ShoppingCart className="size-9" /></Button>
                     {cartCount > 0 && (
-                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[10px] leading-[18px] text-center">{cartCount}</span>
+                      <span className="absolute -top-2 -right-2 min-w-[20px] h-[20px] px-1 rounded-full bg-emerald-600 text-white text-[11px] leading-[20px] text-center">{cartCount}</span>
                     )}
                   </div>
                 </div>
@@ -203,8 +203,8 @@ export default function Navbar() {
                   </>
                 ) : (
                   <div className="flex items-center justify-between">
-                    <Link to="/profile" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100"><div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-4 h-4" />}</div> <span className="text-sm">{user.name}</span></Link>
-                    <button onClick={logout} className="px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
+                    <Link to="/profile" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100"><div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-base">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-5 h-5" />}</div> <span className="text-sm">{user.name}</span></Link>
+                    <button onClick={logout} className="px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-5 h-5" /> Logout</button>
                   </div>
                 )}
               </div>

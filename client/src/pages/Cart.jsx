@@ -63,7 +63,14 @@ export default function Cart(){
     try { localStorage.setItem('cartMessage', sellerMessage || '') } catch {}
   }, [sellerMessage])
 
-  const subtotal = useMemo(() => items.reduce((s, i) => s + Number(i.price) * Number(i.quantity), 0), [items])
+  // Subtotal reflects live draft quantities for instant UI feedback
+  const subtotal = useMemo(() => {
+    return items.reduce((s, i) => {
+      const v = draftQty[i.itemId]
+      const q = v === '' ? 0 : Number(v ?? i.quantity)
+      return s + Number(i.price) * q
+    }, 0)
+  }, [items, draftQty])
   const deliveryFee = useMemo(() => delivery === 'pickup' ? 0 : (items.length ? 20 : 0), [delivery, items.length])
   const total = subtotal + deliveryFee
 
@@ -76,31 +83,41 @@ export default function Cart(){
   }
 
   const updateQty = async (itemId, qty) => {
-    // Guard invalids first
-    if (qty < 0) { show('Quantity cannot be negative', { variant: 'error' }); return }
+    // Normalize bad inputs
     if (!Number.isFinite(qty)) return
 
-    // Validate against stock
     const item = items.find(x => x.itemId === itemId)
-    const stock = Number(item?.stockQuantity)
-    if (stock > 0 && qty > stock) {
-      show(`Quantity can’t be more than stock (${stock})`, { variant: 'error' })
-      setDraftQty(s => ({ ...s, [itemId]: stock }))
-      try { await doUpdateCart(itemId, stock) } catch (e) {
+    const stock = Math.max(0, Number(item?.stockQuantity))
+
+    // Clamp and toast when out of bounds
+    if (qty < 1) {
+      show('Quantity cannot be less than 1', { variant: 'error' })
+      setDraftQty(s => ({ ...s, [itemId]: 1 }))
+      try { await doUpdateCart(itemId, 1) } catch (e) {
         const msg = e?.body?.error || 'Couldn’t update quantity'
-        show(msg, { variant: 'error' })
+    const lower = String(msg || '').toLowerCase()
+    if (!lower.includes('invalid quantity')) show(msg, { variant: 'error' })
       }
       return
     }
 
-    // Do not send empty/zero here (caller handles remove)
-    if (qty < 1) return
+    if (stock > 0 && qty > stock) {
+      show(`Quantity cannot exceed available stock (${stock}).`, { variant: 'error' })
+      setDraftQty(s => ({ ...s, [itemId]: stock }))
+      try { await doUpdateCart(itemId, stock) } catch (e) {
+        const msg = e?.body?.error || 'Couldn’t update quantity'
+    const lower = String(msg || '').toLowerCase()
+    if (!lower.includes('invalid quantity')) show(msg, { variant: 'error' })
+      }
+      return
+    }
 
     try {
       await doUpdateCart(itemId, qty)
     } catch (e) {
       const msg = e?.body?.error || 'Couldn’t update quantity'
-      show(msg, { variant: 'error' })
+  const lower = String(msg || '').toLowerCase()
+  if (!lower.includes('invalid quantity')) show(msg, { variant: 'error' })
     }
   }
 
@@ -236,18 +253,12 @@ export default function Cart(){
                         <div className="inline-flex items-center gap-1 h-10 px-1.5 py-0.5 rounded-full border border-emerald-500 bg-white shadow-sm text-sm focus-within:ring-2 focus-within:ring-emerald-200">
                           <button
                             aria-label="Decrease"
-                            className="w-8 h-8 rounded-full text-emerald-700 hover:bg-emerald-50"
+                            className={`w-8 h-8 rounded-full text-emerald-700 hover:bg-emerald-50 ${(draftQty[i.itemId] === '' ? 0 : Number(draftQty[i.itemId] ?? i.quantity)) <= 1 ? 'opacity-40 cursor-not-allowed hover:bg-transparent' : ''}`}
                             onClick={() => {
                               const curDraft = draftQty[i.itemId]
                               const current = curDraft === '' ? 0 : Number(curDraft ?? i.quantity)
+                              if (current <= 1) { show('Quantity cannot be less than 1', { variant: 'error' }); return }
                               const next = current - 1
-                              if (next < 0) { show('Quantity cannot be negative', { variant: 'error' }); return }
-                              if (next === 0) {
-                                setDraftQty(s => ({ ...s, [i.itemId]: 0 }))
-                                removeItem(i.itemId)
-                                show('Removed item from cart', { variant: 'destructive' })
-                                return
-                              }
                               setDraftQty(s => ({ ...s, [i.itemId]: next }))
                               updateQty(i.itemId, next)
                             }}
@@ -276,9 +287,17 @@ export default function Cart(){
                             onBlur={() => {
                               const v = draftQty[i.itemId]
                               const q = v === '' ? 0 : Number(v ?? i.quantity)
+                              const stock = Math.max(0, Number(i.stockQuantity))
                               if (q <= 0) {
-                                removeItem(i.itemId)
-                                show('Removed item from cart', { variant: 'destructive' })
+                                show('Quantity cannot be less than 1', { variant: 'error' })
+                                setDraftQty(s => ({ ...s, [i.itemId]: 1 }))
+                                updateQty(i.itemId, 1)
+                                return
+                              }
+                              if (stock > 0 && q > stock) {
+                                show(`Quantity cannot exceed available stock (${stock}).`, { variant: 'error' })
+                                setDraftQty(s => ({ ...s, [i.itemId]: stock }))
+                                updateQty(i.itemId, stock)
                                 return
                               }
                               if (q !== Number(i.quantity)) updateQty(i.itemId, q)
@@ -286,10 +305,12 @@ export default function Cart(){
                           />
                           <button
                             aria-label="Increase"
-                            className="w-8 h-8 rounded-full text-emerald-700 hover:bg-emerald-50"
+                            className={`w-8 h-8 rounded-full text-emerald-700 hover:bg-emerald-50 ${(() => { const cur = draftQty[i.itemId] === '' ? 0 : Number(draftQty[i.itemId] ?? i.quantity); const stock = Math.max(0, Number(i.stockQuantity)); return stock > 0 && cur >= stock ? 'opacity-40 cursor-not-allowed hover:bg-transparent' : '' })()}`}
                             onClick={() => {
                               const curDraft = draftQty[i.itemId]
                               const current = curDraft === '' ? 0 : Number(curDraft ?? i.quantity)
+                              const stock = Math.max(0, Number(i.stockQuantity))
+                              if (stock > 0 && current >= stock) { show(`Quantity cannot exceed available stock (${stock}).`, { variant: 'error' }); return }
                               const next = Math.min(999, current + 1)
                               setDraftQty(s => ({ ...s, [i.itemId]: next }))
                               updateQty(i.itemId, next)
