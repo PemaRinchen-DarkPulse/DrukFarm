@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { ShoppingCart, User, LogOut } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import api from '@/lib/api'
 import { getCurrentCid } from '@/lib/auth'
 
@@ -12,6 +12,7 @@ export default function Navbar() {
   const [mgmtOpen, setMgmtOpen] = useState(false)
   const [cartCount, setCartCount] = useState(0)
   const navigate = useNavigate()
+  const location = useLocation()
   const menuRef = useRef(null)
   const mgmtRef = useRef(null)
 
@@ -47,6 +48,12 @@ export default function Navbar() {
     document.addEventListener('click', onDoc)
     return () => document.removeEventListener('click', onDoc)
   }, [])
+
+  // Auto-close mobile menu and mgmt submenu on route change
+  useEffect(() => {
+    setOpen(false)
+    setMgmtOpen(false)
+  }, [location.pathname])
 
   function logout() {
     localStorage.removeItem('currentUser')
@@ -163,8 +170,8 @@ export default function Navbar() {
       {/* Mobile menu */}
           <div className={`md:hidden transition-all ${open ? 'max-h-96' : 'max-h-0 overflow-hidden'}`}>
             <div className="px-4 pb-4 space-y-2">
-              <Link to="/" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Home</Link>
-                <Link to="/products" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Products</Link>
+              <Link to="/" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Home</Link>
+                <Link to="/products" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Products</Link>
                 {user && (
                   <div className="bg-white rounded-md border">
                     <button onClick={() => setMgmtOpen(o=>!o)} className="w-full text-left px-3 py-2 text-slate-700 flex items-center justify-between">
@@ -182,9 +189,9 @@ export default function Navbar() {
                     )}
                   </div>
                 )}
-              <Link to="/how" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">How It Works</Link>
-              <Link to="/about" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">About Us</Link>
-              <Link to="/contact" className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Contact</Link>
+              <Link to="/how" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">How It Works</Link>
+              <Link to="/about" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">About Us</Link>
+              <Link to="/contact" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Contact</Link>
 
               {/* Mobile auth buttons */}
               <div className="pt-2 flex flex-col gap-2">
@@ -196,14 +203,14 @@ export default function Navbar() {
                     )}
                   </div>
                 </div>
-                {!user ? (
+        {!user ? (
                   <>
-                    <Button variant="outline" size="sm" asChild><Link to="/login">Login</Link></Button>
-                    <Button size="sm" asChild><Link to="/register">Register</Link></Button>
+          <Button variant="outline" size="sm" asChild><Link to="/login" onClick={()=>setOpen(false)}>Login</Link></Button>
+          <Button size="sm" asChild><Link to="/register" onClick={()=>setOpen(false)}>Register</Link></Button>
                   </>
                 ) : (
                   <div className="flex items-center justify-between">
-                    <Link to="/profile" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100"><div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-base">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-5 h-5" />}</div> <span className="text-sm">{user.name}</span></Link>
+          <Link to="/profile" onClick={()=>setOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100"><div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-base">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-5 h-5" />}</div> <span className="text-sm">{user.name}</span></Link>
                     <button onClick={logout} className="px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-5 h-5" /> Logout</button>
                   </div>
                 )}

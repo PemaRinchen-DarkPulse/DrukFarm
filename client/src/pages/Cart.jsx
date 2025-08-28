@@ -44,24 +44,21 @@ export default function Cart(){
 
   useEffect(() => { load() }, [])
 
+  // Reset seller message on unmount and ensure no stale storage remains
+  useEffect(() => {
+    return () => {
+      setSellerMessage('')
+      try { localStorage.removeItem('cartMessage') } catch {}
+    }
+  }, [])
+
   // Keep a local editable copy of quantities
   useEffect(() => {
     if (!items?.length) { setDraftQty({}); return }
     setDraftQty(Object.fromEntries(items.map(i => [i.itemId, Math.max(1, Number(i.quantity) || 1)])))
   }, [items])
 
-  // Restore any saved message so users don't lose their note
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('cartMessage')
-      if (saved) setSellerMessage(saved)
-    } catch {}
-  }, [])
-
-  // Auto-save message to localStorage on change
-  useEffect(() => {
-    try { localStorage.setItem('cartMessage', sellerMessage || '') } catch {}
-  }, [sellerMessage])
+  // Message is ephemeral; no persistence
 
   // Subtotal reflects live draft quantities for instant UI feedback
   const subtotal = useMemo(() => {
@@ -129,6 +126,22 @@ export default function Cart(){
       try { window.dispatchEvent(new Event('cartChanged')) } catch(e) {}
     } catch (e) {
       show('Failed to remove item', { variant: 'error' })
+    }
+  }
+
+  const placeOrder = async () => {
+    try {
+      const cid = getCurrentCid()
+      if (!cid) { navigate('/login', { replace: true }); return }
+      const resp = await api.cartCheckout({ cid })
+  const orders = resp?.orders || []
+  show(`Order placed (${orders.length} item${orders.length===1?'':'s'})`)
+  // Clear client-side cart view and broadcast
+  setItems([])
+  try { window.dispatchEvent(new Event('cartChanged')) } catch {}
+    } catch (e) {
+      const msg = e?.body?.error || 'Failed to place order'
+      show(msg, { variant: 'error' })
     }
   }
 
@@ -373,12 +386,13 @@ export default function Cart(){
             </div>
 
             <div className="mt-7">
-              <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-lg">Place Order</Button>
+              <Button onClick={placeOrder} className="w-full bg-emerald-700 hover:bg-emerald-600 text-lg">Place Order</Button>
             </div>
           </Card>
         </div>
         </div>
       </div>
+  {/* QR codes are saved server-side but not shown */}
     </div>
   )
 }

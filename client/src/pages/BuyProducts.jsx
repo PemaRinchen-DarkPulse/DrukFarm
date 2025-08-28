@@ -24,6 +24,7 @@ export default function BuyProducts(){
   const [delivery, setDelivery] = useState('delivery')
   const [sellerMessage, setSellerMessage] = useState('')
   const [draftQty, setDraftQty] = useState({}) // itemId -> number
+  // No QR modal; orders are created silently
   const { show } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
@@ -52,24 +53,21 @@ export default function BuyProducts(){
 
   useEffect(() => { load() }, [pid])
 
+  // Clear saved seller message when leaving this page
+  useEffect(() => {
+    return () => {
+  setSellerMessage('')
+  try { localStorage.removeItem('cartMessage') } catch {}
+    }
+  }, [])
+
   // Keep a local editable copy of quantities
   useEffect(() => {
     if (!items?.length) { setDraftQty({}); return }
     setDraftQty(Object.fromEntries(items.map(i => [i.itemId, Math.max(1, Number(i.quantity) || 1)])))
   }, [items])
 
-  // Restore any saved message so users don't lose their note
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('cartMessage')
-      if (saved) setSellerMessage(saved)
-    } catch {}
-  }, [])
-
-  // Auto-save message to localStorage on change
-  useEffect(() => {
-    try { localStorage.setItem('cartMessage', sellerMessage || '') } catch {}
-  }, [sellerMessage])
+  // Message is ephemeral; no persistence
 
   // Subtotal reflects live draft quantities for instant UI feedback
   const subtotal = useMemo(() => {
@@ -137,6 +135,32 @@ export default function BuyProducts(){
       try { window.dispatchEvent(new Event('cartChanged')) } catch(e) {}
     } catch (e) {
       show('Failed to remove item', { variant: 'error' })
+    }
+  }
+
+  const placeOrder = async () => {
+    try {
+      const cid = getCurrentCid()
+      if (!cid) { const redirectTo = pid ? `/buy?pid=${pid}` : '/buy'; navigate('/login', { state: { redirectTo }, replace: true }); return }
+      // Expect only one item here when pid is used; use first
+      const item = items[0]
+      if (!item) { show('No product selected', { variant: 'error' }); return }
+      const quantity = draftQty[item.itemId] === '' ? 0 : Number(draftQty[item.itemId] ?? item.quantity)
+      if (!(quantity >= 1)) { show('Quantity must be at least 1', { variant: 'error' }); return }
+  // Prefer the productId from the cart item (always a valid ObjectId), fallback to pid
+  let productId = item.productId || pid
+  // Basic 24-hex check; if invalid and pid looks better, use pid
+  const isHex24 = v => typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v)
+  if (!isHex24(productId) && isHex24(pid)) productId = pid
+  await api.buyProduct({ productId, quantity, cid })
+  // Clear saved message so it doesn't persist across pages
+  try { localStorage.removeItem('cartMessage') } catch {}
+  show('Order placed')
+  // Redirect to products page
+  navigate('/products', { replace: true })
+    } catch (e) {
+      const msg = e?.body?.error || 'Failed to place order'
+      show(msg, { variant: 'error' })
     }
   }
 
@@ -368,12 +392,13 @@ export default function BuyProducts(){
               </div>
 
               <div className="mt-7">
-                <Button className="w-full bg-emerald-700 hover:bg-emerald-600 text-lg">Place Order</Button>
+                <Button onClick={placeOrder} className="w-full bg-emerald-700 hover:bg-emerald-600 text-lg">Place Order</Button>
               </div>
             </Card>
           </div>
         </div>
       </div>
+  {/* QR code saved server-side; not displayed here */}
     </div>
   )
 }

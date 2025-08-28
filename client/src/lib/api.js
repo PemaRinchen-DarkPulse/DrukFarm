@@ -113,8 +113,21 @@ export async function removeCartItem({ itemId, cid }){
   return request(`/cart/${itemId}`, { method: 'DELETE', headers })
 }
 
+export async function buyProduct({ productId, quantity = 1, cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  const path = `/orders/buy?pid=${encodeURIComponent(String(productId || ''))}`
+  return request(path, { method: 'POST', headers, body: JSON.stringify({ productId, quantity }) })
+}
+
+export async function cartCheckout({ cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request('/orders/cart-checkout', { method: 'POST', headers })
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
-  addToCart, getCart, updateCartItem, removeCartItem
+  addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout
 }
