@@ -18,7 +18,7 @@ function isStrongPassword(pw) {
 // POST /api/users/register
 router.post('/register', async (req, res) => {
 	try {
-	let { cid, name, password, role, location, phoneNumber } = req.body || {}
+	let { cid, name, password, role, location, phoneNumber, roleDesc } = req.body || {}
 	cid = typeof cid === 'string' ? cid.trim().replace(/\D/g, '') : cid
 	name = typeof name === 'string' ? name.trim() : name
 	location = typeof location === 'string' ? location.trim() : ''
@@ -37,8 +37,18 @@ router.post('/register', async (req, res) => {
 		if (!name || typeof name !== 'string' || !name.trim()) {
 			return res.status(400).json({ error: 'Name is required' })
 		}
-		const validRoles = ['consumer', 'farmer', 'restaurant']
+		const validRoles = ['consumer', 'farmer', 'transporter']
+		// Map legacy roles to the new one for backward-compatibility
+		if (role === 'restaurant' || role === 'transported') role = 'transporter'
 		const userRole = validRoles.includes(role) ? role : 'consumer'
+
+		// If roleDesc is missing, compute a default on the server
+		const roleDescMap = {
+			consumer: 'Buy fresh produce',
+			farmer: 'Sell my crops',
+			transporter: 'Provide transport/logistics',
+		}
+		const finalRoleDesc = (typeof roleDesc === 'string' && roleDesc.trim()) ? roleDesc.trim() : roleDescMap[userRole]
 
 		// Check duplicate
 		const exists = await User.findOne({ cid })
@@ -55,6 +65,7 @@ router.post('/register', async (req, res) => {
 			name: name.trim(),
 			password: hash,
 			role: userRole,
+			roleDesc: finalRoleDesc || '',
 			location: location || '',
 			phoneNumber,
 		})

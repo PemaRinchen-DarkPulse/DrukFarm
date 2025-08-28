@@ -1,6 +1,7 @@
 const mongoose = require('mongoose')
 
-const roles = ['consumer', 'farmer', 'restaurant']
+// Include 'transporter' role; keep 'restaurant' and legacy 'transported' for backward-compatibility
+const roles = ['consumer', 'farmer', 'transporter', 'transported', 'restaurant']
 
 const UserSchema = new mongoose.Schema(
 	{
@@ -26,6 +27,7 @@ const UserSchema = new mongoose.Schema(
 				message: 'Phone number must be exactly 8 digits',
 			},
 		},
+		roleDesc: { type: String, default: '', trim: true },
 	},
 	{ timestamps: true }
 )

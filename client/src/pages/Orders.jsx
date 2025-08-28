@@ -1,20 +1,46 @@
-import React, { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Box } from "lucide-react" // cube icon
-import api from "@/lib/api"
+import React, { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Box, User, MapPin, Clock } from 'lucide-react'
+import api from '@/lib/api'
+import { getCurrentCid } from '@/lib/auth'
 
 export default function Orders() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(false)
+  const [isFarmer, setIsFarmer] = useState(false)
 
   useEffect(() => {
     let mounted = true
     setLoading(true)
-    api
-      .fetchOrders?.()
-      .then((list) => {
+    // Determine role from storage (same quick heuristic used in Management)
+    const guessRole = () => {
+      try {
+        const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser')
+        if (raw) {
+          const obj = JSON.parse(raw)
+          if (obj?.role) return String(obj.role)
+        }
+      } catch {}
+      const keys = ['role', 'user', 'authUser']
+      for (const k of keys) {
+        try {
+          const v = localStorage.getItem(k) || sessionStorage.getItem(k)
+          if (typeof v === 'string' && v.toLowerCase().includes('farmer')) return 'farmer'
+          try { const o = JSON.parse(v); if (JSON.stringify(o).toLowerCase().includes('farmer')) return 'farmer'; if (o?.role) return o.role } catch {}
+        } catch {}
+      }
+      return 'consumer'
+    }
+    const role = guessRole()
+    setIsFarmer(role === 'farmer')
+
+  const cid = getCurrentCid()
+  const fetcher = role === 'farmer' ? api.fetchSellerOrders({ cid }) : api.fetchMyOrders({ cid })
+    Promise.resolve(fetcher)
+      .then((resp) => {
         if (!mounted) return
-        setOrders(list || [])
+        const list = role === 'farmer' ? (resp?.orders || []) : (resp || [])
+        setOrders(list)
       })
       .catch((e) => console.error(e))
       .finally(() => setLoading(false))
@@ -23,6 +49,25 @@ export default function Orders() {
       mounted = false
     }
   }, [])
+
+  const formatNu = (n) => `Nu. ${Number(n || 0).toFixed(0)}`
+
+  const contactInfo = (o) => {
+    // For farmer view, contact customer; for consumer view, contact farmer
+    if (isFarmer) return o.buyer?.phoneNumber || ''
+    return o.seller?.phoneNumber || ''
+  }
+
+  const onCancel = async (o) => {
+    try {
+      const cid = getCurrentCid()
+      await api.cancelMyOrder({ orderId: o.orderId, cid })
+      setOrders(s => s.map(x => x.orderId === o.orderId ? { ...x, status: 'cancelled' } : x))
+    } catch (e) {
+      console.error(e)
+      // optionally surface a toast if you have one available
+    }
+  }
 
   return (
     <section className="orders">
@@ -46,7 +91,7 @@ export default function Orders() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="orders-header">
-          <h2 className="orders-title">My Orders</h2>
+          <h2 className="orders-title">{isFarmer ? 'Customer Orders' : 'My Orders'}</h2>
         </div>
 
         {/* Empty State */}
@@ -57,24 +102,55 @@ export default function Orders() {
               No orders yet
             </h3>
             <p className="text-gray-500 mb-6">
-              Orders from customers will appear here once they start purchasing
-              your products.
+              {isFarmer ? 'Orders for your products will appear here.' : 'Your purchases will appear here.'}
             </p>
           </div>
         ) : (
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Later you can map over orders here */}
-            {orders.map((order) => (
-              <div
-                key={order.id}
-                className="p-6 bg-white rounded-xl shadow-sm border"
-              >
-                <h4 className="font-semibold text-gray-800">
-                  Order #{order.id}
-                </h4>
-                <p className="text-sm text-gray-500">
-                  {order.items?.length} items • {order.status}
-                </p>
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+            {orders.map((o) => (
+              <div key={o.orderId} className="bg-white rounded-xl border shadow-sm">
+                <div className="p-5 flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="text-sm text-emerald-700 font-semibold">Order #{o.orderId.slice(-6).toUpperCase()}</div>
+                    <div className="flex items-center gap-3 text-gray-700">
+                      <span className="inline-flex items-center gap-1 text-sm"><User className="w-4 h-4" /> {o.buyer?.name || '—'} ({o.buyer?.cid || ''})</span>
+                      <span className="inline-flex items-center gap-1 text-sm text-gray-500"><MapPin className="w-4 h-4" /> {o.buyer?.location || '—'}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1 text-xs text-gray-500"><Clock className="w-3.5 h-3.5" /> {new Date(o.createdAt).toLocaleDateString()}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-emerald-700 text-2xl font-bold">{formatNu(o.totalPrice)}</div>
+                    <div className="text-xs text-gray-500">{o.quantity} item(s)</div>
+                  </div>
+                </div>
+                <div className="border-t px-5 py-3">
+                  <div className="text-sm font-semibold text-gray-800 mb-2">Order Items:</div>
+                  <div className="rounded-md bg-gray-50 divide-y">
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <div className="text-gray-800">{o.product?.name}</div>
+                      <div className="text-gray-600 text-sm">{o.quantity} {o.product?.unit} × Nu. {o.product?.price} = {formatNu(o.totalPrice)}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between px-5 py-3 border-t">
+                  <div className="text-sm inline-flex items-center gap-1 text-gray-600"><Clock className="w-4 h-4" /> Status: {o.status || 'pending'}</div>
+                  {isFarmer ? (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline">Accept Order</Button>
+                      <Button size="sm" className="bg-red-500 hover:bg-red-600 text-white">Decline</Button>
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={contactInfo(o) ? `tel:${contactInfo(o)}` : '#'}>Contact Customer</a>
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={contactInfo(o) ? `tel:${contactInfo(o)}` : '#'}>Contact Farmer</a>
+                      </Button>
+                      <Button size="sm" className="bg-red-500 hover:bg-red-600 text-white" disabled={o.status !== 'pending'} onClick={() => onCancel(o)}>Cancel</Button>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

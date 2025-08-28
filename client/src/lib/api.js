@@ -126,8 +126,27 @@ export async function cartCheckout({ cid }){
   return request('/orders/cart-checkout', { method: 'POST', headers })
 }
 
+export async function fetchSellerOrders({ cid } = {}){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request('/orders/seller', { headers })
+}
+
+export async function fetchMyOrders({ cid } = {}){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  const resp = await request('/orders/my', { headers })
+  return resp?.orders || []
+}
+
+export async function cancelMyOrder({ orderId, cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request(`/orders/${orderId}/cancel`, { method: 'PATCH', headers })
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
-  addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout
+  addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder
 }

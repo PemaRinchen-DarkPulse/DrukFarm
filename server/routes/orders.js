@@ -175,3 +175,86 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 
 module.exports = router
 
+// GET /api/orders/seller -> Orders for products created by the current seller (by CID)
+router.get('/seller', authCid, async (req, res) => {
+	try {
+		const sellerCid = req.user.cid
+		const docs = await Order.find({ 'product.sellerCid': sellerCid }).sort({ createdAt: -1 })
+		const mapped = docs.map(o => ({
+			orderId: String(o._id),
+			status: o.status,
+			createdAt: o.createdAt,
+			totalPrice: o.totalPrice,
+			quantity: o.quantity,
+			product: {
+				productId: String(o.product.productId),
+				name: o.product.productName,
+				unit: o.product.unit,
+				price: o.product.price,
+			},
+			buyer: {
+				cid: o.userSnapshot?.cid,
+				name: o.userSnapshot?.name,
+				location: o.userSnapshot?.location,
+				phoneNumber: o.userSnapshot?.phoneNumber,
+			},
+		}))
+		res.json({ success: true, orders: mapped })
+	} catch (err) {
+		console.error('Fetch seller orders error:', err)
+		res.status(500).json({ error: 'Failed to fetch orders' })
+	}
+})
+
+// GET /api/orders/my -> Orders placed by the current consumer (buyer)
+router.get('/my', authCid, async (req, res) => {
+	try {
+		const userCid = req.user.cid
+		const docs = await Order.find({ userCid }).sort({ createdAt: -1 })
+		// collect seller CIDs to enrich seller info
+		const sellerCids = [...new Set(docs.map(d => d?.product?.sellerCid).filter(Boolean))]
+		const sellers = sellerCids.length ? await User.find({ cid: { $in: sellerCids } }).select('cid name location phoneNumber') : []
+		const sMap = new Map(sellers.map(s => [s.cid, s]))
+		const mapped = docs.map(o => ({
+			orderId: String(o._id),
+			status: o.status,
+			createdAt: o.createdAt,
+			totalPrice: o.totalPrice,
+			quantity: o.quantity,
+			product: {
+				productId: String(o.product.productId),
+				name: o.product.productName,
+				unit: o.product.unit,
+				price: o.product.price,
+			},
+			seller: (() => {
+				const s = sMap.get(o.product?.sellerCid)
+				return s ? { cid: s.cid, name: s.name, location: s.location, phoneNumber: s.phoneNumber } : { cid: o.product?.sellerCid || '' }
+			})(),
+		}))
+		res.json({ success: true, orders: mapped })
+	} catch (err) {
+		console.error('Fetch my orders error:', err)
+		res.status(500).json({ error: 'Failed to fetch orders' })
+	}
+})
+
+// PATCH /api/orders/:orderId/cancel -> Buyer cancels a pending order they own
+router.patch('/:orderId/cancel', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params
+		if (!mongoose.Types.ObjectId.isValid(String(orderId))) return res.status(400).json({ error: 'Invalid order id' })
+		const userCid = req.user.cid
+		const order = await Order.findById(orderId)
+		if (!order) return res.status(404).json({ error: 'Order not found' })
+		if (String(order.userCid) !== String(userCid)) return res.status(403).json({ error: 'Forbidden' })
+		if (order.status !== 'pending') return res.status(409).json({ error: 'Only pending orders can be cancelled' })
+		order.status = 'cancelled'
+		await order.save()
+		res.json({ success: true, order: { orderId: String(order._id), status: order.status } })
+	} catch (err) {
+		console.error('Cancel order error:', err)
+		res.status(500).json({ error: 'Failed to cancel order' })
+	}
+})
+

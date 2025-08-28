@@ -12,7 +12,7 @@ const categories = [
 
 export default function ShopByCategory(){
   return (
-    <section id="categories" className="py-16 bg-[url('/public/')] bg-transparent">
+  <section id="categories" className="py-16 bg-[url('/')] bg-transparent">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-emerald-800">Shop by Category</h2>
