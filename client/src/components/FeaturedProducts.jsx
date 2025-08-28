@@ -31,7 +31,7 @@ export default function FeaturedProducts(){
         const top3 = [...list]
           .sort((a, b) => (b.rating || 0) - (a.rating || 0))
           .slice(0, 3)
-          .map(p => {
+      .map(p => {
             const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
             return {
               id: p.productId,
@@ -39,10 +39,11 @@ export default function FeaturedProducts(){
               desc: p.description,
               price: p.price,
               unit: p.unit,
+              stock: p.stockQuantity,
               rating: p.rating || 0,
               reviews: p.reviews || 0,
               tags: [],
-              location: p.categoryName || '',
+        locationLabel: p.sellerLocationLabel || '',
               image: p.productImageBase64 && mime ? `data:${mime};base64,${p.productImageBase64}` : null
             }
           })
@@ -73,15 +74,7 @@ export default function FeaturedProducts(){
       navigate('/login', { state: { from: location, redirectTo: `/buy?pid=${productId}` }, replace: true })
       return
     }
-    try {
-      await api.addToCart({ productId, quantity: 1, cid })
-    } catch (e) {
-      if (e?.status !== 409) {
-        const msg = e?.body?.error || e.message || 'Failed to start checkout'
-        show(msg, { variant: 'error' })
-        return
-      }
-    }
+    // Directly navigate to buy page; do not add to cart
     navigate(`/buy?pid=${productId}`)
   }
   return (

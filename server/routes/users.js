@@ -18,10 +18,11 @@ function isStrongPassword(pw) {
 // POST /api/users/register
 router.post('/register', async (req, res) => {
 	try {
-	let { cid, name, password, role, location, phoneNumber, roleDesc } = req.body || {}
+	let { cid, name, password, role, location, dzongkhag, phoneNumber, roleDesc } = req.body || {}
 	cid = typeof cid === 'string' ? cid.trim().replace(/\D/g, '') : cid
 	name = typeof name === 'string' ? name.trim() : name
 	location = typeof location === 'string' ? location.trim() : ''
+	dzongkhag = typeof dzongkhag === 'string' ? dzongkhag.trim() : ''
 	phoneNumber = typeof phoneNumber === 'string' ? phoneNumber.trim() : phoneNumber
 
 		// Basic validations
@@ -38,6 +39,12 @@ router.post('/register', async (req, res) => {
 			return res.status(400).json({ error: 'Name is required' })
 		}
 		const validRoles = ['consumer', 'farmer', 'transporter']
+		const validDzongkhags = new Set([
+			'Bumthang','Chhukha','Dagana','Gasa','Haa','Lhuentse','Mongar','Paro','Pemagatshel','Punakha','Samdrup Jongkhar','Samtse','Sarpang','Thimphu','Trashigang','Trashiyangtse','Trongsa','Tsirang','Wangdue Phodrang','Zhemgang'
+		])
+		if (dzongkhag && !validDzongkhags.has(dzongkhag)) {
+			return res.status(400).json({ error: 'Invalid Dzongkhag' })
+		}
 		// Map legacy roles to the new one for backward-compatibility
 		if (role === 'restaurant' || role === 'transported') role = 'transporter'
 		const userRole = validRoles.includes(role) ? role : 'consumer'
@@ -67,6 +74,7 @@ router.post('/register', async (req, res) => {
 			role: userRole,
 			roleDesc: finalRoleDesc || '',
 			location: location || '',
+			dzongkhag: dzongkhag || '',
 			phoneNumber,
 		})
 

@@ -173,6 +173,87 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 	}
 })
 
+// GET /api/orders/transport-search
+// Query params:
+//   from: seller Dzongkhag (exact match)
+//   to: one or more consumer Dzongkhags (comma-separated or repeated)
+// Auth: requires a valid CID (transporter or any authenticated user)
+router.get('/transport-search', authCid, async (req, res) => {
+	try {
+		const from = String(req.query.from || '').trim()
+		// normalize 'to' into an array of strings
+		const rawTo = req.query.to
+		let toList = []
+		if (Array.isArray(rawTo)) {
+			toList = rawTo.flatMap(v => String(v || '')
+				.split(',')
+				.map(s => s.trim())
+				.filter(Boolean))
+		} else if (typeof rawTo === 'string') {
+			toList = rawTo.split(',').map(s => s.trim()).filter(Boolean)
+		}
+
+		if (!from || toList.length === 0) {
+			return res.status(400).json({ error: 'Missing from or to dzongkhag(s)' })
+		}
+
+		// Only consider orders that could require transport (pending or paid)
+		const candidateOrders = await Order.find({ status: { $in: ['pending', 'paid'] } }).sort({ createdAt: -1 })
+
+		// Build maps of seller and buyer users to access dzongkhag and contact info
+		const sellerCids = [...new Set(candidateOrders.map(o => o?.product?.sellerCid).filter(Boolean))]
+		const buyerCids = [...new Set(candidateOrders.map(o => o?.userSnapshot?.cid).filter(Boolean))]
+
+		const users = await User.find({ cid: { $in: [...new Set([...sellerCids, ...buyerCids])] } })
+			.select('cid name phoneNumber location dzongkhag')
+
+		const uMap = new Map(users.map(u => [u.cid, u]))
+
+		const filtered = []
+		for (const o of candidateOrders) {
+			const s = uMap.get(o?.product?.sellerCid)
+			const b = uMap.get(o?.userSnapshot?.cid)
+			const sellerDz = s?.dzongkhag || ''
+			const buyerDz = b?.dzongkhag || ''
+			if (sellerDz === from && toList.includes(buyerDz)) {
+				filtered.push({
+					orderId: String(o._id),
+					createdAt: o.createdAt,
+					status: o.status,
+					quantity: o.quantity,
+					totalPrice: o.totalPrice,
+					product: {
+						productId: String(o.product?.productId || ''),
+						name: o.product?.productName || '',
+						unit: o.product?.unit || '',
+						price: o.product?.price || 0,
+						imageBase64: o.product?.productImageBase64 || '',
+					},
+					seller: s ? {
+						cid: s.cid,
+						name: s.name,
+						phoneNumber: s.phoneNumber,
+						location: s.location,
+						dzongkhag: s.dzongkhag,
+					} : { cid: o.product?.sellerCid || '' },
+					buyer: b ? {
+						cid: b.cid,
+						name: b.name,
+						phoneNumber: b.phoneNumber,
+						location: b.location,
+						dzongkhag: b.dzongkhag,
+					} : { cid: o.userSnapshot?.cid || '' },
+				})
+			}
+		}
+
+		res.json({ success: true, count: filtered.length, orders: filtered })
+	} catch (err) {
+		console.error('Transport search error:', err)
+		res.status(500).json({ error: 'Failed to search orders' })
+	}
+})
+
 module.exports = router
 
 // GET /api/orders/seller -> Orders for products created by the current seller (by CID)
@@ -239,7 +320,6 @@ router.get('/my', authCid, async (req, res) => {
 	}
 })
 
-// PATCH /api/orders/:orderId/cancel -> Buyer cancels a pending order they own
 router.patch('/:orderId/cancel', authCid, async (req, res) => {
 	try {
 		const { orderId } = req.params

@@ -37,14 +37,18 @@ export default function Features(){
         }
         setProducts(visible.map(p => {
           const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
+          const vg = (p.sellerLocationVillageGewog || '').trim()
+          const dz = (p.sellerDzongkhag || '').trim()
+          const loc = (vg && dz) ? `${vg}, ${dz}` : (p.sellerLocationLabel || vg || dz || '')
           return {
             id: p.productId,
             title: p.productName,
             desc: p.description,
             price: p.price,
             unit: p.unit,
+            stock: p.stockQuantity,
             tags: [],
-            location: p.categoryName || '' ,
+            location: loc,
             image: p.productImageBase64 && mime ? `data:${mime};base64,${p.productImageBase64}` : null
           }
         }))
@@ -89,16 +93,7 @@ export default function Features(){
       navigate('/login', { state: { from: location, redirectTo: `/buy?pid=${productId}` }, replace: true })
       return
     }
-    try {
-      await api.addToCart({ productId, quantity: 1, cid })
-    } catch (e) {
-      // If already in cart (409), proceed; otherwise surface error
-      if (e?.status !== 409) {
-        const msg = e?.body?.error || e.message || 'Failed to start checkout'
-        show(msg, { variant: 'error' })
-        return
-      }
-    }
+    // Directly navigate to buy page; do not add to cart
     navigate(`/buy?pid=${productId}`)
   }
 
@@ -144,7 +139,10 @@ export default function Features(){
                 </div>
 
                 <div className="mt-3">
-                  <div className="mt-2 text-2xl font-bold text-emerald-800">Nu. {p.price} <span className="text-lg font-medium text-slate-500">/{p.unit}</span></div>
+                  <div className="mt-2 flex items-baseline justify-between gap-2">
+                    <div className="text-2xl font-bold text-emerald-800">Nu. {p.price} <span className="text-lg font-medium text-slate-500">/{p.unit}</span></div>
+                    <div className="text-sm font-medium text-slate-600">Stock: {p?.stock ?? 0} {p.unit}</div>
+                  </div>
                   <div className="mt-3 flex gap-3">
                     <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
                     <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2" onClick={()=>handleBuyNow(p.id)}><CreditCard className="w-4 h-4" /> Buy Now</Button>

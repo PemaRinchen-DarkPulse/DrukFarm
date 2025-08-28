@@ -145,8 +145,26 @@ export async function cancelMyOrder({ orderId, cid }){
   return request(`/orders/${orderId}/cancel`, { method: 'PATCH', headers })
 }
 
+export async function searchTransportOrders({ from, to = [], cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  const usp = new URLSearchParams()
+  if (from) usp.set('from', from)
+  if (Array.isArray(to)) {
+    // send as comma-separated
+    if (to.length) usp.set('to', to.join(','))
+  } else if (typeof to === 'string' && to.trim()) {
+    usp.set('to', to)
+  }
+  const q = usp.toString()
+  const path = `/orders/transport-search${q ? `?${q}` : ''}`
+  const resp = await request(path, { headers })
+  return resp?.orders || []
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
-  addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder
+  addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder,
+  searchTransportOrders,
 }

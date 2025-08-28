@@ -19,6 +19,7 @@ const UserSchema = new mongoose.Schema(
 		password: { type: String, required: true }, // hashed
 		role: { type: String, enum: roles, required: true, default: 'consumer' },
 		location: { type: String, default: '', trim: true },
+		dzongkhag: { type: String, default: '', trim: true },
 		phoneNumber: {
 			type: String,
 			required: true,

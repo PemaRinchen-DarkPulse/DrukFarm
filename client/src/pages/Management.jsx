@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import MyProducts from './MyProducts'
 import Orders from './Orders'
@@ -6,8 +6,164 @@ import Profile from './Profile'
 import AddProductModal from '@/components/AddProductModal'
 import api from '@/lib/api'
 import { useToast } from '@/components/ui/toast'
+import Input from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+
+// Reusable multi-select dropdown (checkbox menu) for a better UX than native multi-select box
+function MultiSelect({ label, id, options = [], values = [], onChange, placeholder = 'Select…' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  const toggle = () => setOpen(v => !v)
+  const close = () => setOpen(false)
+  const isSelected = (v) => values.includes(v)
+  const toggleValue = (v) => {
+    if (!onChange) return
+    const set = new Set(values)
+    if (set.has(v)) { set.delete(v) } else { set.add(v) }
+    onChange(Array.from(set))
+  }
+
+  // Close on outside click / escape
+  useEffect(() => {
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) close() }
+    const onKey = (e) => { if (e.key === 'Escape') close() }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [])
+
+  const display = values.length ? values.join(', ') : placeholder
+
+  return (
+    <label className="relative block" ref={ref}>
+      {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
+      <button
+        id={id}
+        type="button"
+        onClick={toggle}
+        className="mt-1 w-full rounded-md border px-3 py-2 bg-white border-slate-200 text-left focus:outline-none focus:ring-2 focus:ring-emerald-300 transition relative"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className={`block ${values.length ? 'text-slate-900' : 'text-slate-400'}`}>{display}</span>
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-multiselectable="true"
+          className="absolute z-50 mt-1 w-[min(40rem,100%)] max-h-64 overflow-auto rounded-md border bg-white shadow-lg"
+        >
+          {options.map(opt => (
+            <label key={opt} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-emerald-50 cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-emerald-600"
+                checked={isSelected(opt)}
+                onChange={() => toggleValue(opt)}
+              />
+              <span className="text-slate-800">{opt}</span>
+            </label>
+          ))}
+          {options.length === 0 && (
+            <div className="px-3 py-2 text-sm text-slate-500">No options</div>
+          )}
+        </div>
+      )}
+    </label>
+  )
+}
+
+// Reusable single-select dropdown styled like MultiSelect
+function SingleSelect({ label, id, options = [], value = '', onChange, placeholder = 'Select…' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  const toggle = () => setOpen(v => !v)
+  const close = () => setOpen(false)
+
+  useEffect(() => {
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) close() }
+    const onKey = (e) => { if (e.key === 'Escape') close() }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [])
+
+  const display = value ? value : placeholder
+
+  return (
+    <label className="relative block" ref={ref}>
+      {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
+      <button
+        id={id}
+        type="button"
+        onClick={toggle}
+        className="mt-1 w-full rounded-md border px-3 py-2 bg-white border-slate-200 text-left focus:outline-none focus:ring-2 focus:ring-emerald-300 transition relative"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className={`block ${value ? 'text-slate-900' : 'text-slate-400'}`}>{display}</span>
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          className="absolute z-50 mt-1 w-[min(40rem,100%)] max-h-64 overflow-auto rounded-md border bg-white shadow-lg"
+        >
+          {options.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              role="option"
+              aria-selected={opt === value}
+              onClick={() => { onChange && onChange(opt); close() }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 flex items-center justify-between ${opt === value ? 'bg-emerald-50' : ''}`}
+            >
+              <span className="text-slate-800">{opt}</span>
+              {opt === value && <span className="text-emerald-600">✓</span>}
+            </button>
+          ))}
+          {options.length === 0 && (
+            <div className="px-3 py-2 text-sm text-slate-500">No options</div>
+          )}
+        </div>
+      )}
+    </label>
+  )
+}
 
 const Management = () => {
+  // Dzongkhag options for transporter routes
+  const DZONGKHAGS = [
+    'Bumthang',
+    'Chhukha',
+    'Dagana',
+    'Gasa',
+    'Haa',
+    'Lhuentse',
+    'Mongar',
+    'Paro',
+    'Pemagatshel',
+    'Punakha',
+    'Samdrup Jongkhar',
+    'Samtse',
+    'Sarpang',
+    'Thimphu',
+    'Trashigang',
+    'Trashiyangtse',
+    'Trongsa',
+    'Tsirang',
+    'Wangdue Phodrang',
+    'Zhemgang',
+  ]
   // Determine role: check currentUser in storage and fallbacks
   const getRole = () => {
     const containsFarmer = (value) => {
@@ -69,6 +225,7 @@ const Management = () => {
   }
   const role = getRole()
   const isFarmer = role === 'farmer'
+  const isTransporter = role === 'transporter'
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -80,13 +237,19 @@ const Management = () => {
       if (t === 'products' && isFarmer) return 'Products'
       if (t === 'orders') return 'Orders'
       if (t === 'profile') return 'Profile'
+      if (t === 'pickup' && isTransporter) return 'Pick Up'
+      if (t === 'delivery' && isTransporter) return 'My Delivery'
     } catch (e) {}
     return 'Overview'
   })()
   const [tab, setTab] = useState(initialTab)
 
   // Allowed tabs depend on role
-  const allowedTabs = useMemo(() => (isFarmer ? ['Overview', 'Products', 'Orders', 'Profile'] : ['Overview', 'Orders', 'Profile']), [isFarmer])
+  const allowedTabs = useMemo(() => {
+    if (isFarmer) return ['Overview', 'Products', 'Orders', 'Profile']
+    if (isTransporter) return ['Overview', 'Pick Up', 'My Delivery']
+    return ['Overview', 'Orders', 'Profile']
+  }, [isFarmer, isTransporter])
   // Navbar now controls tab selection; no in-page tab selector needed
 
   // Keep the URL query param in sync with the active tab
@@ -94,7 +257,8 @@ const Management = () => {
     // Coerce tab to an allowed value for the current role
     const effectiveTab = allowedTabs.includes(tab) ? tab : 'Overview'
     if (effectiveTab !== tab) setTab(effectiveTab)
-    const to = effectiveTab.toLowerCase()
+  // Map tab to query token
+  const to = effectiveTab === 'Pick Up' ? 'pickup' : effectiveTab === 'My Delivery' ? 'delivery' : effectiveTab.toLowerCase()
     const usp = new URLSearchParams(location.search)
     const current = (usp.get('tab') || '').toLowerCase()
     if (current !== to) {
@@ -108,7 +272,13 @@ const Management = () => {
     try {
       const usp = new URLSearchParams(location.search)
       const q = (usp.get('tab') || '').toLowerCase()
-      let mapped = q === 'products' ? 'Products' : q === 'orders' ? 'Orders' : q === 'profile' ? 'Profile' : 'Overview'
+      let mapped =
+        q === 'products' ? 'Products' :
+        q === 'orders' ? 'Orders' :
+        q === 'profile' ? 'Profile' :
+        q === 'pickup' ? 'Pick Up' :
+        q === 'delivery' ? 'My Delivery' :
+        'Overview'
       if (!allowedTabs.includes(mapped)) mapped = 'Overview'
       if (mapped !== tab) setTab(mapped)
     } catch (e) {}
@@ -116,6 +286,26 @@ const Management = () => {
   }, [location.search, allowedTabs.join('|')])
   const [showAddModal, setShowAddModal] = useState(false)
   const { show } = useToast()
+  const [pickupFromDz, setPickupFromDz] = useState('') // single selected dzongkhag
+  const [pickupToDz, setPickupToDz] = useState([]) // multiple selected dzongkhags
+  const [pickupLoading, setPickupLoading] = useState(false)
+  const [pickupResults, setPickupResults] = useState([])
+
+  // Pre-fill pick up "Your Location" from stored user when available
+  useEffect(() => {
+    if (!isTransporter) return
+    try {
+      const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser')
+      if (raw) {
+        const u = JSON.parse(raw)
+        // Pre-select user's dzongkhag if present
+        if (u?.dzongkhag && DZONGKHAGS.includes(u.dzongkhag) && !pickupFromDz) {
+          setPickupFromDz(u.dzongkhag)
+        }
+      }
+    } catch (e) { /* noop */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTransporter])
 
   const stats = [
     {
@@ -248,6 +438,130 @@ const Management = () => {
               </>
             )}
             {isFarmer && tab === 'Products' && <MyProducts onAdd={() => setShowAddModal(true)} />}
+            {isTransporter && tab === 'Pick Up' && (
+              <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <h2 className="text-2xl font-bold text-emerald-800 mb-3">Pick Up</h2>
+                <div className="rounded-xl border bg-white p-6 shadow-sm">
+                  <form
+                    className="flex flex-col gap-4 md:flex-row md:items-end md:gap-4"
+                    onSubmit={async (e) => {
+                      e.preventDefault()
+                      const fromOk = typeof pickupFromDz === 'string' ? pickupFromDz.trim().length > 0 : (Array.isArray(pickupFromDz) && pickupFromDz.length > 0)
+                      const toOk = Array.isArray(pickupToDz) && pickupToDz.length > 0
+                      if (!fromOk || !toOk) {
+                        show('Please fill both fields', { duration: 2500 })
+                        return
+                      }
+                      try {
+                        setPickupLoading(true)
+                        setPickupResults([])
+                        const cid = (() => {
+                          try {
+                            const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser')
+                            if (raw) { const o = JSON.parse(raw); if (o?.cid) return o.cid }
+                          } catch {}
+                          return null
+                        })()
+                        const orders = await api.searchTransportOrders({ from: pickupFromDz, to: pickupToDz, cid })
+                        setPickupResults(orders)
+                        if (!orders.length) show('No matching orders found', { duration: 2500 })
+                      } catch (err) {
+                        console.error(err)
+                        const msg = err?.body?.error || 'Search failed'
+                        show(msg, { duration: 3000 })
+                      } finally {
+                        setPickupLoading(false)
+                      }
+                    }}
+                  >
+                    <div className="md:flex-1">
+                      <SingleSelect
+                        label="Your Location (Dzongkhag)"
+                        id="pickupFromDz"
+                        options={DZONGKHAGS}
+                        value={pickupFromDz}
+                        onChange={setPickupFromDz}
+                        placeholder="Select Dzongkhag"
+                      />
+                    </div>
+
+                    <div className="md:flex-1">
+                      <MultiSelect
+                        label="Destination (Dzongkhag)"
+                        id="pickupToDz"
+                        options={DZONGKHAGS}
+                        values={pickupToDz}
+                        onChange={setPickupToDz}
+                        placeholder="Select one or more Dzongkhags"
+                      />
+                    </div>
+                    <div className="pt-2 md:pt-0">
+                      <Button type="submit" className="bg-emerald-700 hover:bg-emerald-600" disabled={pickupLoading}>
+                        {pickupLoading ? 'Searching…' : 'Search'}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Results */}
+                <div className="mt-4">
+                  {pickupResults.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {pickupResults.map(o => (
+                        <div key={o.orderId} className="bg-white rounded-2xl border shadow-md p-6">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="text-base text-emerald-700 font-semibold">Order #{o.orderId.slice(-6).toUpperCase()}</div>
+                              <div className="text-sm text-slate-500">{new Date(o.createdAt).toLocaleString()}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-emerald-700 text-2xl font-extrabold">Nu. {Number(o.totalPrice || 0).toFixed(0)}</div>
+                              <div className="text-sm text-slate-500">{o.quantity} item(s)</div>
+                            </div>
+                          </div>
+                          <div className="mt-4 text-base">
+                            <div className="font-semibold text-slate-800 text-lg">{o.product?.name}</div>
+                            <div className="text-slate-700">From: {o.seller?.dzongkhag} • To: {o.buyer?.dzongkhag}</div>
+                          </div>
+                          <div className="mt-4 flex items-center justify-between text-base">
+                            <div className="text-slate-700">Farmer: {o.seller?.name || '—'}</div>
+                            <div className="text-slate-700">Consumer: {o.buyer?.name || '—'}</div>
+                          </div>
+                          <div className="mt-4 flex gap-2">
+                            <Button size="sm" variant="outline" asChild>
+                              <a href={o.buyer?.phoneNumber ? `tel:${o.buyer.phoneNumber}` : '#'}>Call Consumer</a>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              type="button"
+                              className="ml-auto"
+                              onClick={() => show('Deliver action coming soon', { duration: 2500 })}
+                            >
+                              Deliver
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    !pickupLoading && (
+                      <div className="rounded-xl border border-dashed bg-white p-8 text-center text-slate-600">
+                        Matching orders will show here after search.
+                      </div>
+                    )
+                  )}
+                </div>
+              </section>
+            )}
+            {isTransporter && tab === 'My Delivery' && (
+              <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <h2 className="text-2xl font-bold text-emerald-800 mb-3">My Delivery</h2>
+                <div className="rounded-xl border border-dashed bg-white p-8 text-center text-slate-600">
+                  Your active and completed deliveries will appear here.
+                </div>
+              </section>
+            )}
             {showAddModal && (
                 <AddProductModal
                   onClose={() => setShowAddModal(false)}

@@ -105,9 +105,20 @@ export default function Navbar() {
                   <div className="absolute left-0 mt-2 w-44 bg-white dark:bg-slate-900 border rounded shadow-lg py-1 z-50">
                     <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=overview') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Overview</button>
                     {user?.role === 'farmer' && (
-                      <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Products</button>
+                      <>
+                        <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Products</button>
+                        <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Orders</button>
+                      </>
                     )}
-                    <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">{user?.role === 'farmer' ? 'Orders' : 'My Orders'}</button>
+                    {user?.role === 'transporter' && (
+                      <>
+                        <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=pickup') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Pick Up</button>
+                        <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=delivery') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">My Delivery</button>
+                      </>
+                    )}
+                    {(!user?.role || (user?.role !== 'farmer' && user?.role !== 'transporter')) && (
+                      <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">My Orders</button>
+                    )}
                   </div>
                 )}
               </div>
@@ -182,9 +193,20 @@ export default function Navbar() {
                       <div className="px-1 pb-2">
                         <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=overview') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Overview</button>
                         {user?.role === 'farmer' && (
-                          <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Products</button>
+                          <>
+                            <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Products</button>
+                            <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Orders</button>
+                          </>
                         )}
-                        <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">{user?.role === 'farmer' ? 'Orders' : 'My Orders'}</button>
+                        {user?.role === 'transporter' && (
+                          <>
+                            <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=pickup') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Pick Up</button>
+                            <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=delivery') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">My Delivery</button>
+                          </>
+                        )}
+                        {(!user?.role || (user?.role !== 'farmer' && user?.role !== 'transporter')) && (
+                          <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">My Orders</button>
+                        )}
                       </div>
                     )}
                   </div>

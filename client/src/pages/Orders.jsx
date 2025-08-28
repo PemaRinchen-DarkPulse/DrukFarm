@@ -112,10 +112,16 @@ export default function Orders() {
                 <div className="p-5 flex items-start justify-between">
                   <div className="space-y-1">
                     <div className="text-sm text-emerald-700 font-semibold">Order #{o.orderId.slice(-6).toUpperCase()}</div>
-                    <div className="flex items-center gap-3 text-gray-700">
-                      <span className="inline-flex items-center gap-1 text-sm"><User className="w-4 h-4" /> {o.buyer?.name || '—'} ({o.buyer?.cid || ''})</span>
-                      <span className="inline-flex items-center gap-1 text-sm text-gray-500"><MapPin className="w-4 h-4" /> {o.buyer?.location || '—'}</span>
-                    </div>
+                    {(() => {
+                      const name = isFarmer ? (o.buyer?.name || '—') : (o.seller?.name || '—')
+                      const loc = isFarmer ? (o.buyer?.location || '—') : (o.seller?.location || '—')
+                      return (
+                        <div className="flex items-center gap-3 text-gray-700">
+                          <span className="inline-flex items-center gap-1 text-sm"><User className="w-4 h-4" /> {name}</span>
+                          <span className="inline-flex items-center gap-1 text-sm text-gray-500"><MapPin className="w-4 h-4" /> {loc}</span>
+                        </div>
+                      )
+                    })()}
                     <div className="inline-flex items-center gap-1 text-xs text-gray-500"><Clock className="w-3.5 h-3.5" /> {new Date(o.createdAt).toLocaleDateString()}</div>
                   </div>
                   <div className="text-right">

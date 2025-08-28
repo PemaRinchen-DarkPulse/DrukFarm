@@ -2,6 +2,7 @@ const express = require('express')
 const mongoose = require('mongoose')
 const Product = require('../models/Product')
 const Category = require('../models/Category')
+const User = require('../models/User')
 
 const router = express.Router()
 
@@ -45,7 +46,14 @@ function validateProductPayload(payload, isUpdate = false) {
 	return errors
 }
 
-function mapProduct(p, categoryDoc) {
+function buildLocationLabel(userDoc){
+  const vg = (userDoc?.location || '').trim()
+  const dz = (userDoc?.dzongkhag || '').trim()
+  if (vg && dz) return `${vg}, ${dz}`
+  return vg || dz || ''
+}
+
+function mapProduct(p, categoryDoc, sellerDoc) {
 	return {
 		productId: p.productId,
 		productName: p.productName,
@@ -59,6 +67,12 @@ function mapProduct(p, categoryDoc) {
 		createdBy: p.createdBy,
 		rating: p.rating,
 		reviews: p.reviews,
+		sellerCid: sellerDoc?.cid || p.createdBy,
+		sellerName: sellerDoc?.name || undefined,
+		sellerPhoneNumber: sellerDoc?.phoneNumber || undefined,
+		sellerLocationVillageGewog: sellerDoc?.location || '',
+		sellerDzongkhag: sellerDoc?.dzongkhag || '',
+		sellerLocationLabel: buildLocationLabel(sellerDoc),
 		createdAt: p.createdAt,
 		updatedAt: p.updatedAt,
 	}
@@ -71,7 +85,10 @@ router.get('/', async (_req, res) => {
 		const categoryIds = [...new Set(products.map(p => String(p.categoryId)))]
 		const categories = await Category.find({ _id: { $in: categoryIds } })
 		const map = new Map(categories.map(c => [String(c._id), c]))
-		res.json(products.map(p => mapProduct(p, map.get(String(p.categoryId)))))
+		const sellerCids = [...new Set(products.map(p => p.createdBy).filter(Boolean))]
+		const sellers = sellerCids.length ? await User.find({ cid: { $in: sellerCids } }).select('cid name phoneNumber location dzongkhag') : []
+		const sMap = new Map(sellers.map(s => [s.cid, s]))
+		res.json(products.map(p => mapProduct(p, map.get(String(p.categoryId)), sMap.get(p.createdBy))))
 	} catch (err) {
 		console.error('Fetch products error:', err)
 		res.status(500).json({ success: false, error: 'Failed to fetch products' })
@@ -87,7 +104,10 @@ router.get('/category/:categoryId', async (req, res) => {
 		}
 		const products = await Product.find({ categoryId }).sort({ createdAt: -1 })
 		const category = await Category.findById(categoryId)
-		res.json(products.map(p => mapProduct(p, category)))
+		const sellerCids = [...new Set(products.map(p => p.createdBy).filter(Boolean))]
+		const sellers = sellerCids.length ? await User.find({ cid: { $in: sellerCids } }).select('cid name phoneNumber location dzongkhag') : []
+		const sMap = new Map(sellers.map(s => [s.cid, s]))
+		res.json(products.map(p => mapProduct(p, category, sMap.get(p.createdBy))))
 	} catch (err) {
 		console.error('Fetch products by category error:', err)
 		res.status(500).json({ success: false, error: 'Failed to fetch products by category' })
@@ -102,7 +122,8 @@ router.get('/:id', async (req, res) => {
 		const prod = await Product.findById(id)
 		if (!prod) return res.status(404).json({ success: false, error: 'Product not found' })
 		const category = await Category.findById(prod.categoryId)
-		res.json(mapProduct(prod, category))
+		const seller = await User.findOne({ cid: prod.createdBy }).select('cid name phoneNumber location dzongkhag')
+		res.json(mapProduct(prod, category, seller))
 	} catch (err) {
 		console.error('Fetch product error:', err)
 		res.status(500).json({ success: false, error: 'Failed to fetch product' })
@@ -131,7 +152,8 @@ router.post('/', async (req, res) => {
 			createdBy: String(payload.createdBy),
 		})
 
-		const resBody = mapProduct(doc, category)
+		const seller = await User.findOne({ cid: doc.createdBy }).select('cid name phoneNumber location dzongkhag')
+		const resBody = mapProduct(doc, category, seller)
 		res.status(201).json({ ...resBody, success: true, message: 'Product saved successfully' })
 	} catch (err) {
 		console.error('Create product error:', err)
@@ -165,7 +187,8 @@ router.put('/:id', async (req, res) => {
 		const doc = await Product.findByIdAndUpdate(id, update, { new: true })
 		if (!doc) return res.status(404).json({ success: false, error: 'Product not found' })
 		const category = await Category.findById(doc.categoryId)
-		const resBody = mapProduct(doc, category)
+		const seller = await User.findOne({ cid: doc.createdBy }).select('cid name phoneNumber location dzongkhag')
+		const resBody = mapProduct(doc, category, seller)
 		res.json({ ...resBody, success: true, message: 'Product saved successfully' })
 	} catch (err) {
 		console.error('Update product error:', err)

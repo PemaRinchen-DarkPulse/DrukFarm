@@ -40,6 +40,7 @@ export default function Register(){
   const [role, setRole] = useState('consumer')
   const [phone, setPhone] = useState('')
   const [location, setLocation] = useState('')
+  const [dzongkhag, setDzongkhag] = useState('')
   const [agree, setAgree] = useState(false)
   const [errors, setErrors] = useState({})
   const navigate = useNavigate()
@@ -71,6 +72,7 @@ export default function Register(){
     if(strength < 3) errs.password = 'Password is too weak (min 8 chars, mix of letters/numbers)'
     if(password !== confirm) errs.confirm = 'Passwords do not match'
   if(!isValidPhone(phone)) errs.phone = 'Phone must be exactly 8 digits'
+  if(!dzongkhag) errs.dzongkhag = 'Select a Dzongkhag'
   if(!agree) errs.agree = 'You must agree to Terms'
     setErrors(errs)
     if(Object.keys(errs).length) return
@@ -88,7 +90,8 @@ export default function Register(){
         password,
         role,
         roleDesc,
-        location,
+  location, // Village, Gewog
+  dzongkhag,
         phoneNumber: phone
       }
   await registerUser(payload)
@@ -107,6 +110,29 @@ export default function Register(){
     { key: 'consumer', title: 'Consumer', desc: 'Buy fresh produce' },
     { key: 'farmer', title: 'Farmer', desc: 'Sell my crops' },
     { key: 'transporter', title: 'Transporter', desc: 'Provide transport/logistics' }
+  ]
+
+  const dzongkhags = [
+    'Bumthang',
+    'Chhukha',
+    'Dagana',
+    'Gasa',
+    'Haa',
+    'Lhuentse',
+    'Mongar',
+    'Paro',
+    'Pemagatshel',
+    'Punakha',
+    'Samdrup Jongkhar',
+    'Samtse',
+    'Sarpang',
+    'Thimphu',
+    'Trashigang',
+    'Trashiyangtse',
+    'Trongsa',
+    'Tsirang',
+    'Wangdue Phodrang',
+    'Zhemgang',
   ]
 
   return (
@@ -186,7 +212,24 @@ export default function Register(){
 
                   <Input label="CID" id="cid" type="text" value={cid} onChange={(e)=>setCid(onlyDigits(e.target.value, 11))} placeholder="11 digit CID" error={errors.cid} />
                   <Input label="Phone Number" id="phone" value={phone} onChange={(e)=>setPhone(onlyDigits(e.target.value, 8))} placeholder="8 digit phone (no country code)" error={errors.phone} />
-                  <Input label="Location" id="location" value={location} onChange={(e)=>setLocation(e.target.value)} placeholder="City/District" />
+                  <Input label="Location (Village, Gewog)" id="location" value={location} onChange={(e)=>setLocation(e.target.value)} placeholder="e.g., Changzamtog, Kawang" />
+
+                  {/* Dzongkhag dropdown */}
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Dzongkhag</span>
+                    <select
+                      id="dzongkhag"
+                      value={dzongkhag}
+                      onChange={(e)=>setDzongkhag(e.target.value)}
+                      className={`mt-1 block w-full rounded-md border px-3 py-2 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 transition ${errors.dzongkhag ? 'border-red-500' : ''}`}
+                    >
+                      <option value="">Select Dzongkhag</option>
+                      {dzongkhags.map((d)=> (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    {errors.dzongkhag && <p className="mt-1 text-xs text-red-600">{errors.dzongkhag}</p>}
+                  </label>
 
                   <Input label="Password" id="password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} error={errors.password} />
 

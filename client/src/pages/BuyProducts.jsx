@@ -40,12 +40,40 @@ export default function BuyProducts(){
     }
     setLoading(true)
     try {
-      const resp = await api.getCart({ cid })
-      const all = resp?.cart?.items || []
-      const filtered = pid ? all.filter(i => String(i.productId) === String(pid)) : all
-      setItems(filtered)
+      if (pid) {
+        // Direct-buy mode: fetch the single product; do not touch cart
+        const p = await api.fetchProductById(pid)
+        if (!p || !p.productId) {
+          show('Product not found', { variant: 'error' })
+          navigate('/products', { replace: true })
+          return
+        }
+        const item = {
+          // Use productId as a stable local key
+          itemId: String(p.productId),
+          productId: String(p.productId),
+          productName: p.productName,
+          price: p.price,
+          unit: p.unit,
+          productImageBase64: p.productImageBase64,
+          sellerCid: p.sellerCid,
+          sellerName: p.sellerName || '',
+          sellerLocation: p.sellerLocationLabel || '',
+          sellerPhoneNumber: p.sellerPhoneNumber || '',
+          stockQuantity: p.stockQuantity,
+          quantity: 1,
+          __direct: true,
+        }
+        setItems([item])
+      } else {
+        // Cart mode
+        const resp = await api.getCart({ cid })
+        const all = resp?.cart?.items || []
+        setItems(all)
+      }
     } catch (e) {
-      show('Failed to load cart', { variant: 'error' })
+      const msg = pid ? 'Failed to load product' : 'Failed to load cart'
+      show(msg, { variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -118,6 +146,11 @@ export default function BuyProducts(){
       return
     }
 
+    // In direct-buy mode, only update local state; in cart mode, persist to server
+    if (pid) {
+      setDraftQty(s => ({ ...s, [itemId]: qty }))
+      return
+    }
     try {
       await doUpdateCart(itemId, qty)
     } catch (e) {
@@ -142,22 +175,22 @@ export default function BuyProducts(){
     try {
       const cid = getCurrentCid()
       if (!cid) { const redirectTo = pid ? `/buy?pid=${pid}` : '/buy'; navigate('/login', { state: { redirectTo }, replace: true }); return }
-      // Expect only one item here when pid is used; use first
+      // Expect only one item; use first
       const item = items[0]
       if (!item) { show('No product selected', { variant: 'error' }); return }
       const quantity = draftQty[item.itemId] === '' ? 0 : Number(draftQty[item.itemId] ?? item.quantity)
       if (!(quantity >= 1)) { show('Quantity must be at least 1', { variant: 'error' }); return }
-  // Prefer the productId from the cart item (always a valid ObjectId), fallback to pid
-  let productId = item.productId || pid
-  // Basic 24-hex check; if invalid and pid looks better, use pid
-  const isHex24 = v => typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v)
-  if (!isHex24(productId) && isHex24(pid)) productId = pid
-  await api.buyProduct({ productId, quantity, cid })
-  // Clear saved message so it doesn't persist across pages
-  try { localStorage.removeItem('cartMessage') } catch {}
-  show('Order placed')
-  // Redirect to products page
-  navigate('/products', { replace: true })
+      if (pid) {
+        // Direct buy: call buy API directly without cart
+        const productId = item.productId || pid
+        await api.buyProduct({ productId, quantity, cid })
+      } else {
+        // Cart checkout: call cart checkout API (creates orders and clears cart)
+        await api.cartCheckout({ cid })
+      }
+      try { localStorage.removeItem('cartMessage') } catch {}
+      show('Order placed')
+      navigate('/products', { replace: true })
     } catch (e) {
       const msg = e?.body?.error || 'Failed to place order'
       show(msg, { variant: 'error' })
@@ -230,7 +263,7 @@ export default function BuyProducts(){
     <div className="bg-gradient-to-b from-emerald-50/60 to-transparent">
       <div className="max-w-7xl mx-auto p-6 min-h-screen">
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-2xl md:text-3xl font-bold text-emerald-900">Your Cart</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-emerald-900">{pid ? 'Checkout' : 'Your Cart'}</h1>
           <Button asChild variant="ghost" className="text-emerald-700 hover:text-emerald-800">
             <Link to="/products">Continue shopping →</Link>
           </Button>
@@ -255,13 +288,15 @@ export default function BuyProducts(){
                         {/* Header row: title left, remove right */}
                         <div className="flex items-start justify-between gap-3">
                           <h3 className="text-2xl md:text-3xl leading-tight font-semibold text-emerald-900 break-words">{i.productName}</h3>
-                          <button
-                            aria-label="Remove item"
-                            className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-red-600 shrink-0 whitespace-nowrap"
-                            onClick={()=>removeItem(i.itemId)}
-                          >
-                            <Trash2 className="w-4 h-4" /> Remove
-                          </button>
+                          {!pid && (
+                            <button
+                              aria-label="Remove item"
+                              className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-red-600 shrink-0 whitespace-nowrap"
+                              onClick={()=>removeItem(i.itemId)}
+                            >
+                              <Trash2 className="w-4 h-4" /> Remove
+                            </button>
+                          )}
                         </div>
                         {/* Details */}
                         <div className="mt-2 space-y-1 text-[16px] md:text-[18px] text-slate-700">

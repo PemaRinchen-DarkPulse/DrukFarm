@@ -67,6 +67,7 @@ export default function MyProducts({ onAdd }) {
               price: p.price,
               unit: p.unit,
               stock: p.stockQuantity,
+              locationLabel: p.sellerLocationLabel || '',
               image: p.productImageBase64 && mime ? `data:${mime};base64,${p.productImageBase64}` : null,
               categoryId: p.categoryId,
               categoryName: p.categoryName
@@ -116,7 +117,8 @@ export default function MyProducts({ onAdd }) {
                     return `data:${mime};base64,${updated.productImageBase64}`
                   })(),
                   categoryId: updated.categoryId,
-                  categoryName: updated.categoryName
+                  categoryName: updated.categoryName,
+                  locationLabel: updated.sellerLocationLabel || ''
                 }
               : p
           )
@@ -137,7 +139,8 @@ export default function MyProducts({ onAdd }) {
             return `data:${mime};base64,${created.productImageBase64}`
           })(),
           categoryId: created.categoryId,
-          categoryName: created.categoryName
+          categoryName: created.categoryName,
+          locationLabel: created.sellerLocationLabel || ''
         }
         setProducts(prev => [mapped, ...prev])
       }
