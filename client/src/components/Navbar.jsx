@@ -6,15 +6,26 @@ import api from '@/lib/api'
 import { getCurrentCid } from '@/lib/auth'
 
 export default function Navbar() {
+  function handleSignOut() {
+    logout();
+    navigate('/login');
+  }
   const [open, setOpen] = useState(false)
   const [user, setUser] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [mgmtOpen, setMgmtOpen] = useState(false)
   const [cartCount, setCartCount] = useState(0)
   const navigate = useNavigate()
   const location = useLocation()
   const menuRef = useRef(null)
-  const mgmtRef = useRef(null)
+  // derive role once user is loaded for conditional menu items
+  const role = (() => {
+    try {
+      if (!user) return null
+      return user.role || null
+    } catch { return null }
+  })()
+  const isFarmer = role === 'farmer'
+  const isTransporter = role === 'transporter'
 
   useEffect(() => {
     try {
@@ -43,7 +54,6 @@ export default function Navbar() {
   useEffect(() => {
     function onDoc(e) {
   if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
-  if (mgmtRef.current && !mgmtRef.current.contains(e.target)) setMgmtOpen(false)
     }
     document.addEventListener('click', onDoc)
     return () => document.removeEventListener('click', onDoc)
@@ -52,7 +62,6 @@ export default function Navbar() {
   // Auto-close mobile menu and mgmt submenu on route change
   useEffect(() => {
     setOpen(false)
-    setMgmtOpen(false)
   }, [location.pathname])
 
   function logout() {
@@ -92,36 +101,7 @@ export default function Navbar() {
             <Link to="/" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">Home</Link>
             <Link to="/products" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">Products</Link>
             {user && (
-              <div className="relative" ref={mgmtRef}>
-                <button
-                  type="button"
-                  className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900 inline-flex items-center gap-1"
-                  onClick={() => setMgmtOpen(o => !o)}
-                >
-                  Management
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </button>
-                {mgmtOpen && (
-                  <div className="absolute left-0 mt-2 w-44 bg-white dark:bg-slate-900 border rounded shadow-lg py-1 z-50">
-                    <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=overview') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Overview</button>
-                    {user?.role === 'farmer' && (
-                      <>
-                        <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Products</button>
-                        <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Orders</button>
-                      </>
-                    )}
-                    {user?.role === 'transporter' && (
-                      <>
-                        <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=pickup') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Pick Up</button>
-                        <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=delivery') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">My Delivery</button>
-                      </>
-                    )}
-                    {(!user?.role || (user?.role !== 'farmer' && user?.role !== 'transporter')) && (
-                      <button onClick={() => { setMgmtOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">My Orders</button>
-                    )}
-                  </div>
-                )}
-              </div>
+              <Link to="/orders" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">My Orders</Link>
             )}
             <Link to="/how" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">How It Works</Link>
             <Link to="/about" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">About Us</Link>
@@ -152,9 +132,27 @@ export default function Navbar() {
                     <div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-base">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-5 h-5" />}</div>
                   </button>
           {menuOpen && (
-                    <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-900 border rounded shadow-lg py-1 z-50">
-                      <Link to="/profile" className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">My profile</Link>
-                      <button onClick={logout} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-5 h-5" /> Sign out</button>
+                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 border rounded shadow-lg py-1 z-50">
+                      <Link to="/profile" className="block px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">My profile</Link>
+                      {/* Role-based management shortcuts moved under profile */}
+                      {(isFarmer || isTransporter) && (<div className="my-1 border-t" />)}
+                      {isFarmer || isTransporter ? (
+                        <button onClick={() => { setMenuOpen(false); navigate('/management?tab=overview') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">Overview</button>
+                      ) : null}
+                      {isFarmer && (
+                        <>
+                          <button onClick={() => { setMenuOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">Products</button>
+                          <button onClick={() => { setMenuOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">Orders</button>
+                        </>
+                      )}
+                      {isTransporter && (
+                        <>
+                          <button onClick={() => { setMenuOpen(false); navigate('/management?tab=pickup') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">Pick Up</button>
+                          <button onClick={() => { setMenuOpen(false); navigate('/management?tab=delivery') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">My Delivery</button>
+                        </>
+                      )}
+                      <div className="my-1 border-t" />
+                      <button onClick={handleSignOut} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-5 h-5" /> Sign out</button>
                     </div>
                   )}
                 </div>
@@ -184,32 +182,7 @@ export default function Navbar() {
               <Link to="/" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Home</Link>
                 <Link to="/products" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">Products</Link>
                 {user && (
-                  <div className="bg-white rounded-md border">
-                    <button onClick={() => setMgmtOpen(o=>!o)} className="w-full text-left px-3 py-2 text-slate-700 flex items-center justify-between">
-                      <span>Management</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </button>
-                    {mgmtOpen && (
-                      <div className="px-1 pb-2">
-                        <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=overview') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Overview</button>
-                        {user?.role === 'farmer' && (
-                          <>
-                            <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Products</button>
-                            <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Orders</button>
-                          </>
-                        )}
-                        {user?.role === 'transporter' && (
-                          <>
-                            <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=pickup') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">Pick Up</button>
-                            <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=delivery') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">My Delivery</button>
-                          </>
-                        )}
-                        {(!user?.role || (user?.role !== 'farmer' && user?.role !== 'transporter')) && (
-                          <button onClick={() => { setMgmtOpen(false); setOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100">My Orders</button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <Link to="/orders" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">My Orders</Link>
                 )}
               <Link to="/how" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">How It Works</Link>
               <Link to="/about" onClick={()=>setOpen(false)} className="block py-2 rounded-md text-slate-700 hover:bg-slate-100">About Us</Link>
@@ -231,9 +204,27 @@ export default function Navbar() {
           <Button size="sm" asChild><Link to="/register" onClick={()=>setOpen(false)}>Register</Link></Button>
                   </>
                 ) : (
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2">
           <Link to="/profile" onClick={()=>setOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100"><div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-base">{user.name ? user.name.split(' ').map(n=>n[0]).slice(0,2).join('') : <User className="w-5 h-5" />}</div> <span className="text-sm">{user.name}</span></Link>
-                    <button onClick={logout} className="px-3 py-2 rounded-md hover:bg-slate-100 flex items-center gap-2"><LogOut className="w-5 h-5" /> Logout</button>
+                    <div className="bg-white rounded-md border">
+                      {isFarmer || isTransporter ? (
+                        <button onClick={() => { setOpen(false); navigate('/management?tab=overview') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">Overview</button>
+                      ) : null}
+                      {isFarmer && (
+                        <>
+                          <button onClick={() => { setOpen(false); navigate('/management?tab=products') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">Products</button>
+                          <button onClick={() => { setOpen(false); navigate('/management?tab=orders') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">Orders</button>
+                        </>
+                      )}
+                      {isTransporter && (
+                        <>
+                          <button onClick={() => { setOpen(false); navigate('/management?tab=pickup') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">Pick Up</button>
+                          <button onClick={() => { setOpen(false); navigate('/management?tab=delivery') }} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">My Delivery</button>
+                        </>
+                      )}
+                      {/* Consumer does not see My Orders or Overview */}
+                      <button onClick={handleSignOut} className="w-full text-left px-3 py-2 text-lg text-slate-700 hover:bg-slate-100">Sign out</button>
+                    </div>
                   </div>
                 )}
               </div>

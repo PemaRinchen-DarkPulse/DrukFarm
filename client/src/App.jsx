@@ -16,6 +16,7 @@ import Management from './pages/Management';
 import Profile from './pages/Profile';
 import Cart from './pages/Cart';
 import BuyProducts from './pages/BuyProducts';
+import Orders from './pages/Orders';
 function App() {
   return (
     <ToastProvider>
@@ -37,6 +38,7 @@ function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/buy" element={<BuyProducts />} />
+              <Route path="/orders" element={<Orders myOnly={true} />} />
               {/* dashboard removed; management will be the post-login landing */}
             </Routes>
           </main>

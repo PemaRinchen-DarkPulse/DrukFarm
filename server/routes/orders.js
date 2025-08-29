@@ -242,7 +242,13 @@ router.get('/transport-search', authCid, async (req, res) => {
 						phoneNumber: b.phoneNumber,
 						location: b.location,
 						dzongkhag: b.dzongkhag,
-					} : { cid: o.userSnapshot?.cid || '' },
+					} : {
+						cid: o.userSnapshot?.cid || '',
+						name: o.userSnapshot?.name || '',
+						phoneNumber: o.userSnapshot?.phoneNumber || '',
+						location: o.userSnapshot?.location || '',
+						dzongkhag: '',
+					},
 				})
 			}
 		}
@@ -251,6 +257,121 @@ router.get('/transport-search', authCid, async (req, res) => {
 	} catch (err) {
 		console.error('Transport search error:', err)
 		res.status(500).json({ error: 'Failed to search orders' })
+	}
+})
+
+// PATCH /api/orders/:orderId/out-for-delivery
+// Marks an order as OUT_FOR_DELIVERY and assigns the current transporter (by CID)
+router.patch('/:orderId/out-for-delivery', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params
+		if (!mongoose.Types.ObjectId.isValid(String(orderId))) return res.status(400).json({ error: 'Invalid order id' })
+
+		// Verify requester is a transporter (or legacy 'transported')
+		const me = await User.findOne({ cid: req.user.cid }).select('cid role name phoneNumber')
+		if (!me) return res.status(401).json({ error: 'Unauthorized' })
+		const role = (me.role || '').toLowerCase()
+		if (!(role === 'transporter' || role === 'transported')) return res.status(403).json({ error: 'Only transporters can perform this action' })
+
+		const order = await Order.findById(orderId)
+		if (!order) return res.status(404).json({ error: 'Order not found' })
+		if (['cancelled', 'delivered'].includes(order.status)) return res.status(409).json({ error: `Cannot deliver an order with status ${order.status}` })
+		if (order.status === 'OUT_FOR_DELIVERY' || order.status === 'Out for Delivery') return res.status(409).json({ error: 'Order already out for delivery' })
+
+		// Transporter snapshot: prefer explicit body if provided, else user doc
+		const body = req.body || {}
+		const transporter = {
+			cid: me.cid,
+			name: (body.name || me.name || ''),
+			phoneNumber: (body.phoneNumber || me.phoneNumber || ''),
+		}
+
+		order.status = 'OUT_FOR_DELIVERY'
+		order.transporter = transporter
+		await order.save()
+
+		return res.json({ success: true, order: { orderId: String(order._id), status: order.status, transporter: order.transporter } })
+	} catch (err) {
+		console.error('Out-for-delivery error:', err)
+		return res.status(500).json({ error: 'Failed to mark as out for delivery' })
+	}
+})
+
+// GET /api/orders/my-transports -> Orders assigned to current transporter
+router.get('/my-transports', authCid, async (req, res) => {
+	try {
+		const me = await User.findOne({ cid: req.user.cid }).select('cid role')
+		if (!me) return res.status(401).json({ error: 'Unauthorized' })
+		const role = (me.role || '').toLowerCase()
+		if (!(role === 'transporter' || role === 'transported')) return res.status(403).json({ error: 'Only transporters can view transports' })
+
+		const docs = await Order.find({ 'transporter.cid': me.cid }).sort({ createdAt: -1 })
+		const sellerCids = [...new Set(docs.map(o => o?.product?.sellerCid).filter(Boolean))]
+		const buyerCids = [...new Set(docs.map(o => o?.userSnapshot?.cid).filter(Boolean))]
+		const sellers = sellerCids.length ? await User.find({ cid: { $in: sellerCids } }).select('cid name phoneNumber') : []
+		const buyers = buyerCids.length ? await User.find({ cid: { $in: buyerCids } }).select('cid dzongkhag') : []
+		const sMap = new Map(sellers.map(u => [u.cid, u]))
+		const bMap = new Map(buyers.map(u => [u.cid, u]))
+
+		const mapped = docs.map(o => ({
+			orderId: String(o._id),
+			status: o.status,
+			createdAt: o.createdAt,
+			totalPrice: o.totalPrice,
+			quantity: o.quantity,
+			product: {
+				productId: String(o.product.productId),
+				name: o.product.productName,
+				unit: o.product.unit,
+				price: o.product.price,
+			},
+			seller: (() => {
+				const scid = o?.product?.sellerCid
+				const su = scid ? sMap.get(scid) : null
+				return {
+					cid: scid || '',
+					name: su?.name || '',
+					phoneNumber: su?.phoneNumber || '',
+				}
+			})(),
+			buyer: {
+			cid: o.userSnapshot?.cid,
+			name: o.userSnapshot?.name,
+			phoneNumber: o.userSnapshot?.phoneNumber,
+			location: o.userSnapshot?.location || '',
+			dzongkhag: (() => { const bu = bMap.get(o?.userSnapshot?.cid); return bu?.dzongkhag || '' })(),
+			},
+			transporter: o.transporter || null,
+		}))
+		res.json({ success: true, orders: mapped })
+	} catch (err) {
+		console.error('Fetch my transports error:', err)
+		res.status(500).json({ error: 'Failed to fetch transports' })
+	}
+})
+
+// PATCH /api/orders/:orderId/delivered -> mark an assigned transport as delivered
+router.patch('/:orderId/delivered', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params
+		if (!mongoose.Types.ObjectId.isValid(String(orderId))) return res.status(400).json({ error: 'Invalid order id' })
+
+		const me = await User.findOne({ cid: req.user.cid }).select('cid role')
+		if (!me) return res.status(401).json({ error: 'Unauthorized' })
+		const role = (me.role || '').toLowerCase()
+		if (!(role === 'transporter' || role === 'transported')) return res.status(403).json({ error: 'Only transporters can perform this action' })
+
+		const order = await Order.findById(orderId)
+		if (!order) return res.status(404).json({ error: 'Order not found' })
+		if (!order.transporter || String(order.transporter.cid) !== String(me.cid)) return res.status(403).json({ error: 'Not your delivery' })
+		if (order.status === 'delivered') return res.status(409).json({ error: 'Order already delivered' })
+
+		order.status = 'delivered'
+		await order.save()
+		res.json({ success: true, order: { orderId: String(order._id), status: order.status } })
+	} catch (err) {
+		console.error('Mark delivered error:', err)
+		res.status(500).json({ error: 'Failed to mark as delivered' })
 	}
 })
 

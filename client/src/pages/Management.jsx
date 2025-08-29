@@ -506,7 +506,7 @@ const Management = () => {
                 {/* Results */}
                 <div className="mt-4">
                   {pickupResults.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {pickupResults.map(o => (
                         <div key={o.orderId} className="bg-white rounded-2xl border shadow-md p-6">
                           <div className="flex items-start justify-between">
@@ -521,11 +521,16 @@ const Management = () => {
                           </div>
                           <div className="mt-4 text-base">
                             <div className="font-semibold text-slate-800 text-lg">{o.product?.name}</div>
-                            <div className="text-slate-700">From: {o.seller?.dzongkhag} • To: {o.buyer?.dzongkhag}</div>
                           </div>
                           <div className="mt-4 flex items-center justify-between text-base">
-                            <div className="text-slate-700">Farmer: {o.seller?.name || '—'}</div>
-                            <div className="text-slate-700">Consumer: {o.buyer?.name || '—'}</div>
+                            <div className="text-slate-700">Farmer: {o.seller?.name || '—'}{o.seller?.phoneNumber ? ` • ${o.seller.phoneNumber}` : ''}</div>
+                          </div>
+                          <div className="mt-3">
+                            <div className="text-slate-900 font-semibold">Consumer: {o.buyer?.name || '—'}</div>
+                            <div className="text-slate-600 text-sm">
+                              {(o.buyer?.location || '').trim()}
+                              {o.buyer?.dzongkhag ? (o.buyer?.location ? `, ${o.buyer.dzongkhag}` : o.buyer.dzongkhag) : ''}
+                            </div>
                           </div>
                           <div className="mt-4 flex gap-2">
                             <Button size="sm" variant="outline" asChild>
@@ -536,7 +541,26 @@ const Management = () => {
                               variant="outline"
                               type="button"
                               className="ml-auto"
-                              onClick={() => show('Deliver action coming soon', { duration: 2500 })}
+                              onClick={async () => {
+                                try {
+                                  const me = (() => {
+                                    try { const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser'); return raw ? JSON.parse(raw) : null } catch { return null }
+                                  })()
+                                  const cid = me?.cid
+                                  if (!cid) { show('Not authorized', { duration: 2500 }); return }
+                                  const name = me?.name || ''
+                                  const phoneNumber = me?.phoneNumber || ''
+                                  await api.setOutForDelivery({ orderId: o.orderId, cid, name, phoneNumber })
+                                  // remove from pickup list
+                                  setPickupResults(prev => prev.filter(x => x.orderId !== o.orderId))
+                                  // stay on the same tab; toast only
+                                  show('Marked as Out for Delivery', { duration: 2500 })
+                                } catch (err) {
+                                  console.error(err)
+                                  const msg = err?.body?.error || 'Failed to update order'
+                                  show(msg, { duration: 3000 })
+                                }
+                              }}
                             >
                               Deliver
                             </Button>
@@ -555,12 +579,7 @@ const Management = () => {
               </section>
             )}
             {isTransporter && tab === 'My Delivery' && (
-              <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                <h2 className="text-2xl font-bold text-emerald-800 mb-3">My Delivery</h2>
-                <div className="rounded-xl border border-dashed bg-white p-8 text-center text-slate-600">
-                  Your active and completed deliveries will appear here.
-                </div>
-              </section>
+              <MyDeliverySection />
             )}
             {showAddModal && (
                 <AddProductModal
@@ -597,6 +616,110 @@ const Management = () => {
         </>
       </main>
     </div>
+  )
+}
+
+function MyDeliverySection() {
+  const { show } = useToast()
+  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState([])
+  const [view, setView] = useState('in-progress') // 'in-progress' | 'delivered'
+
+  const getMe = () => {
+    try {
+      const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser')
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  }
+
+  const load = async () => {
+    try {
+      setLoading(true)
+      const me = getMe()
+      const cid = me?.cid
+      if (!cid) { setItems([]); return }
+      const orders = await api.fetchMyTransports({ cid })
+      setItems(orders)
+    } catch (e) {
+      console.error(e)
+      show('Failed to load deliveries', { duration: 3000 })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const inProgress = items.filter(o => String(o.status).toLowerCase() === 'out_for_delivery' || String(o.status).toLowerCase() === 'out for delivery' || String(o.status).toLowerCase() === 'out-for-delivery' || String(o.status).toLowerCase() === 'outfordelivery' || String(o.status).toLowerCase() === 'out_for_delivery'.replace(/_/g,''))
+  const done = items.filter(o => String(o.status).toLowerCase() === 'delivered')
+  const filtered = view === 'delivered' ? done : inProgress
+  const selectedLabel = view === 'delivered' ? 'Delivered' : 'In Progress'
+
+  return (
+    <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="flex items-center gap-3 mb-3">
+        <h2 className="text-2xl font-bold text-emerald-800">My Delivery</h2>
+        <Button size="sm" variant="outline" onClick={load}>Refresh</Button>
+        <div className="ml-auto w-56">
+          <SingleSelect
+            label="Filter"
+            id="deliveryFilter"
+            options={[ 'In Progress', 'Delivered' ]}
+            value={selectedLabel}
+            onChange={(label) => setView(label === 'Delivered' ? 'delivered' : 'in-progress')}
+          />
+        </div>
+      </div>
+
+      {loading && (
+        <div className="rounded-xl border bg-white p-6 text-slate-600">Loading…</div>
+      )}
+      {!loading && filtered.length === 0 && (
+        <div className="rounded-xl border bg-white p-6 text-slate-600">{view === 'delivered' ? 'No delivered orders yet.' : 'No active deliveries.'}</div>
+      )}
+      {!loading && filtered.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {filtered.map(o => (
+          <article key={o.orderId} className="bg-white rounded-2xl border shadow-sm p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-base text-emerald-700 font-semibold">Order #{String(o.orderId).slice(-6).toUpperCase()}</div>
+                <div className="text-sm text-slate-500">{new Date(o.createdAt).toLocaleString()}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-emerald-700 text-2xl font-extrabold">Nu. {Number(o.totalPrice || 0).toFixed(0)}</div>
+                <div className="text-sm text-slate-500">{o.quantity} item(s)</div>
+              </div>
+            </div>
+            <div className="mt-4 text-base">
+              <div className="font-semibold text-slate-800 text-lg">{o.product?.name}</div>
+            </div>
+            <div className="mt-3">
+              <div className="text-slate-900 font-semibold">Consumer: {o.buyer?.name || '—'}</div>
+              <div className="text-slate-600 text-sm">
+                {(o.buyer?.location || '').trim()}
+                {o.buyer?.dzongkhag ? (o.buyer?.location ? `, ${o.buyer.dzongkhag}` : o.buyer.dzongkhag) : ''}
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              <Button size="sm" variant="outline" asChild>
+                <a href={o.buyer?.phoneNumber ? `tel:${o.buyer.phoneNumber}` : '#'}>Call Consumer</a>
+              </Button>
+              {view === 'in-progress' ? (
+                <Button size="sm" variant="outline" className="ml-auto" asChild>
+                  <a href={o.seller?.phoneNumber ? `tel:${o.seller.phoneNumber}` : '#'}>Call Farmer</a>
+                </Button>
+              ) : (
+                <span className="ml-auto inline-block text-xs font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded">Delivered</span>
+              )}
+            </div>
+          </article>
+        ))}
+        </div>
+      )}
+    </section>
   )
 }
 

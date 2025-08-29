@@ -4,7 +4,7 @@ import { Box, User, MapPin, Clock } from 'lucide-react'
 import api from '@/lib/api'
 import { getCurrentCid } from '@/lib/auth'
 
-export default function Orders() {
+export default function Orders({ myOnly = false }) {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(false)
   const [isFarmer, setIsFarmer] = useState(false)
@@ -32,14 +32,18 @@ export default function Orders() {
       return 'consumer'
     }
     const role = guessRole()
-    setIsFarmer(role === 'farmer')
+    // If myOnly is true, we always show consumer-like view of own placed orders
+    const effectiveIsFarmer = !myOnly && role === 'farmer'
+    setIsFarmer(effectiveIsFarmer)
 
-  const cid = getCurrentCid()
-  const fetcher = role === 'farmer' ? api.fetchSellerOrders({ cid }) : api.fetchMyOrders({ cid })
+    const cid = getCurrentCid()
+    const fetcher = myOnly
+      ? api.fetchMyOrders({ cid })
+      : (role === 'farmer' ? api.fetchSellerOrders({ cid }) : api.fetchMyOrders({ cid }))
     Promise.resolve(fetcher)
       .then((resp) => {
         if (!mounted) return
-        const list = role === 'farmer' ? (resp?.orders || []) : (resp || [])
+        const list = (!myOnly && role === 'farmer') ? (resp?.orders || []) : (resp || [])
         setOrders(list)
       })
       .catch((e) => console.error(e))
@@ -53,7 +57,7 @@ export default function Orders() {
   const formatNu = (n) => `Nu. ${Number(n || 0).toFixed(0)}`
 
   const contactInfo = (o) => {
-    // For farmer view, contact customer; for consumer view, contact farmer
+    // For farmer view, contact customer; for consumer/myOnly view, contact farmer
     if (isFarmer) return o.buyer?.phoneNumber || ''
     return o.seller?.phoneNumber || ''
   }

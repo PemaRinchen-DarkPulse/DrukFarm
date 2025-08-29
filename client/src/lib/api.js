@@ -162,9 +162,29 @@ export async function searchTransportOrders({ from, to = [], cid }){
   return resp?.orders || []
 }
 
+export async function setOutForDelivery({ orderId, cid, name, phoneNumber }){
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  const body = { name, phoneNumber }
+  return request(`/orders/${orderId}/out-for-delivery`, { method: 'PATCH', headers, body: JSON.stringify(body) })
+}
+
+export async function fetchMyTransports({ cid } = {}){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  const resp = await request('/orders/my-transports', { headers })
+  return resp?.orders || []
+}
+
+export async function markDelivered({ orderId, cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request(`/orders/${orderId}/delivered`, { method: 'PATCH', headers })
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
   addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder,
-  searchTransportOrders,
+  searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered,
 }
