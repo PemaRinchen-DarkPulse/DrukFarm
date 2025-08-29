@@ -186,6 +186,17 @@ export default function BuyProducts(){
         await api.buyProduct({ productId, quantity, cid })
       } else {
         // Cart checkout: call cart checkout API (creates orders and clears cart)
+        // Ensure server has the latest quantity for all items before checkout
+        const pending = []
+        for (const it of items) {
+          const v = draftQty[it.itemId]
+          const q = v === '' ? 0 : Number(v ?? it.quantity)
+          if (q >= 1 && q !== Number(it.quantity)) pending.push({ itemId: it.itemId, q })
+        }
+        for (const p of pending) {
+          // eslint-disable-next-line no-await-in-loop
+          await api.updateCartItem({ itemId: p.itemId, quantity: p.q, cid })
+        }
         await api.cartCheckout({ cid })
       }
       try { localStorage.removeItem('cartMessage') } catch {}

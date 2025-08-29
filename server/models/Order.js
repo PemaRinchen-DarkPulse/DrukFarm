@@ -59,5 +59,21 @@ OrderSchema.virtual('orderId').get(function () {
 	return this._id
 })
 
+// Ensure quantity and totalPrice are always consistent, even if callers forget to compute
+OrderSchema.pre('validate', function (next) {
+	try {
+		// Coerce quantity to a safe integer >= 1
+		const q = Number(this.quantity)
+		this.quantity = Number.isFinite(q) && q >= 1 ? Math.floor(q) : 1
+		// Compute total from the product snapshot price
+		const price = Number(this?.product?.price || 0)
+		const total = price * this.quantity
+		this.totalPrice = Number.isFinite(total) ? Number(total.toFixed(2)) : 0
+		next()
+	} catch (e) {
+		next(e)
+	}
+})
+
 module.exports = mongoose.model('Order', OrderSchema)
 

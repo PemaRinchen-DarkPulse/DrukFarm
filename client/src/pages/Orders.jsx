@@ -56,9 +56,16 @@ export default function Orders({ myOnly = false }) {
 
   const formatNu = (n) => `Nu. ${Number(n || 0).toFixed(0)}`
 
+  const isOutForDelivery = (status) => {
+    const s = String(status || '').toLowerCase()
+    return s === 'out_for_delivery' || s === 'out for delivery'
+  }
+
   const contactInfo = (o) => {
-    // For farmer view, contact customer; for consumer/myOnly view, contact farmer
+    // For farmer view, contact customer; for consumer/myOnly view, contact farmer,
+    // but if status is out for delivery, contact transporter instead.
     if (isFarmer) return o.buyer?.phoneNumber || ''
+    if (isOutForDelivery(o.status) && o.transporter?.phoneNumber) return o.transporter.phoneNumber
     return o.seller?.phoneNumber || ''
   }
 
@@ -117,6 +124,15 @@ export default function Orders({ myOnly = false }) {
                   <div className="space-y-1">
                     <div className="text-sm text-emerald-700 font-semibold">Order #{o.orderId.slice(-6).toUpperCase()}</div>
                     {(() => {
+                      if (!isFarmer && isOutForDelivery(o.status) && o.transporter) {
+                        const tname = o.transporter?.name || 'Transporter'
+                        return (
+                          <div className="flex items-center gap-3 text-gray-700">
+                            <span className="inline-flex items-center gap-1 text-sm"><User className="w-4 h-4" /> {tname}</span>
+                            {/* no location for transporter */}
+                          </div>
+                        )
+                      }
                       const name = isFarmer ? (o.buyer?.name || '—') : (o.seller?.name || '—')
                       const loc = isFarmer ? (o.buyer?.location || '—') : (o.seller?.location || '—')
                       return (
@@ -146,8 +162,6 @@ export default function Orders({ myOnly = false }) {
                   <div className="text-sm inline-flex items-center gap-1 text-gray-600"><Clock className="w-4 h-4" /> Status: {o.status || 'pending'}</div>
                   {isFarmer ? (
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline">Accept Order</Button>
-                      <Button size="sm" className="bg-red-500 hover:bg-red-600 text-white">Decline</Button>
                       <Button size="sm" variant="outline" asChild>
                         <a href={contactInfo(o) ? `tel:${contactInfo(o)}` : '#'}>Contact Customer</a>
                       </Button>
@@ -155,7 +169,9 @@ export default function Orders({ myOnly = false }) {
                   ) : (
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" asChild>
-                        <a href={contactInfo(o) ? `tel:${contactInfo(o)}` : '#'}>Contact Farmer</a>
+                        <a href={contactInfo(o) ? `tel:${contactInfo(o)}` : '#'}>
+                          {isOutForDelivery(o.status) ? 'Contact Transporter' : 'Contact Farmer'}
+                        </a>
                       </Button>
                       <Button size="sm" className="bg-red-500 hover:bg-red-600 text-white" disabled={o.status !== 'pending'} onClick={() => onCancel(o)}>Cancel</Button>
                     </div>

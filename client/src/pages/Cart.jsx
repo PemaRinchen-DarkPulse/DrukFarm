@@ -133,6 +133,17 @@ export default function Cart(){
     try {
       const cid = getCurrentCid()
       if (!cid) { navigate('/login', { replace: true }); return }
+      // Flush any pending draft quantities to server before checkout
+      const pending = []
+      for (const it of items) {
+        const v = draftQty[it.itemId]
+        const q = v === '' ? 0 : Number(v ?? it.quantity)
+        if (q >= 1 && q !== Number(it.quantity)) pending.push({ itemId: it.itemId, q })
+      }
+      for (const p of pending) {
+        // eslint-disable-next-line no-await-in-loop
+        await api.updateCartItem({ itemId: p.itemId, quantity: p.q, cid })
+      }
       const resp = await api.cartCheckout({ cid })
   const orders = resp?.orders || []
   show(`Order placed (${orders.length} item${orders.length===1?'':'s'})`)

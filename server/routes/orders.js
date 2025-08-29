@@ -49,21 +49,46 @@ function pickProductId(req) {
 	return m ? m[0] : null
 }
 
+// Atomically decrement stock if sufficient; returns updated product or null if insufficient
+async function tryDecrementStock(productId, qty) {
+	return Product.findOneAndUpdate(
+		{ _id: productId, stockQuantity: { $gte: qty } },
+		{ $inc: { stockQuantity: -qty } },
+		{ new: true }
+	)
+}
+
+// Best-effort rollback for stock decrements (used on failures after decrement)
+async function rollbackStock(decrements) {
+	// decrements: Array<{ productId, qty }>
+	await Promise.allSettled(
+		(decrements || []).map(d =>
+			Product.updateOne({ _id: d.productId }, { $inc: { stockQuantity: d.qty } })
+		)
+	)
+}
+
 // POST /api/orders/buy -> Single product purchase (independent of cart)
 // Body: { productId, quantity } or Query: ?pid=<id>
 router.post('/buy', authCid, async (req, res) => {
 	try {
-		const { quantity } = req.body || {}
+		// Accept quantity from body or query (fallback) and coerce
+		const quantityInput = (req.body && req.body.quantity != null) ? req.body.quantity : (req.query && req.query.quantity)
+		const { quantity = quantityInput } = req.body || {}
 		const productId = pickProductId(req)
 		if (!productId || !mongoose.Types.ObjectId.isValid(String(productId))) {
 			return res.status(400).json({ error: 'Invalid productId' })
 		}
-		const qty = Number(quantity || 1)
+		const qty = Math.floor(Number(quantity || 1))
 		if (!(qty >= 1 && qty <= 999)) return res.status(400).json({ error: 'Invalid quantity' })
 
 		// Load product and buyer
 		const product = await Product.findById(productId)
 		if (!product) return res.status(404).json({ error: 'Product not found' })
+
+		// Ensure stock is sufficient and atomically decrement it to avoid race conditions
+		const updated = await tryDecrementStock(product._id, qty)
+		if (!updated) return res.status(409).json({ error: 'Insufficient stock' })
 		const userSnapshot = await buildUserSnapshot(req.user.cid)
 
 		// Compose QR payload with minimal fields
@@ -78,23 +103,30 @@ router.post('/buy', authCid, async (req, res) => {
 		}
 		const qrCodeDataUrl = await generateQrDataUrl(qrPayload)
 
-		const orderDoc = await Order.create({
-			userCid: userSnapshot.cid,
-			userSnapshot,
-			product: {
-				productId: product._id,
-				productName: product.productName,
-				price: product.price,
-				unit: product.unit,
-				sellerCid: product.createdBy,
-				productImageBase64: product.productImageBase64 || '',
-			},
-			quantity: qty,
-			totalPrice: Number((product.price * qty).toFixed(2)),
-			qrCodeDataUrl,
-			source: 'buy',
-			status: 'pending',
-		})
+		let orderDoc
+		try {
+			orderDoc = await Order.create({
+				userCid: userSnapshot.cid,
+				userSnapshot,
+				product: {
+					productId: product._id,
+					productName: product.productName,
+					price: product.price,
+					unit: product.unit,
+					sellerCid: product.createdBy,
+					productImageBase64: product.productImageBase64 || '',
+				},
+				quantity: qty,
+				totalPrice: Number((product.price * qty).toFixed(2)),
+				qrCodeDataUrl,
+				source: 'buy',
+				status: 'pending',
+			})
+		} catch (createErr) {
+			// Roll back stock decrement if order creation fails
+			await rollbackStock([{ productId: product._id, qty }])
+			throw createErr
+		}
 
 		return res.status(201).json({ success: true, order: toOrderJson(orderDoc) })
 	} catch (err) {
@@ -118,12 +150,40 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 
 		const userSnapshot = await buildUserSnapshot(userCid)
 
-		// Build orders
+		// Filter valid items and pre-check stock locally
+		const items = cart.items
+			.map(i => ({ ...i.toObject?.() || i, product: productMap.get(String(i.productId)) || null }))
+			.filter(x => x.product)
+
+		if (!items.length) return res.status(400).json({ error: 'No valid items to order' })
+
+		const insufficient = items
+			.map(i => ({ productId: String(i.product._id), name: i.product.productName, requested: Math.floor(Number(i.quantity || 1)), available: i.product.stockQuantity }))
+			.filter(it => it.requested < 1 || it.requested > 999 || it.available < it.requested)
+
+		if (insufficient.length) {
+			return res.status(409).json({ error: 'Insufficient stock for some items', details: insufficient })
+		}
+
+		// Attempt atomic decrements for each item; rollback all if any fail
+		const decremented = []
+		for (const it of items) {
+			const qty = Math.floor(Number(it.quantity || 1))
+			// eslint-disable-next-line no-await-in-loop
+			const updated = await tryDecrementStock(it.product._id, qty)
+			if (!updated) {
+				// rollback previous and abort
+				await rollbackStock(decremented.map(d => ({ productId: d.productId, qty: d.qty })))
+				return res.status(409).json({ error: 'Insufficient stock due to concurrent updates', productId: String(it.product._id) })
+			}
+			decremented.push({ productId: it.product._id, qty })
+		}
+
+		// Build orders payload after successful decrements
 		const ordersToCreate = []
-		for (const item of cart.items) {
-			const p = productMap.get(String(item.productId))
-			if (!p) continue
-			const qty = item.quantity || 1
+		for (const it of items) {
+			const p = it.product
+			const qty = Math.floor(Number(it.quantity || 1))
 			const qrPayload = {
 				type: 'order',
 				mode: 'cart',
@@ -154,19 +214,24 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 			})
 		}
 
-		if (!ordersToCreate.length) return res.status(400).json({ error: 'No valid items to order' })
+		let created
+		try {
+			created = await Order.insertMany(ordersToCreate)
+		} catch (insertErr) {
+			// rollback stock if order creation fails
+			await rollbackStock(decremented)
+			throw insertErr
+		}
 
-			const created = await Order.insertMany(ordersToCreate)
+		// On successful checkout, clear the user's cart
+		try {
+			await Cart.updateOne({ userCid }, { $set: { items: [] } })
+		} catch (e) {
+			// Non-fatal; orders already created
+			console.warn('Failed to clear cart after checkout:', e)
+		}
 
-			// On successful checkout, clear the user's cart
-			try {
-				await Cart.updateOne({ userCid }, { $set: { items: [] } })
-			} catch (e) {
-				// Non-fatal; orders already created
-				console.warn('Failed to clear cart after checkout:', e)
-			}
-
-			return res.status(201).json({ success: true, cartCleared: true, orders: created.map(toOrderJson) })
+		return res.status(201).json({ success: true, cartCleared: true, orders: created.map(toOrderJson) })
 	} catch (err) {
 		console.error('Cart checkout error:', err)
 		return res.status(500).json({ error: 'Failed to checkout cart' })
@@ -433,6 +498,12 @@ router.get('/my', authCid, async (req, res) => {
 				const s = sMap.get(o.product?.sellerCid)
 				return s ? { cid: s.cid, name: s.name, location: s.location, phoneNumber: s.phoneNumber } : { cid: o.product?.sellerCid || '' }
 			})(),
+			// include transporter snapshot if present so the client can render it when OUT_FOR_DELIVERY
+			transporter: o.transporter ? {
+				cid: o.transporter.cid,
+				name: o.transporter.name,
+				phoneNumber: o.transporter.phoneNumber,
+			} : null,
 		}))
 		res.json({ success: true, orders: mapped })
 	} catch (err) {
@@ -452,6 +523,14 @@ router.patch('/:orderId/cancel', authCid, async (req, res) => {
 		if (order.status !== 'pending') return res.status(409).json({ error: 'Only pending orders can be cancelled' })
 		order.status = 'cancelled'
 		await order.save()
+		// Restock the product since the order is cancelled before fulfillment
+		if (order?.product?.productId && order.quantity > 0) {
+			try {
+				await Product.updateOne({ _id: order.product.productId }, { $inc: { stockQuantity: Number(order.quantity) } })
+			} catch (e) {
+				console.warn('Failed to restock after cancel:', e)
+			}
+		}
 		res.json({ success: true, order: { orderId: String(order._id), status: order.status } })
 	} catch (err) {
 		console.error('Cancel order error:', err)
