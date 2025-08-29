@@ -11,7 +11,7 @@ export default function Footer() {
         aria-hidden
       />
       
-      <div className="mx-auto max-w-7xl px-6 pt-12 pb-10">
+  <div className="mx-auto max-w-7xl px-6 pt-12 pb-24 md:pb-10">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           
           {/* Brand / About */}

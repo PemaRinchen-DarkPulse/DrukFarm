@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { MapPin, ShoppingCart, CreditCard } from 'lucide-react'
+import { MapPin, ShoppingCart, CreditCard, Search, SlidersHorizontal } from 'lucide-react'
 import api from '@/lib/api'
 import { getCurrentCid } from '@/lib/auth'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -11,6 +11,7 @@ let initialProducts = []
 export default function Features(){
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
+  const [showFilters, setShowFilters] = useState(false)
 
   const categories = ['all','Vegetables','Fruits','Grains','Spices','Dairy','Processed']
 
@@ -98,16 +99,66 @@ export default function Features(){
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Products</h1>
-          <p className="text-slate-600">Browse produce listed by local Bhutanese farmers.</p>
+    <div className="max-w-7xl mx-auto p-6 overflow-x-hidden">
+      <div className="mb-6">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold text-emerald-900">Products</h1>
+            <p className="text-slate-600">Browse produce listed by local Bhutanese farmers.</p>
+          </div>
+
+          {/* Inline filters on md+ */}
+          <div className="hidden md:flex items-center gap-3 min-w-0 w-full md:w-auto md:max-w-xl">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                placeholder="Search products, sellers..."
+                value={query}
+                onChange={(e)=>setQuery(e.target.value)}
+                className="w-full border border-slate-200 rounded-md pl-9 pr-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+            <select
+              value={category}
+              onChange={(e)=>setCategory(e.target.value)}
+              className="border border-slate-200 rounded-md px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+            >
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Toggle button on mobile */}
+          <div className="md:hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-expanded={showFilters}
+              aria-controls="mobile-filters"
+              className="inline-flex items-center gap-2 w-full"
+              onClick={()=>setShowFilters(v=>!v)}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filters
+            </Button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <input placeholder="Search products, sellers..." value={query} onChange={(e)=>setQuery(e.target.value)} className="border rounded-md px-3 py-2" />
-          <select value={category} onChange={(e)=>setCategory(e.target.value)} className="border rounded-md px-3 py-2">
+        {/* Mobile filter panel */}
+        <div id="mobile-filters" className={`md:hidden ${showFilters ? 'mt-3 grid' : 'hidden'} grid-cols-1 gap-3`}>
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              placeholder="Search products, sellers..."
+              value={query}
+              onChange={(e)=>setQuery(e.target.value)}
+              className="w-full border border-slate-200 rounded-md pl-9 pr-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+          </div>
+          <select
+            value={category}
+            onChange={(e)=>setCategory(e.target.value)}
+            className="w-full border border-slate-200 rounded-md px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+          >
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>

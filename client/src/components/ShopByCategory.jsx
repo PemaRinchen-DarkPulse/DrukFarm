@@ -20,8 +20,11 @@ export default function ShopByCategory(){
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {categories.map(cat => (
-            <article key={cat.id} className="bg-white rounded-lg shadow-sm border border-emerald-50 p-6 text-center">
+          {categories.map((cat, idx) => (
+            <article
+              key={cat.id}
+              className={`bg-white rounded-lg shadow-sm border border-emerald-50 p-6 text-center ${idx >= 3 ? 'hidden sm:block' : ''}`}
+            >
               <div className="mx-auto w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-700 mb-4">🥕</div>
               <h3 className="font-semibold text-emerald-700 mb-2">{cat.title}</h3>
               <p className="text-sm text-slate-500 mb-4">{cat.desc}</p>

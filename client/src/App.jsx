@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 
 import Home from "./pages/Home";
@@ -21,11 +21,30 @@ function AppShell() {
   const location = useLocation();
   const hideFooter = location.pathname === '/login' || location.pathname === '/register';
 
+  // Ensure each navigation lands at the top of the page
+  useEffect(() => {
+    // Disable browser scroll restoration so we control it
+    if ("scrollRestoration" in window.history) {
+      const original = window.history.scrollRestoration;
+      window.history.scrollRestoration = "manual";
+      return () => { window.history.scrollRestoration = original || "auto"; };
+    }
+  }, []);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Scroll the window (primary scroll container) to top
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+    // If any nested scrollable main exists, reset it too (no-op if not scrollable)
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTop = 0;
+  }, [location.pathname, location.search]);
+
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-900 pb-20 md:pb-0">
+    <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-900">
       <Navbar />
 
-      <main className="flex-1">
+      <main className="flex-1 pb-16 md:pb-0">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Features />} />

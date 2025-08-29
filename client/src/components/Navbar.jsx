@@ -88,7 +88,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 bg-white/60 backdrop-blur-md border-b border-slate-100 dark:bg-slate-900/60 dark:border-slate-800">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-20 items-center justify-between">
-          <div className="flex items-center gap-4 -ml-4 sm:-ml-6 lg:-ml-15">
+          <div className="flex items-center gap-4 ml-2 sm:ml-0">
               <div className="flex items-center space-x-2">
                 <div className="h-12 w-12 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold">FD</div>
                 <div>
@@ -109,7 +109,7 @@ export default function Navbar() {
             <Link to="/contact" className="text-base lg:text-lg font-medium text-slate-700 hover:text-slate-900">Contact</Link>
           </nav>
 
-          <div className="flex items-center gap-3 -mr-4 sm:-mr-6 lg:-mr-15">
+          <div className="flex items-center gap-3 mr-2 sm:mr-0">
             {/* Desktop auth buttons */}
             <div className="hidden md:flex items-center gap-2">
               <div className="relative inline-flex">
@@ -216,7 +216,7 @@ export default function Navbar() {
     </header>
 
     {/* Mobile bottom dock */}
-    <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-white/90 backdrop-blur border-t border-slate-200 dark:bg-slate-900/90 dark:border-slate-800">
+  <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-white/90 backdrop-blur dark:bg-slate-900/90">
       <div className="max-w-7xl mx-auto px-6">
         <div className={`h-16 grid items-center ${user ? 'grid-cols-5' : 'grid-cols-3'}`}>
           {/* Col 1: Cart */}
