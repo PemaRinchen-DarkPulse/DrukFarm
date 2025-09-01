@@ -45,7 +45,7 @@ function MultiSelect({ label, id, options = [], values = [], onChange, placehold
         id={id}
         type="button"
         onClick={toggle}
-        className="mt-1 w-full rounded-md border px-3 py-2 bg-white border-slate-200 text-left focus:outline-none focus:ring-2 focus:ring-emerald-300 transition relative"
+        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 bg-white text-left text-sm focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-emerald-600 transition-colors relative"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -56,7 +56,7 @@ function MultiSelect({ label, id, options = [], values = [], onChange, placehold
         <div
           role="listbox"
           aria-multiselectable="true"
-          className="absolute z-50 mt-1 w-[min(40rem,100%)] max-h-64 overflow-auto rounded-md border bg-white shadow-lg"
+          className="absolute z-50 mt-2 w-[min(40rem,100%)] max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white"
         >
           {options.map(opt => (
             <label key={opt} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-emerald-50 cursor-pointer">
@@ -106,7 +106,7 @@ function SingleSelect({ label, id, options = [], value = '', onChange, placehold
         id={id}
         type="button"
         onClick={toggle}
-        className="mt-1 w-full rounded-md border px-3 py-2 bg-white border-slate-200 text-left focus:outline-none focus:ring-2 focus:ring-emerald-300 transition relative"
+        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 bg-white text-left text-sm focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-emerald-600 transition-colors relative"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -116,7 +116,7 @@ function SingleSelect({ label, id, options = [], value = '', onChange, placehold
       {open && (
         <div
           role="listbox"
-          className="absolute z-50 mt-1 w-[min(40rem,100%)] max-h-64 overflow-auto rounded-md border bg-white shadow-lg"
+          className="absolute z-50 mt-2 w-[min(40rem,100%)] max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white"
         >
           {options.map(opt => (
             <button

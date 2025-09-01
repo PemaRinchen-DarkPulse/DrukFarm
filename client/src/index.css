@@ -186,3 +186,49 @@ input[type=number] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* Custom dropdown styles for exactly 5 items visible */
+.max-h-48 {
+  /* Height for exactly 5 items: 48px per item = 240px total */
+  max-height: 240px !important;
+}
+
+/* Smooth scrollbar for dropdown */
+.max-h-48::-webkit-scrollbar {
+  width: 6px;
+}
+
+.max-h-48::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.max-h-48::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.max-h-48::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Modern mobile-first dropdown positioning */
+@media (max-width: 768px) {
+  /* Force dropdown to open upward on mobile when near bottom */
+  .dropdown-upward {
+    bottom: 100%;
+    top: auto;
+    margin-bottom: 8px;
+    margin-top: 0;
+  }
+  /* Hide scrollbar but keep scrollability for mobile dropdowns */
+  .dropdown-hide-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  -webkit-overflow-scrolling: touch; /* iOS smooth scroll */
+  overscroll-behavior: contain; /* prevent body scroll chaining */
+  }
+  .dropdown-hide-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+}
