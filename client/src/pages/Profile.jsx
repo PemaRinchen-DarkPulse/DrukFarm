@@ -34,9 +34,9 @@ const Profile = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto bg-white shadow rounded-lg p-6 mt-10">
+    <div className="max-w-4xl mx-auto bg-card text-card-foreground shadow rounded-lg p-6 mt-10">
       <h2 className="text-2xl font-semibold mb-1">Farmer Profile</h2>
-      <p className="text-gray-600 mb-6">
+      <p className="text-muted-foreground mb-6">
         Manage your farm and personal information
       </p>
 
@@ -53,7 +53,7 @@ const Profile = () => {
               alt="Profile"
               className="w-32 h-32 rounded-full object-cover mb-3 border"
             />
-            <label className="cursor-pointer bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700">
+            <label className="cursor-pointer text-primary-foreground bg-primary px-3 py-1 rounded-md text-sm">
               Upload Photo
               <input
                 type="file"
@@ -73,7 +73,8 @@ const Profile = () => {
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                className="w-full border rounded-md p-2 focus:ring focus:ring-green-200"
+                className="w-full border rounded-md p-2 focus:ring"
+                style={{ outlineColor: 'var(--ring)' }}
               />
             </div>
             <div>
@@ -83,7 +84,8 @@ const Profile = () => {
                 name="farmName"
                 value={formData.farmName}
                 onChange={handleChange}
-                className="w-full border rounded-md p-2 focus:ring focus:ring-green-200"
+                className="w-full border rounded-md p-2 focus:ring"
+                style={{ outlineColor: 'var(--ring)' }}
               />
             </div>
             <div className="md:col-span-2">
@@ -93,7 +95,8 @@ const Profile = () => {
                 name="farmLocation"
                 value={formData.farmLocation}
                 onChange={handleChange}
-                className="w-full border rounded-md p-2 focus:ring focus:ring-green-200"
+                className="w-full border rounded-md p-2 focus:ring"
+                style={{ outlineColor: 'var(--ring)' }}
               />
             </div>
           </div>
@@ -106,7 +109,8 @@ const Profile = () => {
             name="farmDescription"
             value={formData.farmDescription}
             onChange={handleChange}
-            className="w-full border rounded-md p-2 h-24 focus:ring focus:ring-green-200"
+            className="w-full border rounded-md p-2 h-24 focus:ring"
+            style={{ outlineColor: 'var(--ring)' }}
           />
         </div>
 
@@ -119,7 +123,8 @@ const Profile = () => {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              className="w-full border rounded-md p-2 focus:ring focus:ring-green-200"
+              className="w-full border rounded-md p-2 focus:ring"
+              style={{ outlineColor: 'var(--ring)' }}
             />
           </div>
           <div>
@@ -129,7 +134,8 @@ const Profile = () => {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full border rounded-md p-2 focus:ring focus:ring-green-200"
+              className="w-full border rounded-md p-2 focus:ring"
+              style={{ outlineColor: 'var(--ring)' }}
             />
           </div>
         </div>
@@ -138,7 +144,7 @@ const Profile = () => {
         <div>
           <button
             type="submit"
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+            className="text-primary-foreground bg-primary px-4 py-2 rounded-md"
           >
             Update Profile
           </button>

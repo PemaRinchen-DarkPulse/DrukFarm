@@ -164,10 +164,10 @@ export default function Features(){
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
         {filtered.map((p) => (
           <article key={p.id} className="rounded-lg bg-white shadow-sm border border-emerald-100 overflow-hidden">
-            <div className="relative h-64 bg-emerald-50/60 overflow-hidden">
+            <div className="relative h-48 bg-emerald-50/60 overflow-hidden">
               <div className="absolute top-3 left-3 flex gap-2">
                 {p.tags.map((t, idx) => (
                   <span key={idx} className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-800">{t}</span>

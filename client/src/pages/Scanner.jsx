@@ -51,9 +51,9 @@ export default function Scanner() {
         <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
       </div>
       {result && (
-        <div className="mt-4 p-3 rounded border bg-white dark:bg-slate-900">
-          <div className="text-sm text-slate-500 mb-1">Result</div>
-          <div className="break-words text-slate-900 dark:text-slate-100">{result}</div>
+        <div className="mt-4 p-3 rounded border border-border bg-card text-card-foreground">
+          <div className="text-sm text-muted-foreground mb-1">Result</div>
+          <div className="break-words">{result}</div>
           {/^https?:\/\//i.test(result) && (
             <a href={result} target="_blank" rel="noreferrer" className="inline-block mt-3">
               <Button size="sm">Open Link</Button>

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 
 export default function Footer() {
   return (
-    <footer className="relative bg-emerald-700 text-emerald-100">
+  <footer className="relative bg-primary text-primary-foreground">
       {/* Decorative gradient */}
       <div
         className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_30%)] pointer-events-none"
@@ -17,13 +17,13 @@ export default function Footer() {
           {/* Brand / About */}
           <div className="space-y-5">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-md bg-emerald-600 flex items-center justify-center text-white font-bold">
+              <div className="h-10 w-10 rounded-md bg-primary/90 flex items-center justify-center text-primary-foreground font-bold">
                 FD
               </div>
               <div className="text-lg font-semibold">DruKFarm</div>
             </div>
             <h4 className="text-base font-semibold">About</h4>
-            <p className="text-sm leading-relaxed text-emerald-100/90">
+            <p className="text-sm leading-relaxed opacity-90">
               Connecting Bhutanese farmers directly with urban consumers,
               restaurants, and hotels. Fresh, local, sustainable.
             </p>
@@ -69,7 +69,7 @@ export default function Footer() {
         </div>
 
         {/* Divider */}
-        <hr className="my-8 border-emerald-600/40" />
+  <hr className="my-8 border-white/20" />
 
         {/* Bottom note */}
         <div className="text-center text-sm opacity-90">

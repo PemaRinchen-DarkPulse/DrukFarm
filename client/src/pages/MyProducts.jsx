@@ -153,11 +153,11 @@ export default function MyProducts({ onAdd }) {
 
   return (
     <section className="my-products">
-      <style>{`
+    <style>{`
         .my-products .products-header{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px }
-        .my-products .products-title{ font-size:26px; color:#0b2f1f; margin:0; font-weight:800 }
-        .my-products .add-product-btn{ display:inline-flex; align-items:center; gap:14px; padding:22px 28px; border-radius:999px; background: linear-gradient(180deg,#2e8b57,#256a44); color:#fff; border:none; box-shadow:0 12px 30px rgba(46,139,87,0.12); cursor:pointer; transition:transform .15s ease, box-shadow .15s ease }
-        .my-products .add-product-btn:hover{ transform:translateY(-3px); box-shadow:0 20px 46px rgba(46,139,87,0.14) }
+  .my-products .products-title{ font-size:26px; color: var(--foreground); margin:0; font-weight:800 }
+  .my-products .add-product-btn{ display:inline-flex; align-items:center; gap:14px; padding:22px 28px; border-radius:999px; background: linear-gradient(180deg, var(--primary), color-mix(in oklab, var(--primary), white 12%)); color: var(--primary-foreground); border:none; box-shadow:0 12px 30px color-mix(in oklab, var(--primary), transparent 80%); cursor:pointer; transition:transform .15s ease, box-shadow .15s ease }
+  .my-products .add-product-btn:hover{ transform:translateY(-3px); box-shadow:0 20px 46px color-mix(in oklab, var(--primary), transparent 76%) }
         .my-products .products-header{ padding-top:6px }
         .my-products .add-product-btn .btn-icon{ margin-right:6px; font-weight:800; font-size:20px; }
       `}</style>
@@ -185,25 +185,25 @@ export default function MyProducts({ onAdd }) {
         )}
 
         {products.length === 0 && !loading ? (
-          <div className="text-center py-20 bg-gray-50 rounded-2xl shadow-sm border border-dashed border-gray-300">
-            <Package className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-700">
+          <div className="text-center py-20 bg-muted rounded-2xl shadow-sm border border-dashed border-border">
+            <Package className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-foreground/80">
               You don’t have any products yet
             </h3>
-            <p className="text-gray-500 mb-6">
+            <p className="text-muted-foreground mb-6">
               Start by adding your first product to showcase and sell.
             </p>
             <Button
               onClick={() => setShowAdd(true)}
-              className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-md"
+              className="px-6 py-3 text-primary-foreground bg-primary rounded-xl shadow-md"
             >
               + Add Your First Product
             </Button>
           </div>
         ) : (
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {products.map(p => (
-              <ProductCard key={p.id} product={p}>
+              <ProductCard key={p.id} product={p} showLocation={false}>
                 <Button
                   variant="outline"
                   size="sm"

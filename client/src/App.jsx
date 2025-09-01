@@ -19,7 +19,8 @@ import Orders from './pages/Orders';
 import Scanner from './pages/Scanner';
 function AppShell() {
   const location = useLocation();
-  const hideFooter = location.pathname === '/login' || location.pathname === '/register';
+  const onAuth = location.pathname === '/login' || location.pathname === '/register';
+  const hideFooter = onAuth;
 
   // Ensure each navigation lands at the top of the page
   useEffect(() => {
@@ -41,8 +42,8 @@ function AppShell() {
   }, [location.pathname, location.search]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-900">
-      <Navbar />
+  <div className="flex min-h-screen flex-col bg-background text-foreground">
+  {!onAuth && <Navbar />}
 
       <main className="flex-1 pb-16 md:pb-0">
         <Routes>

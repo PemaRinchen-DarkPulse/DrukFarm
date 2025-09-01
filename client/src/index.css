@@ -8,6 +8,32 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  /* Brand color scale overrides for Tailwind utilities */
+  /* Remap emerald scale to brand Primary/Accent range */
+  /* Primary (700): #014D40; Accent around 300: #A7E6C5 */
+  --color-emerald-50: #EFFAF5;
+  --color-emerald-100: #DBF3E6;
+  --color-emerald-200: #C8EDD9;
+  --color-emerald-300: #A7E6C5; /* Soft Mint (Accent) */
+  --color-emerald-400: #7FD1AE;
+  --color-emerald-500: #4DBD98;
+  --color-emerald-600: #259E84;
+  --color-emerald-700: #014D40; /* Primary */
+  --color-emerald-800: #0B3B34; /* Deep Green-Black */
+  --color-emerald-900: #062A24;
+  /* Optional amber mapping retained but unused by brand */
+  --color-amber-700: #D19900;
+  --color-amber-600: #E3B200;
+  --color-amber-500: #E9BE1D;
+  --color-amber-300: #F3DA6A;
+  --color-amber-50: #FFF8E1;
+  --color-amber-100: #FFECB3;
+  --color-amber-200: #FFE082;
+  --color-amber-400: #FFCA28;
+  --color-amber-800: #B27900;
+  --color-amber-900: #8F5F00;
+  --color-brown-500: #6F5B53;
+  --color-brown-400: #8D6E63;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -43,76 +69,84 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.147 0.004 49.25);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.147 0.004 49.25);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.147 0.004 49.25);
-  --primary: oklch(0.216 0.006 56.043);
-  --primary-foreground: oklch(0.985 0.001 106.423);
-  --secondary: oklch(0.97 0.001 106.424);
-  --secondary-foreground: oklch(0.216 0.006 56.043);
-  --muted: oklch(0.97 0.001 106.424);
-  --muted-foreground: oklch(0.553 0.013 58.071);
-  --accent: oklch(0.97 0.001 106.424);
-  --accent-foreground: oklch(0.216 0.006 56.043);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.923 0.003 48.717);
-  --input: oklch(0.923 0.003 48.717);
-  --ring: oklch(0.709 0.01 56.259);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0.001 106.423);
-  --sidebar-foreground: oklch(0.147 0.004 49.25);
-  --sidebar-primary: oklch(0.216 0.006 56.043);
-  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-accent: oklch(0.97 0.001 106.424);
-  --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
-  --sidebar-border: oklch(0.923 0.003 48.717);
-  --sidebar-ring: oklch(0.709 0.01 56.259);
+  /* Brand palette */
+  --background: #F9F9F9; /* Light Neutral */
+  --foreground: #0B3B34; /* Deep Green-Black */
+  --card: #FFFFFF; /* Card/Surfaces */
+  --card-foreground: #0B3B34;
+  --popover: #FFFFFF;
+  --popover-foreground: #0B3B34;
+  --primary: #014D40; /* Emerald Green */
+  --primary-foreground: #FFFFFF;
+  --secondary: #164E43; /* Supportive Green as secondary */
+  --secondary-foreground: #FFFFFF;
+  --muted: #F1F5F4; /* subtle tint for muted surfaces */
+  --muted-foreground: #164E43; /* Supportive Green */
+  --accent: #A7E6C5; /* Soft Mint */
+  --accent-foreground: #0B3B34;
+  --destructive: #ef4444; /* keep red for errors */
+  --border: #E3ECE8; /* subtle greenish border */
+  --input: #E3ECE8;
+  --ring: #A7E6C5; /* focus ring using accent */
+  /* Charts mapped to brand */
+  --chart-1: #014D40;
+  --chart-2: #A7E6C5;
+  --chart-3: #164E43;
+  --chart-4: #4DBD98;
+  --chart-5: #7FD1AE;
+  /* Sidebar */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #0B3B34;
+  --sidebar-primary: #014D40;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #A7E6C5;
+  --sidebar-accent-foreground: #0B3B34;
+  --sidebar-border: #E3ECE8;
+  --sidebar-ring: #A7E6C5;
 }
 
 .dark {
-  --background: oklch(0.147 0.004 49.25);
-  --foreground: oklch(0.985 0.001 106.423);
-  --card: oklch(0.216 0.006 56.043);
-  --card-foreground: oklch(0.985 0.001 106.423);
-  --popover: oklch(0.216 0.006 56.043);
-  --popover-foreground: oklch(0.985 0.001 106.423);
-  --primary: oklch(0.923 0.003 48.717);
-  --primary-foreground: oklch(0.216 0.006 56.043);
-  --secondary: oklch(0.268 0.007 34.298);
-  --secondary-foreground: oklch(0.985 0.001 106.423);
-  --muted: oklch(0.268 0.007 34.298);
-  --muted-foreground: oklch(0.709 0.01 56.259);
-  --accent: oklch(0.268 0.007 34.298);
-  --accent-foreground: oklch(0.985 0.001 106.423);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.553 0.013 58.071);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.216 0.006 56.043);
-  --sidebar-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-accent: oklch(0.268 0.007 34.298);
-  --sidebar-accent-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.553 0.013 58.071);
+  /* Dark mode tuned to brand */
+  --background: #0B3B34;
+  --foreground: #E9F6F1;
+  --card: #0E4741;
+  --card-foreground: #E9F6F1;
+  --popover: #0E4741;
+  --popover-foreground: #E9F6F1;
+  --primary: #A7E6C5; /* swap for contrast on dark */
+  --primary-foreground: #0B3B34;
+  --secondary: #1A5B50;
+  --secondary-foreground: #E9F6F1;
+  --muted: #0F3F39;
+  --muted-foreground: #BFECDD;
+  --accent: #59C69E;
+  --accent-foreground: #0B3B34;
+  --destructive: #f87171;
+  --border: rgba(255,255,255,0.12);
+  --input: rgba(255,255,255,0.16);
+  --ring: #59C69E;
+  --chart-1: #59C69E;
+  --chart-2: #A7E6C5;
+  --chart-3: #1A5B50;
+  --chart-4: #4DBD98;
+  --chart-5: #E9F6F1;
+  --sidebar: #0E4741;
+  --sidebar-foreground: #E9F6F1;
+  --sidebar-primary: #59C69E;
+  --sidebar-primary-foreground: #0B3B34;
+  --sidebar-accent: #A7E6C5;
+  --sidebar-accent-foreground: #0B3B34;
+  --sidebar-border: rgba(255,255,255,0.12);
+  --sidebar-ring: #59C69E;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
   }
   body {
     @apply bg-background text-foreground;
@@ -122,7 +156,7 @@
 /* Prevent layout 'bumps' when vertical scrollbar appears/disappears */
 html {
   /* Reserve space for the scrollbar so content width stays stable */
-  scrollbar-gutter: stable both-edges;
+  scrollbar-gutter: stable;
 }
 
 /* Smooth page transitions and avoid end-of-page jank */

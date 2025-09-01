@@ -85,7 +85,7 @@ export default function FeaturedProducts(){
           <p className="mt-2 text-emerald-700/80">Discover fresh, high-quality produce from our trusted local farmers</p>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
       {items.map((p) => (
             <ProductCard key={p.id || p.title} product={p}>
         <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>

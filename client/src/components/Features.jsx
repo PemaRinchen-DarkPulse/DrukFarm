@@ -20,9 +20,9 @@ export default function Features() {
         <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((f, i) => (
             <div key={i} className="rounded-xl p-6 bg-emerald-50 dark:bg-slate-800/60 hover:shadow-lg transition">
-              <div className="flex items-center justify-center h-12 w-12 rounded-md bg-emerald-100 text-emerald-700 text-xl">{f.icon}</div>
-              <h3 className="mt-4 text-lg font-medium text-slate-900 dark:text-white">{f.title}</h3>
-              <p className="mt-2 text-slate-600 dark:text-slate-300">{f.desc}</p>
+              <div className="flex items-center justify-center h-12 w-12 rounded-md bg-emerald-100 text-emerald-700 text-xl mx-auto">{f.icon}</div>
+              <h3 className="mt-4 text-lg font-medium text-slate-900 dark:text-white text-center">{f.title}</h3>
+              <p className="mt-2 text-slate-600 dark:text-slate-300 text-center">{f.desc}</p>
             </div>
           ))}
         </div>

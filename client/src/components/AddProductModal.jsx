@@ -33,8 +33,8 @@ export default function AddProductModal({ onClose, onSave, initial }) {
     // ✅ validation checks
     if (!title.trim()) { alert('Please enter a product name'); return }
     if (!category) { alert('Please select a category'); return }
-    if (!desc.trim() || desc.length < 70) { alert('Description must be at least 70 characters'); return }
-    if (desc.length > 180) { alert('Description cannot exceed 180 characters'); return }
+  if (!desc.trim() || desc.length < 70) { alert('Description must be at least 70 characters'); return }
+  if (desc.length > 150) { alert('Description cannot exceed 150 characters'); return }
     if (!price || Number(price) <= 0) { alert('Price must be greater than 0'); return }
     if (!unit) { alert('Please select a unit'); return }
     if (!stock || Number(stock) < 0) { alert('Stock cannot be negative'); return }
@@ -84,7 +84,7 @@ export default function AddProductModal({ onClose, onSave, initial }) {
   }
 
   const handleDescChange = (value) => {
-    if (value.length > 180) value = value.slice(0, 180)
+    if (value.length > 150) value = value.slice(0, 150)
     setDesc(value)
   }
 
@@ -137,7 +137,7 @@ export default function AddProductModal({ onClose, onSave, initial }) {
     <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-60 p-6" role="dialog" aria-modal="true">
       <div className="bg-white max-w-3xl w-full rounded-xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-green-900">{initial ? 'Edit Product' : 'Add New Product'}</h3>
+          <h3 className="text-lg font-semibold" style={{ color: '#4CAF50' }}>{initial ? 'Edit Product' : 'Add New Product'}</h3>
           <button className="text-2xl leading-none" onClick={onClose} aria-label="Close">×</button>
         </div>
 
@@ -146,13 +146,13 @@ export default function AddProductModal({ onClose, onSave, initial }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="flex flex-col">
               <span className="text-sm font-medium text-gray-700 mb-1">Product Name</span>
-              <input className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-green-700 focus:ring-1 focus:ring-green-200"
+              <input className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7]"
                 placeholder="Enter product name" value={title} onChange={e => setTitle(e.target.value)} required />
             </label>
 
             <label className="flex flex-col">
               <span className="text-sm font-medium text-gray-700 mb-1">Category</span>
-              <select className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-green-700 focus:ring-1 focus:ring-green-200"
+              <select className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7]"
                 value={creatingCategory ? '__create__' : category}
                 onChange={e => {
                   const v = e.target.value
@@ -169,16 +169,16 @@ export default function AddProductModal({ onClose, onSave, initial }) {
           {/* Description */}
           <label className="flex flex-col">
             <span className="text-sm font-medium text-gray-700 mb-1">Description</span>
-            <textarea className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-green-700 focus:ring-1 focus:ring-green-200 min-h-[110px] resize-y"
+            <textarea className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7] min-h-[110px] resize-y"
               placeholder="Describe your product..."
               value={desc}
               onChange={e => handleDescChange(e.target.value)}
               minLength={70}
-              maxLength={180}
+              maxLength={150}
               required
             />
-            <span className={`text-xs mt-1 text-right ${desc.length < 70 || desc.length > 180 ? 'text-red-500' : 'text-gray-500'}`}>
-              {desc.length}/180 (Min 70 required)
+            <span className={`text-xs mt-1 text-right ${desc.length < 70 || desc.length > 150 ? 'text-red-500' : 'text-gray-500'}`}>
+              {desc.length}/150 (Min 70 required)
             </span>
           </label>
 
@@ -186,13 +186,13 @@ export default function AddProductModal({ onClose, onSave, initial }) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="flex flex-col">
               <span className="text-sm font-medium text-gray-700 mb-1">Price (Nu.)</span>
-              <input type="number" className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-green-700 focus:ring-1 focus:ring-green-200"
+              <input type="number" className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7]"
                 value={price} onChange={e => setPrice(e.target.value)} min={0.01} step={0.01} required />
             </label>
 
             <label className="flex flex-col">
               <span className="text-sm font-medium text-gray-700 mb-1">Unit</span>
-              <select className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-green-700 focus:ring-1 focus:ring-green-200"
+              <select className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7]"
                 value={unit} onChange={e => setUnit(e.target.value)} required>
                 <option value="">Select unit</option>
                 <option>kg</option>
@@ -204,7 +204,7 @@ export default function AddProductModal({ onClose, onSave, initial }) {
 
             <label className="flex flex-col">
               <span className="text-sm font-medium text-gray-700 mb-1">Stock Quantity</span>
-              <input type="number" className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-green-700 focus:ring-1 focus:ring-green-200"
+              <input type="number" className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7]"
                 value={stock} onChange={e => setStock(e.target.value)} min={0} required />
             </label>
           </div>
@@ -212,17 +212,17 @@ export default function AddProductModal({ onClose, onSave, initial }) {
           {/* Image Upload */}
           <div>
             <span className="text-sm font-medium text-gray-700 mb-1 block">Product Images</span>
-            <label className="w-full border-2 border-dashed border-gray-300 rounded-xl min-h-[86px] flex flex-col items-center justify-center p-5 mt-2 cursor-pointer hover:border-green-700 transition-all duration-200"
-              onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('border-green-700') }}
-              onDragLeave={e => e.currentTarget.classList.remove('border-green-700')}
-              onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('border-green-700'); onFiles(e.dataTransfer.files) }}>
+            <label className="w-full border-2 border-dashed border-gray-300 rounded-xl min-h-[86px] flex flex-col items-center justify-center p-5 mt-2 cursor-pointer hover:border-[#4CAF50] transition-all duration-200"
+              onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#4CAF50' }}
+              onDragLeave={e => { e.currentTarget.style.borderColor = '' }}
+              onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = ''; onFiles(e.dataTransfer.files) }}>
               <input type="file" accept="image/*" multiple onChange={e => onFiles(e.target.files)} className="hidden" required />
               <div className="flex flex-col items-center gap-2 text-center">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 16V4" stroke="#2e8b57" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M5 12l7-7 7 7" stroke="#2e8b57" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M12 16V4" stroke="#4CAF50" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M5 12l7-7 7 7" stroke="#4CAF50" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <span className="text-green-700 font-semibold">Click to upload or drag and drop</span>
+                <span className="text-[#388E3C] font-semibold">Click to upload or drag and drop</span>
                 <span className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB — up to 4 images</span>
               </div>
             </label>
@@ -241,7 +241,7 @@ export default function AddProductModal({ onClose, onSave, initial }) {
 
           {/* Action */}
           <div className="flex justify-end mt-4">
-            <button type="submit" className="px-4 py-2 rounded-lg bg-green-700 text-white font-semibold" disabled={submitting}>
+            <button type="submit" className="px-4 py-2 rounded-lg text-white font-semibold" style={{ backgroundColor: '#4CAF50' }} disabled={submitting}>
               {submitting ? 'Saving…' : (initial ? 'Save changes' : 'Add Product')}
             </button>
           </div>
@@ -257,10 +257,10 @@ export default function AddProductModal({ onClose, onSave, initial }) {
               <button className="text-2xl" onClick={() => { setCreatingCategory(false); setNewCategoryName('') }} aria-label="Close">×</button>
             </div>
             <p className="text-xs text-gray-500 mb-2">Enter the category name to add it to your catalog.</p>
-            <input className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 mb-3 focus:outline-none focus:border-green-700 focus:ring-1 focus:ring-green-200"
+            <input className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 mb-3 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7]"
               placeholder="Category name" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} required />
             <div className="flex justify-end gap-2">
-              <button className="px-3 py-2 rounded-lg bg-green-700 text-white" onClick={createCategory}>Create</button>
+              <button className="px-3 py-2 rounded-lg text-white" style={{ backgroundColor: '#4CAF50' }} onClick={createCategory}>Create</button>
             </div>
           </div>
         </div>

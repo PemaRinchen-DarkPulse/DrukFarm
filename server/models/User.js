@@ -23,12 +23,12 @@ const UserSchema = new mongoose.Schema(
 		phoneNumber: {
 			type: String,
 			required: true,
+			unique: true,
 			validate: {
 				validator: v => /^\d{8}$/.test(v),
 				message: 'Phone number must be exactly 8 digits',
 			},
 		},
-		roleDesc: { type: String, default: '', trim: true },
 	},
 	{ timestamps: true }
 )

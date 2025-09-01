@@ -18,29 +18,55 @@ function isStrongPassword(pw) {
 // POST /api/users/register
 router.post('/register', async (req, res) => {
 	try {
-	let { cid, name, password, role, location, dzongkhag, phoneNumber, roleDesc } = req.body || {}
-	cid = typeof cid === 'string' ? cid.trim().replace(/\D/g, '') : cid
-	name = typeof name === 'string' ? name.trim() : name
-	location = typeof location === 'string' ? location.trim() : ''
-	dzongkhag = typeof dzongkhag === 'string' ? dzongkhag.trim() : ''
-	phoneNumber = typeof phoneNumber === 'string' ? phoneNumber.trim() : phoneNumber
+		let { cid, name, password, role, location, dzongkhag, phoneNumber } =
+			req.body || {}
+		cid = typeof cid === 'string' ? cid.trim().replace(/\D/g, '') : cid
+		name = typeof name === 'string' ? name.trim() : name
+		location = typeof location === 'string' ? location.trim() : ''
+		dzongkhag = typeof dzongkhag === 'string' ? dzongkhag.trim() : ''
+		phoneNumber =
+			typeof phoneNumber === 'string' ? phoneNumber.trim() : phoneNumber
 
 		// Basic validations
 		if (!cid || !/^\d{11}$/.test(cid)) {
 			return res.status(400).json({ error: 'CID must be exactly 11 digits' })
 		}
 		if (!phoneNumber || !/^\d{8}$/.test(phoneNumber)) {
-			return res.status(400).json({ error: 'Phone number must be exactly 8 digits' })
+			return res
+				.status(400)
+				.json({ error: 'Phone number must be exactly 8 digits' })
 		}
 		if (!password || !isStrongPassword(password)) {
-			return res.status(400).json({ error: 'Password is too weak (min 8 chars, include upper, lower, number, special)' })
+			return res.status(400).json({
+				error:
+					'Password is too weak (min 8 chars, include upper, lower, number, special)',
+			})
 		}
 		if (!name || typeof name !== 'string' || !name.trim()) {
 			return res.status(400).json({ error: 'Name is required' })
 		}
 		const validRoles = ['consumer', 'farmer', 'transporter']
 		const validDzongkhags = new Set([
-			'Bumthang','Chhukha','Dagana','Gasa','Haa','Lhuentse','Mongar','Paro','Pemagatshel','Punakha','Samdrup Jongkhar','Samtse','Sarpang','Thimphu','Trashigang','Trashiyangtse','Trongsa','Tsirang','Wangdue Phodrang','Zhemgang'
+			'Bumthang',
+			'Chhukha',
+			'Dagana',
+			'Gasa',
+			'Haa',
+			'Lhuentse',
+			'Mongar',
+			'Paro',
+			'Pemagatshel',
+			'Punakha',
+			'Samdrup Jongkhar',
+			'Samtse',
+			'Sarpang',
+			'Thimphu',
+			'Trashigang',
+			'Trashiyangtse',
+			'Trongsa',
+			'Tsirang',
+			'Wangdue Phodrang',
+			'Zhemgang',
 		])
 		if (dzongkhag && !validDzongkhags.has(dzongkhag)) {
 			return res.status(400).json({ error: 'Invalid Dzongkhag' })
@@ -49,18 +75,17 @@ router.post('/register', async (req, res) => {
 		if (role === 'restaurant' || role === 'transported') role = 'transporter'
 		const userRole = validRoles.includes(role) ? role : 'consumer'
 
-		// If roleDesc is missing, compute a default on the server
-		const roleDescMap = {
-			consumer: 'Buy fresh produce',
-			farmer: 'Sell my crops',
-			transporter: 'Provide transport/logistics',
-		}
-		const finalRoleDesc = (typeof roleDesc === 'string' && roleDesc.trim()) ? roleDesc.trim() : roleDescMap[userRole]
-
 		// Check duplicate
-		const exists = await User.findOne({ cid })
-		if (exists) {
-			return res.status(409).json({ error: 'CID already exists' })
+		const existingUser = await User.findOne({
+			$or: [{ cid }, { phoneNumber }],
+		})
+		if (existingUser) {
+			if (existingUser.cid === cid) {
+				return res.status(409).json({ error: 'CID already exists' })
+			}
+			if (existingUser.phoneNumber === phoneNumber) {
+				return res.status(409).json({ error: 'Phone number already exists' })
+			}
 		}
 
 		// Hash password
@@ -72,18 +97,24 @@ router.post('/register', async (req, res) => {
 			name: name.trim(),
 			password: hash,
 			role: userRole,
-			roleDesc: finalRoleDesc || '',
 			location: location || '',
 			dzongkhag: dzongkhag || '',
 			phoneNumber,
 		})
 
-		return res.status(201).json({ message: 'Registration successful', user: doc.toJSONSafe() })
+		return res
+			.status(201)
+			.json({ message: 'Registration successful', user: doc.toJSONSafe() })
 	} catch (err) {
 		console.error('Register error:', err)
 		// Handle duplicate key error
 		if (err && err.code === 11000) {
-			return res.status(409).json({ error: 'CID already exists' })
+			if (err.keyPattern.cid) {
+				return res.status(409).json({ error: 'CID already exists' })
+			}
+			if (err.keyPattern.phoneNumber) {
+				return res.status(409).json({ error: 'Phone number already exists' })
+			}
 		}
 		return res.status(500).json({ error: 'Failed to register user' })
 	}
@@ -92,14 +123,17 @@ router.post('/register', async (req, res) => {
 // POST /api/users/login
 router.post('/login', async (req, res) => {
 	try {
-		let { cid, password } = req.body || {}
-	cid = typeof cid === 'string' ? cid.trim().replace(/\D/g, '') : cid
-		if (!cid || !/^\d{11}$/.test(cid) || !password) {
-			return res.status(400).json({ error: 'Invalid CID or password' })
+		let { phoneNumber, password } = req.body || {}
+		phoneNumber =
+			typeof phoneNumber === 'string'
+				? phoneNumber.trim().replace(/\D/g, '')
+				: phoneNumber
+		if (!phoneNumber || !/^\d{8}$/.test(phoneNumber) || !password) {
+			return res.status(400).json({ error: 'Invalid phone number or password' })
 		}
 
-		const user = await User.findOne({ cid })
-		if (!user) return res.status(401).json({ error: 'Invalid CID or password' })
+		const user = await User.findOne({ phoneNumber })
+		if (!user) return res.status(401).json({ error: 'Invalid credentials' })
 
 		let match = false
 		try {
@@ -109,22 +143,23 @@ router.post('/login', async (req, res) => {
 		}
 
 		// Backward-compatibility: if stored password is plaintext (not a bcrypt hash),
-		// allow login once if plaintext matches and upgrade it to a bcrypt hash.
-		if (!match) {
-			const looksHashed = typeof user.password === 'string' && /^\$2[aby]\$\d{2}\$/.test(user.password)
-			if (!looksHashed && password === user.password) {
-				// Upgrade to bcrypt hash
-				const salt = await bcrypt.genSalt(10)
-				const hash = await bcrypt.hash(password, salt)
-				user.password = hash
-				await user.save()
-				match = true
-			}
+		// and it matches, then upgrade it to a hash
+		if (!match && password === user.password) {
+			match = true
+			// Upgrade password to hash
+			const salt = await bcrypt.genSalt(10)
+			user.password = await bcrypt.hash(password, salt)
+			await user.save()
 		}
 
-		if (!match) return res.status(401).json({ error: 'Invalid CID or password' })
+		if (!match) {
+			return res.status(401).json({ error: 'Invalid credentials' })
+		}
 
-		return res.json(user.toJSONSafe())
+		// Don't send back the password hash
+		return res
+			.status(200)
+			.json({ message: 'Login successful', user: user.toJSONSafe() })
 	} catch (err) {
 		console.error('Login error:', err)
 		return res.status(500).json({ error: 'Failed to login' })

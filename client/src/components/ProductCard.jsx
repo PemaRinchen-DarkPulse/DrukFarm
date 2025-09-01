@@ -1,7 +1,7 @@
 import React from 'react'
 import { MapPin } from 'lucide-react'
 
-export default function ProductCard({ product, children }){
+export default function ProductCard({ product, children, showLocation = true }){
   const locationLabel = product.locationLabel || product.location || ''
   return (
     <article className="product-card h-full rounded-lg bg-white shadow-sm border border-emerald-100 overflow-hidden">
@@ -25,10 +25,12 @@ export default function ProductCard({ product, children }){
         <div className="product-top">
           <h3 className="text-lg font-semibold text-emerald-900 product-title">{product.title}</h3>
           <p className="mt-2 text-sm text-slate-600 product-desc">{product.desc}</p>
-          <div className="mt-3 text-sm text-slate-500 flex items-center gap-3">
-            <MapPin className="w-4 h-4 text-emerald-600" />
-            <span>{locationLabel || 'Your farm'}</span>
-          </div>
+          {showLocation && (
+            <div className="mt-3 text-sm text-slate-500 flex items-center gap-3">
+              <MapPin className="w-4 h-4 text-emerald-600" />
+              <span>{locationLabel || 'Your farm'}</span>
+            </div>
+          )}
         </div>
 
         <div className="product-bottom mt-3 flex flex-col">
