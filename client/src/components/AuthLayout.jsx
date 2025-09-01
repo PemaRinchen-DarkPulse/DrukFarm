@@ -316,7 +316,15 @@ export default function AuthLayout({ mode = 'login' }) {
     if (isLogin) {
       try {
         const res = await api.loginUser({ phoneNumber: formData.phoneNumber, password: formData.password })
-        if (res.user) navigate('/management')
+        if (res?.user) {
+          // Persist authenticated user so Navbar and pages can detect login state/role/CID
+          try {
+            localStorage.setItem('currentUser', JSON.stringify(res.user))
+          } catch (e) { /* ignore storage errors */ }
+          // Notify listeners (Navbar, etc.) that auth state changed
+          try { window.dispatchEvent(new Event('authChanged')) } catch (e) { /* noop */ }
+          navigate('/management')
+        }
       } catch (err) { setError(err?.body?.error || err.message || 'An error occurred during login.') }
       finally { setLoading(false) }
     } else {

@@ -88,8 +88,8 @@ export default function FeaturedProducts(){
   <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
       {items.map((p) => (
             <ProductCard key={p.id || p.title} product={p}>
-        <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
-              <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2" onClick={()=>handleBuyNow(p.id)}><CreditCard className="w-4 h-4" /> Buy Now</Button>
+              <Button variant="outline" size="sm" className="inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
+              <Button size="sm" className="bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2" onClick={()=>handleBuyNow(p.id)}><CreditCard className="w-4 h-4" /> Buy Now</Button>
             </ProductCard>
           ))}
         </div>

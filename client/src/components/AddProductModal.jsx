@@ -19,6 +19,9 @@ export default function AddProductModal({ onClose, onSave, initial }) {
   const [categories, setCategories] = useState([])
   const [creatingCategory, setCreatingCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryDesc, setNewCategoryDesc] = useState('')
+  const [newCategoryImage, setNewCategoryImage] = useState(null)
+  const [newCategoryPreview, setNewCategoryPreview] = useState(null)
 
   const toBase64 = (file) => new Promise((res, rej) => {
     const reader = new FileReader()
@@ -123,12 +126,20 @@ export default function AddProductModal({ onClose, onSave, initial }) {
   }, [])
 
   const createCategory = async () => {
-    if (!newCategoryName.trim()) return
+    if (!newCategoryName.trim()) { alert('Please enter category name'); return }
+    const d = newCategoryDesc.trim()
+    if (d.length < 15 || d.length > 45) { alert('Description must be between 15 and 45 characters'); return }
+    if (!newCategoryImage) { alert('Please select an image for the category'); return }
     try {
-      const created = await api.createCategory({ categoryName: newCategoryName })
+      const imgB64 = await toBase64(newCategoryImage)
+      const created = await api.createCategory({ categoryName: newCategoryName.trim(), description: d, imageBase64: imgB64 })
       setCategories(prev => [...prev, created])
       setCategory(created.categoryName)
       setNewCategoryName('')
+      setNewCategoryDesc('')
+      setNewCategoryImage(null)
+      if (newCategoryPreview) URL.revokeObjectURL(newCategoryPreview)
+      setNewCategoryPreview(null)
       setCreatingCategory(false)
     } catch (e) { console.error(e); alert('Create category failed') }
   }
@@ -254,13 +265,45 @@ export default function AddProductModal({ onClose, onSave, initial }) {
           <div className="bg-white max-w-md w-full rounded-xl shadow-2xl p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold">Create new category</h3>
-              <button className="text-2xl" onClick={() => { setCreatingCategory(false); setNewCategoryName('') }} aria-label="Close">×</button>
+              <button className="text-2xl" onClick={() => { setCreatingCategory(false); setNewCategoryName(''); setNewCategoryDesc(''); setNewCategoryImage(null); if (newCategoryPreview) URL.revokeObjectURL(newCategoryPreview); setNewCategoryPreview(null) }} aria-label="Close">×</button>
             </div>
-            <p className="text-xs text-gray-500 mb-2">Enter the category name to add it to your catalog.</p>
-            <input className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 mb-3 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7]"
-              placeholder="Category name" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} required />
-            <div className="flex justify-end gap-2">
-              <button className="px-3 py-2 rounded-lg text-white" style={{ backgroundColor: '#4CAF50' }} onClick={createCategory}>Create</button>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Category name</label>
+                <input className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7]"
+                  placeholder="e.g. Vegetables" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Description <span className="text-xs text-gray-500">(15–45 chars)</span></label>
+                <input className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 focus:outline-none focus:border-[#4CAF50] focus:ring-1 focus:ring-[#A5D6A7]"
+                  placeholder="Short description" value={newCategoryDesc} onChange={e => setNewCategoryDesc(e.target.value.slice(0,45))} minLength={15} maxLength={45} required />
+                <div className={`text-xs mt-1 text-right ${newCategoryDesc.trim().length < 15 || newCategoryDesc.trim().length > 45 ? 'text-red-500' : 'text-gray-500'}`}>{newCategoryDesc.trim().length}/45</div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Image</label>
+                <label className="w-full border-2 border-dashed border-gray-300 rounded-xl min-h-[86px] flex flex-col items-center justify-center p-4 cursor-pointer hover:border-[#4CAF50]">
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const f = e.target.files && e.target.files[0]
+                    if (!f) return
+                    const MAX = 2 * 1024 * 1024
+                    if (f.size > MAX) { alert('Image too large (max 2MB)'); return }
+                    if (newCategoryPreview) URL.revokeObjectURL(newCategoryPreview)
+                    setNewCategoryImage(f)
+                    setNewCategoryPreview(URL.createObjectURL(f))
+                  }} required />
+                  <div className="text-center text-sm text-gray-600">
+                    {newCategoryPreview ? 'Change image' : 'Click to upload or drag and drop'}
+                  </div>
+                </label>
+                {newCategoryPreview && (
+                  <div className="mt-2">
+                    <img src={newCategoryPreview} alt="preview" className="w-full h-32 object-cover rounded-lg border" />
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button className="px-3 py-2 rounded-lg text-white" style={{ backgroundColor: '#4CAF50' }} onClick={createCategory}>Create</button>
+              </div>
             </div>
           </div>
         </div>

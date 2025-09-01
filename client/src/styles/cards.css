@@ -5,6 +5,22 @@
 .product-body{padding:12px;display:flex;flex-direction:column;flex:1}
 .product-desc{display:block;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;line-clamp:3}
 
-/* Actions area: keep buttons aligned and stretch to similar widths */
-.card-actions{margin-top:.75rem;display:flex;gap:.5rem}
-.card-actions > *{flex:1}
+/* Ensure header section has consistent height so location aligns */
+.product-top{height:8.75rem;display:flex;flex-direction:column}
+.product-top--compact{height:6.5rem}
+.product-title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;line-clamp:2}
+/* Location row pin + truncation */
+.product-top .location-row{height:1.5rem;display:flex;align-items:center;gap:.5rem}
+.product-top .location-row .truncate{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Keep bottom section stacked consistently: reviews row then price row then actions at bottom */
+.product-bottom{display:flex;flex-direction:column;gap:.25rem}
+.product-top--compact + .product-bottom{margin-top:.25rem}
+/* Align rows across cards */
+.product-bottom .reviews-row{height:1.5rem;display:flex;align-items:center}
+.product-bottom .price-row{height:2.5rem;display:flex;align-items:flex-end}
+
+/* Actions area: always render buttons side-by-side in one row */
+.card-actions{margin-top:1rem;display:grid;grid-template-columns:1fr 1fr;gap:.5rem;align-items:stretch}
+.product-card .card-actions{margin-top:1rem}
+.card-actions > *{min-width:0}

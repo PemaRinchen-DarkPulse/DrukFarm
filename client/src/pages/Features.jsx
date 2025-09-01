@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { MapPin, ShoppingCart, CreditCard, Search, SlidersHorizontal } from 'lucide-react'
+import { ShoppingCart, CreditCard, Search, SlidersHorizontal } from 'lucide-react'
 import api from '@/lib/api'
 import { getCurrentCid } from '@/lib/auth'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useToast } from '@/components/ui/toast'
+import ProductCard from '@/components/ProductCard'
 
 let initialProducts = []
 
@@ -25,8 +26,18 @@ export default function Features(){
     setLoading(true)
     api.fetchProducts()
       .then(list => {
-        const currentCid = getCurrentCid()
-        const visible = currentCid ? list.filter(p => !p.createdBy || p.createdBy !== currentCid) : list
+        const getUser = () => {
+          try {
+            const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser')
+            return raw ? JSON.parse(raw) : null
+          } catch { return null }
+        }
+        const user = getUser()
+        const currentCid = user?.cid || getCurrentCid()
+        // Show products to everyone. If a farmer is logged in, hide their own products.
+        const visible = (user?.role === 'farmer' && currentCid)
+          ? list.filter(p => !p.createdBy || p.createdBy !== currentCid)
+          : list
         const guessMimeFromBase64 = (b64) => {
           if (!b64 || typeof b64 !== 'string') return null
           const s = b64.slice(0, 12)
@@ -166,41 +177,14 @@ export default function Features(){
 
   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
         {filtered.map((p) => (
-          <article key={p.id} className="rounded-lg bg-white shadow-sm border border-emerald-100 overflow-hidden">
-            <div className="relative h-48 bg-emerald-50/60 overflow-hidden">
-              <div className="absolute top-3 left-3 flex gap-2">
-                {p.tags.map((t, idx) => (
-                  <span key={idx} className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-800">{t}</span>
-                ))}
-              </div>
-              <div className="absolute top-3 right-3 rounded-full border p-2 text-emerald-600 bg-white/60">♡</div>
-              {p.image ? (
-                <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full" />
-              )}
-            </div>
-
-              <div className="p-4 bg-white">
-                <h3 className="text-lg font-semibold text-emerald-900">{p.title}</h3>
-                <p className="mt-2 text-sm text-slate-600">{p.desc}</p>
-                <div className="mt-3 text-sm text-slate-500 flex items-center gap-3">
-                  <MapPin className="w-4 h-4 text-emerald-600" />
-                  <span>{p.location}</span>
-                </div>
-
-                <div className="mt-3">
-                  <div className="mt-2 flex items-baseline justify-between gap-2">
-                    <div className="text-2xl font-bold text-emerald-800">Nu. {p.price} <span className="text-lg font-medium text-slate-500">/{p.unit}</span></div>
-                    <div className="text-sm font-medium text-slate-600">Stock: {p?.stock ?? 0} {p.unit}</div>
-                  </div>
-                  <div className="mt-3 flex gap-3">
-                    <Button variant="outline" size="sm" className="flex-1 inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}><ShoppingCart className="w-4 h-4" /> Add to Cart</Button>
-                    <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2" onClick={()=>handleBuyNow(p.id)}><CreditCard className="w-4 h-4" /> Buy Now</Button>
-                  </div>
-                </div>
-              </div>
-          </article>
+          <ProductCard key={p.id} product={p}>
+            <Button variant="outline" size="sm" className="inline-flex items-center justify-center gap-2" onClick={()=>handleAdd(p.id)}>
+              <ShoppingCart className="w-4 h-4" /> Add to Cart
+            </Button>
+            <Button size="sm" className="bg-emerald-700 hover:bg-emerald-600 text-white inline-flex items-center justify-center gap-2" onClick={()=>handleBuyNow(p.id)}>
+              <CreditCard className="w-4 h-4" /> Buy Now
+            </Button>
+          </ProductCard>
         ))}
       </div>
     </div>
