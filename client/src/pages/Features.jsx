@@ -13,8 +13,8 @@ export default function Features(){
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const [showFilters, setShowFilters] = useState(false)
+  const [categoryOptions, setCategoryOptions] = useState(['all'])
 
-  const categories = ['all','Vegetables','Fruits','Grains','Spices','Dairy','Processed']
 
   const [products, setProducts] = useState(initialProducts)
   const [loading, setLoading] = useState(false)
@@ -47,7 +47,7 @@ export default function Features(){
           if (s.startsWith('UklGR') || s.startsWith('RIFF')) return 'image/webp'
           return 'image/jpeg'
         }
-        setProducts(visible.map(p => {
+    setProducts(visible.map(p => {
           const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
           const vg = (p.sellerLocationVillageGewog || '').trim()
           const dz = (p.sellerDzongkhag || '').trim()
@@ -56,10 +56,10 @@ export default function Features(){
             id: p.productId,
             title: p.productName,
             desc: p.description,
+      category: p.categoryName || '',
             price: p.price,
             unit: p.unit,
             stock: p.stockQuantity,
-            tags: [],
             location: loc,
             image: p.productImageBase64 && mime ? `data:${mime};base64,${p.productImageBase64}` : null
           }
@@ -75,6 +75,25 @@ export default function Features(){
     window.addEventListener('authChanged', onAuthChanged)
     return () => window.removeEventListener('authChanged', onAuthChanged)
   }, [])
+
+  // Fetch categories from backend for the filter options
+  useEffect(() => {
+    api.fetchCategories()
+      .then((list = []) => {
+        const names = list.map(c => c.categoryName).filter(Boolean)
+        setCategoryOptions(['all', ...names])
+      })
+      .catch(() => setCategoryOptions(['all']))
+  }, [])
+
+  // Apply category from URL if present
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search)
+      const cat = params.get('category')
+      if (cat && cat.trim()) setCategory(cat.trim())
+    } catch {}
+  }, [location.search])
 
   const handleAdd = async (productId) => {
     const cid = getCurrentCid()
@@ -93,11 +112,12 @@ export default function Features(){
 
   const filtered = useMemo(()=> {
     return products.filter(p => {
-      if(category !== 'all' && (!p.tags || !p.tags.includes(category))) return false
+      if(category !== 'all' && (p.category || '').toLowerCase() !== category.toLowerCase()) return false
       if(query && !(`${p.title} ${p.desc}`.toLowerCase().includes(query.toLowerCase()))) return false
       return true
     })
   }, [query, category, products])
+
 
   const handleBuyNow = async (productId) => {
     const cid = getCurrentCid()
@@ -134,7 +154,7 @@ export default function Features(){
               onChange={(e)=>setCategory(e.target.value)}
               className="border border-slate-200 rounded-md px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-emerald-200"
             >
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
@@ -170,7 +190,7 @@ export default function Features(){
             onChange={(e)=>setCategory(e.target.value)}
             className="w-full border border-slate-200 rounded-md px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-emerald-200"
           >
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
       </div>

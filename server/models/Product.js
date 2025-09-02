@@ -1,8 +1,16 @@
 const mongoose = require('mongoose')
 
+function capFirst(val) {
+  if (val === undefined || val === null) return val
+  const s = String(val)
+  const trimmed = s.trim()
+  if (!trimmed) return trimmed
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+}
+
 const ProductSchema = new mongoose.Schema(
   {
-    productName: { type: String, required: true, trim: true },
+    productName: { type: String, required: true, trim: true, set: capFirst },
     categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
     description: {
       type: String,
@@ -10,6 +18,7 @@ const ProductSchema = new mongoose.Schema(
       minlength: 70,
       maxlength: 180,
       trim: true,
+      set: capFirst,
     },
     price: { type: Number, required: true, min: 0.01 },
     unit: { type: String, required: true, trim: true },
@@ -28,3 +37,18 @@ ProductSchema.virtual('productId').get(function () {
 })
 
 module.exports = mongoose.model('Product', ProductSchema)
+
+// Ensure updates also normalize capitalization
+ProductSchema.pre('findOneAndUpdate', function (next) {
+  const update = this.getUpdate() || {}
+  const $set = update.$set || {}
+  const apply = (obj) => {
+    if (obj.productName !== undefined) obj.productName = capFirst(obj.productName)
+    if (obj.description !== undefined) obj.description = capFirst(obj.description)
+  }
+  apply(update)
+  apply($set)
+  if (Object.keys($set).length) update.$set = $set
+  this.setUpdate(update)
+  next()
+})

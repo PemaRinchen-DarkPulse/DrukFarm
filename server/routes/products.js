@@ -141,10 +141,11 @@ router.post('/', async (req, res) => {
 		const category = await Category.findById(payload.categoryId)
 		if (!category) return res.status(400).json({ success: false, error: 'Invalid categoryId' })
 
-		const doc = await Product.create({
-			productName: payload.productName.trim(),
+			const capFirst = s => (s && typeof s === 'string') ? (s.trim().charAt(0).toUpperCase() + s.trim().slice(1)) : s
+			const doc = await Product.create({
+				productName: capFirst(payload.productName),
 			categoryId: payload.categoryId,
-			description: payload.description.trim(),
+				description: capFirst(payload.description),
 			price: Number(payload.price),
 			unit: String(payload.unit),
 			stockQuantity: Number(payload.stockQuantity),
@@ -179,8 +180,9 @@ router.put('/:id', async (req, res) => {
 		;['productName', 'categoryId', 'description', 'price', 'unit', 'stockQuantity', 'productImageBase64', 'createdBy'].forEach(k => {
 			if (payload[k] !== undefined) update[k] = payload[k]
 		})
-		if (update.productName) update.productName = update.productName.trim()
-		if (update.description) update.description = update.description.trim()
+		const capFirst2 = s => (s && typeof s === 'string') ? (s.trim().charAt(0).toUpperCase() + s.trim().slice(1)) : s
+		if (update.productName) update.productName = capFirst2(update.productName)
+		if (update.description) update.description = capFirst2(update.description)
 		if (update.price !== undefined) update.price = Number(update.price)
 		if (update.stockQuantity !== undefined) update.stockQuantity = Number(update.stockQuantity)
 

@@ -58,7 +58,9 @@ router.post('/', async (req, res) => {
 		const exists = await Category.findOne({ categoryName: name })
 		if (exists) return res.status(409).json({ success: false, error: 'Category already exists' })
 
-		const doc = await Category.create({ categoryName: name, description: desc, imageBase64: imgB64 })
+		// Capitalize first letter; model setter will also ensure this, but doing here for consistency
+		const capFirst = s => (s && typeof s === 'string') ? (s.trim().charAt(0).toUpperCase() + s.trim().slice(1)) : s
+		const doc = await Category.create({ categoryName: capFirst(name), description: capFirst(desc), imageBase64: imgB64 })
 		return res.status(201).json({
 			categoryId: doc.categoryId,
 			categoryName: doc.categoryName,
