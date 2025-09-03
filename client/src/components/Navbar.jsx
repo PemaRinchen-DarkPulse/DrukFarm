@@ -404,7 +404,8 @@ export default function Navbar() {
       </header>
 
       {/* Mobile bottom dock */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-card border-t border-border">
+  {!(location.pathname === '/login' || location.pathname === '/register') && (
+  <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-card border-t border-border">
         <div className="max-w-7xl mx-auto px-6">
           <div className={`h-16 grid items-center ${user ? 'grid-cols-5' : 'grid-cols-3'}`}>
             <div className="flex justify-center">
@@ -494,6 +495,7 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
+  )}
     </>
   )
 }

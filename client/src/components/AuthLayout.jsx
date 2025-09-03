@@ -14,6 +14,7 @@ const dzongkhags = [
 const CustomDropdown = ({ options, value, onChange, placeholder, mobile = false, name }) => {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
+  const prevOverflowRef = useRef('')
 
   const handleSelect = (option) => {
     onChange({ target: { id: name, value: option } })
@@ -23,8 +24,27 @@ const CustomDropdown = ({ options, value, onChange, placeholder, mobile = false,
   const rect = dropdownRef.current?.getBoundingClientRect?.()
   const spaceBelow = typeof window !== 'undefined' && rect ? (window.innerHeight - rect.bottom) : 0
 
-  // ✅ On small devices (mobile), always open downward. On larger screens, prefer downward and only open upward if not enough space.
-  const openUp = !mobile && spaceBelow < 300
+  // Prefer opening downward, but if there isn't enough space below, open upward (applies to mobile too).
+  // Show 4 items on small devices: 4 * 40px = 160px list; allow ~40px margin.
+  const LIST_MAX = mobile ? 160 : 200
+  const OPEN_THRESHOLD = (LIST_MAX + 40)
+  const openUp = spaceBelow < OPEN_THRESHOLD
+
+  // Lock parent card scroll on mobile when dropdown is open to avoid vertical scrolling of the card
+  useEffect(() => {
+    if (!mobile) return
+    const card = dropdownRef.current?.closest('.auth-card-scroll')
+    if (!card) return
+    if (isOpen) {
+      prevOverflowRef.current = card.style.overflowY
+      card.style.overflowY = 'hidden'
+    } else {
+      card.style.overflowY = prevOverflowRef.current || ''
+    }
+    return () => {
+      if (card) card.style.overflowY = prevOverflowRef.current || ''
+    }
+  }, [isOpen, mobile])
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -46,16 +66,19 @@ const CustomDropdown = ({ options, value, onChange, placeholder, mobile = false,
         </div>
       </div>
 
-      {isOpen && (
+    {isOpen && (
         <div
           className={`
           absolute left-0 right-0 z-50 bg-white border border-gray-200 rounded-lg overflow-hidden
           ${openUp ? 'bottom-full mb-2' : 'top-full mt-2'}
         `}
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onScroll={(e) => e.stopPropagation()}
         >
           {/* Options List */}
           <div
-            style={{ maxHeight: '200px' }} // ✅ show only 5 items
+            style={{ maxHeight: `${mobile ? 160 : 200}px` }} // 4 items on small devices; 5 items otherwise
             className={`overflow-y-auto ${mobile ? 'dropdown-hide-scrollbar' : ''}`}
           >
             {options.length > 0 ? (
@@ -343,7 +366,7 @@ export default function AuthLayout({ mode = 'login' }) {
   const prevStep = useCallback(() => setStep(1), [])
 
   return (
-    <div className="relative min-h-screen w-full bg-[#F5F7FB] flex items-center justify-center">
+    <div className="relative min-h-[100dvh] w-full bg-[#F5F7FB] flex items-center justify-center">
       {/* Desktop */}
       <div className="hidden md:block">
         <div className="relative h-[580px] w-[880px]">
@@ -388,8 +411,8 @@ export default function AuthLayout({ mode = 'login' }) {
       </div>
 
       {/* Mobile */}
-      <div className="md:hidden w-full px-4 py-8">
-        <div className="mx-auto max-w-sm bg-white rounded-2xl shadow-xl p-6">
+      <div className="md:hidden w-full px-4 min-h-[100svh] grid place-items-center">
+  <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 h-[600px] overflow-y-auto flex flex-col justify-center auth-card-scroll">
           <div className="mb-5 text-center">
             <h1 className="text-2xl font-semibold">{isLogin ? 'Hello Again!' : 'Create Account'}</h1>
             <p className="mt-2 text-sm text-slate-500">

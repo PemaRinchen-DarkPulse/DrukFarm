@@ -10,9 +10,9 @@ export default function CTA() {
           <p className="mt-3 text-base md:text-lg text-white/90">Sign up as a buyer or farmer and start connecting today.</p>
 
           <div className="mt-6 flex flex-col sm:flex-row items-center sm:justify-center gap-3">
-            <Button size="lg" className="w-full sm:w-auto bg-white hover:bg-white/95" asChild>
-              <a href="#signup" className="no-underline">Sign up — it's free</a>
-            </Button>
+            <Button size="lg" className="w-full sm:w-auto bg-white hover:bg-white/95 text-green-600 font-semibold" asChild>
+  <a href="#signup" className="no-underline">Sign up — it's free</a>
+</Button>
             <Button variant="outline" size="lg" className="w-full sm:w-auto bg-transparent border border-white/20 text-white hover:bg-white/10" asChild>
               <a href="#download" className="no-underline"><span className="text-white">Download App</span></a>
             </Button>
