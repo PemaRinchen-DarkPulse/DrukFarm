@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, FlatList, Image, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
-import { ShoppingCart, CreditCard } from 'lucide-react-native'
-import { Button } from './ui/Button'   // your RN button version
-import api from '../lib/api'
-import { getCurrentCid } from '../lib/auth'
+import api from '../../lib/api'
+import { getCurrentCid } from '../../lib/auth'
+import ProductCard from '../products/ProductCard'
 
 export default function FeaturedProducts() {
   const [items, setItems] = useState([])
@@ -57,7 +56,6 @@ export default function FeaturedProducts() {
     }
     try {
       await api.addToCart({ productId, quantity: 1, cid })
-      // feedback can be added here if you want
     } catch (e) {
       console.error(e)
     }
@@ -72,30 +70,6 @@ export default function FeaturedProducts() {
     navigation.navigate('Buy', { pid: productId })
   }
 
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      {item.image ? (
-        <Image source={{ uri: item.image }} style={styles.image} />
-      ) : (
-        <View style={[styles.image, styles.imagePlaceholder]}>
-          <Text>No Image</Text>
-        </View>
-      )}
-      <Text style={styles.title}>{item.title}</Text>
-      <Text style={styles.price}>₹{item.price} / {item.unit}</Text>
-      <Text style={styles.desc} numberOfLines={2}>{item.desc}</Text>
-
-      <View style={styles.actions}>
-        <Button variant="outline" size="sm" onPress={() => handleAdd(item.id)}>
-          <ShoppingCart size={16} color="#111" /> Add to Cart
-        </Button>
-        <Button size="sm" onPress={() => handleBuyNow(item.id)} style={{ backgroundColor: '#047857' }}>
-          <CreditCard size={16} color="#fff" /> <Text style={{ color: '#fff' }}>Buy Now</Text>
-        </Button>
-      </View>
-    </View>
-  )
-
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Featured Products</Text>
@@ -108,7 +82,13 @@ export default function FeaturedProducts() {
       ) : (
         <FlatList
           data={items}
-          renderItem={renderItem}
+          renderItem={({ item }) => (
+            <ProductCard
+              item={item}
+              onAdd={handleAdd}
+              onBuy={handleBuyNow}
+            />
+          )}
           keyExtractor={(item) => item.id?.toString()}
           contentContainerStyle={styles.list}
         />
@@ -130,67 +110,24 @@ export default function FeaturedProducts() {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: '#ECFDF5', // emerald-50
+    backgroundColor: '#ECFDF5',
     flex: 1,
   },
   heading: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#065F46', // emerald-800
+    color: '#065F46',
     textAlign: 'center',
   },
   subHeading: {
     marginTop: 8,
     fontSize: 14,
-    color: '#047857', // emerald-700
+    color: '#047857',
     textAlign: 'center',
   },
   list: {
     marginTop: 20,
     paddingBottom: 20,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  image: {
-    width: '100%',
-    height: 160,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  imagePlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  price: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#065F46',
-    marginBottom: 4,
-  },
-  desc: {
-    fontSize: 12,
-    color: '#4b5563',
-    marginBottom: 10,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
   },
   footer: {
     marginTop: 20,

@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import api from "../lib/api"; // keep your API call
+import api from "../../lib/api"; // keep your API call
 
 export default function ShopByCategory() {
   const [items, setItems] = useState([]);
@@ -161,7 +161,6 @@ const styles = StyleSheet.create({
   },
   grid: {
     flexDirection: "column",
-    gap: 16,
   },
   card: {
     borderRadius: 12,

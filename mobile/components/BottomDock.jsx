@@ -10,8 +10,6 @@ export default function BottomDock() {
   const insets = useSafeAreaInsets();
 
   return (
-    // The SafeAreaView ensures we don't overlap the system nav/gesture area,
-    // while the inner container draws the bar background edge-to-edge.
     <SafeAreaView
       edges={["bottom"]}
       style={[
@@ -20,14 +18,39 @@ export default function BottomDock() {
       ]}
     >
       <View style={[styles.bottomNav, { paddingBottom: 8 }]}>
-        <TouchableOpacity style={styles.navItem}>
+
+        <TouchableOpacity 
+          style={styles.navItem} 
+          onPress={() => navigation.navigate('Home')}
+        >
           <Icon name="home-outline" size={28} color="#1B4332" />
           <Text style={styles.navText}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => navigation.navigate('Cart')}
+        >
+          <Icon name="cart-outline" size={28} color="#1B4332" />
+          <Text style={styles.navText}>Cart</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => navigation.navigate('Scanner')}
+        >
           <Icon name="qrcode-scan" size={28} color="#1B4332" />
           <Text style={styles.navText}>Scan</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => navigation.navigate('Orders')}
+        >
+          <Icon name="clipboard-list-outline" size={28} color="#1B4332" />
+          <Text style={styles.navText}>Orders</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity 
           style={styles.navItem}
           onPress={() => navigation.navigate('Login')}
@@ -35,6 +58,7 @@ export default function BottomDock() {
           <Icon name="account-outline" size={28} color="#1B4332" />
           <Text style={styles.navText}>Login</Text>
         </TouchableOpacity>
+
       </View>
     </SafeAreaView>
   );
@@ -47,6 +71,7 @@ const styles = StyleSheet.create({
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    alignItems: 'center',
     paddingTop: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },

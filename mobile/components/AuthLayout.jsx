@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react'
 import {
   View,
   Text,
@@ -6,233 +6,437 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
+  Dimensions,
   Platform,
-} from 'react-native';
-import { Eye, EyeOff } from 'lucide-react-native';
+} from 'react-native'
+import { Eye, EyeOff, ChevronDown, Check } from 'lucide-react-native'
+import { useNavigation } from '@react-navigation/native'
+import api from '../lib/api'
 
 const dzongkhags = [
   'Bumthang','Chhukha','Dagana','Gasa','Haa','Lhuentse','Mongar','Paro',
   'Pemagatshel','Punakha','Samdrup Jongkhar','Samtse','Sarpang','Thimphu',
   'Trashigang','Trashiyangtse','Trongsa','Tsirang','Wangdue Phodrang','Zhemgang'
-];
+]
 
-export default function AuthScreen({ navigation }) {
-  const [mode, setMode] = useState('login'); // 'login' or 'register'
-  const [step, setStep] = useState(1); // for registration steps
-  const [formData, setFormData] = useState({
-    cid:'', name:'', location:'', dzongkhag:'', phoneNumber:'', role:'', password:'', confirm:''
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+const LIST_MAX = 160
 
-  const togglePassword = () => setShowPassword(prev => !prev);
-  const toggleConfirm = () => setShowConfirm(prev => !prev);
+function CustomDropdown({ options, value, onChange, placeholder = 'Select…', onOpenChange }) {
+  const [open, setOpen] = useState(false)
 
-  const handleChange = (key, value) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
-  };
+  const handleToggle = useCallback(() => {
+    setOpen(prev => {
+      const next = !prev
+      onOpenChange?.(next)
+      return next
+    })
+  }, [onOpenChange])
 
-  const handleNextStep = () => setStep(2);
-  const handlePrevStep = () => setStep(1);
+  const handleSelect = useCallback((option) => {
+    onChange(option)
+    setOpen(false)
+    onOpenChange?.(false)
+  }, [onChange, onOpenChange])
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.wrapper}>
-            <View style={styles.card}>
-              <Text style={styles.title}>
-                {mode === 'login' ? 'Hello Again!' : 'Create Account'}
-              </Text>
-              <Text style={styles.subtitle}>
-                {mode === 'login'
-                  ? 'Login to continue managing your orders and products.'
-                  : step === 1
-                    ? 'Step 1: Enter your basic details.'
-                    : 'Step 2: Set your contact and password.'}
-              </Text>
+    <View style={styles.dropdownWrap}>
+      <TouchableOpacity style={styles.dropdownTrigger} activeOpacity={0.8} onPress={handleToggle}>
+        <Text style={[styles.dropdownText, !value && styles.placeholder]} numberOfLines={1}>
+          {value || placeholder}
+        </Text>
+        <ChevronDown size={16} color="#059669" style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
+      </TouchableOpacity>
 
-              {/* Login Form */}
-              {mode === 'login' ? (
-                <>
-                  <Text style={styles.label}>Phone Number</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Phone Number"
-                    keyboardType="numeric"
-                    value={formData.phoneNumber}
-                    onChangeText={value => handleChange('phoneNumber', value)}
-                  />
-
-                  <Text style={styles.label}>Password</Text>
-                  <View style={styles.passwordContainer}>
-                    <TextInput
-                      style={styles.inputPassword}
-                      placeholder="Password"
-                      secureTextEntry={!showPassword}
-                      value={formData.password}
-                      onChangeText={value => handleChange('password', value)}
-                    />
-                    <TouchableOpacity onPress={togglePassword}>
-                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </TouchableOpacity>
-                  </View>
-
-                  <TouchableOpacity>
-                    <Text style={styles.forgotText}>Forgot Password?</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.button}>
-                    <Text style={styles.buttonText}>Login</Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.signUpContainer}>
-                    <Text style={styles.signUpText}>Don't have an account? </Text>
-                    <TouchableOpacity onPress={() => setMode('register')}>
-                      <Text style={styles.signUpLink}>Sign Up</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                // Registration Form
-                <>
-                  {step === 1 ? (
-                    <>
-                      <Text style={styles.label}>CID</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Citizen ID"
-                        keyboardType="numeric"
-                        value={formData.cid}
-                        onChangeText={value => handleChange('cid', value)}
-                      />
-                      <Text style={styles.label}>Full Name</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Full Name"
-                        value={formData.name}
-                        onChangeText={value => handleChange('name', value)}
-                      />
-                      <Text style={styles.label}>Location</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Location"
-                        value={formData.location}
-                        onChangeText={value => handleChange('location', value)}
-                      />
-                      <Text style={styles.label}>Dzongkhag</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Dzongkhag"
-                        value={formData.dzongkhag}
-                        onChangeText={value => handleChange('dzongkhag', value)}
-                      />
-
-                      <TouchableOpacity style={styles.button} onPress={handleNextStep}>
-                        <Text style={styles.buttonText}>Next</Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.label}>Phone Number</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Phone Number"
-                        keyboardType="numeric"
-                        value={formData.phoneNumber}
-                        onChangeText={value => handleChange('phoneNumber', value)}
-                      />
-                      <Text style={styles.label}>Password</Text>
-                      <View style={styles.passwordContainer}>
-                        <TextInput
-                          style={styles.inputPassword}
-                          placeholder="Password"
-                          secureTextEntry={!showPassword}
-                          value={formData.password}
-                          onChangeText={value => handleChange('password', value)}
-                        />
-                        <TouchableOpacity onPress={togglePassword}>
-                          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                        </TouchableOpacity>
-                      </View>
-
-                      <Text style={styles.label}>Confirm Password</Text>
-                      <View style={styles.passwordContainer}>
-                        <TextInput
-                          style={styles.inputPassword}
-                          placeholder="Confirm Password"
-                          secureTextEntry={!showConfirm}
-                          value={formData.confirm}
-                          onChangeText={value => handleChange('confirm', value)}
-                        />
-                        <TouchableOpacity onPress={toggleConfirm}>
-                          {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
-                        </TouchableOpacity>
-                      </View>
-
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <TouchableOpacity
-                          style={[styles.button, { backgroundColor: '#E5E7EB', flex: 1, marginRight: 8 }]}
-                          onPress={handlePrevStep}
-                        >
-                          <Text style={[styles.buttonText, { color: '#111827' }]}>Back</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.button, { flex: 1 }]}>
-                          <Text style={styles.buttonText}>Create Account</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  )}
-
-                  <View style={styles.signUpContainer}>
-                    <Text style={styles.signUpText}>Already have an account? </Text>
-                    <TouchableOpacity onPress={() => setMode('login')}>
-                      <Text style={styles.signUpLink}>Login</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+      {open && (
+        <View style={styles.dropdownList}>
+          <ScrollView style={{ maxHeight: LIST_MAX }} nestedScrollEnabled>
+            {options.length > 0 ? (
+              options.map(opt => (
+                <TouchableOpacity
+                  key={opt}
+                  style={[styles.dropdownItem, value === opt && styles.dropdownItemActive]}
+                  activeOpacity={0.85}
+                  onPress={() => handleSelect(opt)}
+                >
+                  <Text style={styles.dropdownItemText}>{opt}</Text>
+                  {value === opt ? <Check size={16} color="#059669" /> : null}
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                <Text style={{ color: '#6b7280' }}>No options available</Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  )
 }
 
-const CARD_HEIGHT = 560; // adjust as needed
+const RegisterStep1 = React.memo(function RegisterStep1({ formData, setField, nextStep, onDropdownOpenChange }) {
+  return (
+    <View style={{ gap: 12 }}>
+      {/* CID */}
+      <View>
+        <Text style={styles.label}>CID</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Citizen ID"
+          placeholderTextColor="#9ca3af"
+          keyboardType={Platform.select({ ios: 'number-pad', android: 'numeric' })}
+          maxLength={11}
+          value={formData.cid}
+          onChangeText={(v) => setField('cid', v.replace(/\D/g, ''))}
+        />
+      </View>
+
+      {/* Full Name */}
+      <View>
+        <Text style={styles.label}>Full Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Full Name"
+          placeholderTextColor="#9ca3af"
+          value={formData.name}
+          onChangeText={(v) => setField('name', v)}
+          autoComplete="name"
+        />
+      </View>
+
+      {/* Location */}
+      <View>
+        <Text style={styles.label}>Location</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Location"
+          placeholderTextColor="#9ca3af"
+          value={formData.location}
+          onChangeText={(v) => setField('location', v)}
+        />
+      </View>
+
+      {/* Dzongkhag */}
+      <View>
+        <Text style={[styles.label, { marginBottom: 4 }]}>Dzongkhag</Text>
+        <CustomDropdown
+          options={dzongkhags}
+          value={formData.dzongkhag}
+          onChange={(v) => setField('dzongkhag', v)}
+          placeholder="Select Dzongkhag"
+          onOpenChange={onDropdownOpenChange}
+        />
+      </View>
+
+      <TouchableOpacity
+        style={[styles.button, { marginTop: 12 }, (!formData.cid || !formData.name || !formData.location || !formData.dzongkhag) && styles.buttonDisabled]}
+        activeOpacity={0.9}
+        disabled={!formData.cid || !formData.name || !formData.location || !formData.dzongkhag}
+        onPress={nextStep}
+      >
+        <Text style={styles.buttonText}>Next</Text>
+      </TouchableOpacity>
+    </View>
+  )
+})
+
+const RegisterStep2 = React.memo(function RegisterStep2({ formData, setField, showPassword, showConfirm, togglePassword, toggleConfirm, prevStep, loading, onSubmit, onDropdownOpenChange }) {
+  return (
+    <View style={{ gap: 12 }}>
+      {/* Phone */}
+      <View>
+        <Text style={styles.label}>Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Phone Number"
+          placeholderTextColor="#9ca3af"
+          keyboardType={Platform.select({ ios: 'number-pad', android: 'numeric' })}
+          maxLength={8}
+          value={formData.phoneNumber}
+          onChangeText={(v) => setField('phoneNumber', v.replace(/\D/g, ''))}
+        />
+      </View>
+
+      {/* Role */}
+      <View>
+        <Text style={[styles.label, { marginBottom: 4 }]}>Role</Text>
+        <CustomDropdown
+          options={["Farmer", "Consumer", "Transporter"]}
+          value={formData.role}
+          onChange={(v) => setField('role', v)}
+          placeholder="Select Role"
+          onOpenChange={onDropdownOpenChange}
+        />
+      </View>
+
+      {/* Password */}
+      <View>
+        <Text style={styles.label}>Password</Text>
+        <View style={styles.passwordWrap}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Password"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry={!showPassword}
+            value={formData.password}
+            onChangeText={(v) => setField('password', v)}
+            autoComplete="password-new"
+          />
+          <TouchableOpacity onPress={togglePassword} style={styles.eyeBtn}>
+            {showPassword ? <EyeOff size={18} color="#6b7280" /> : <Eye size={18} color="#6b7280" />}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Confirm */}
+      <View>
+        <Text style={styles.label}>Confirm Password</Text>
+        <View style={styles.passwordWrap}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Confirm Password"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry={!showConfirm}
+            value={formData.confirm}
+            onChangeText={(v) => setField('confirm', v)}
+            autoComplete="password-new"
+          />
+          <TouchableOpacity onPress={toggleConfirm} style={styles.eyeBtn}>
+            {showConfirm ? <EyeOff size={18} color="#6b7280" /> : <Eye size={18} color="#6b7280" />}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Actions */}
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+        <TouchableOpacity style={[styles.buttonOutline, { flex: 1 }]} onPress={prevStep} activeOpacity={0.9}>
+          <Text style={styles.buttonOutlineText}>Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.button, { flex: 1 }, loading && styles.buttonDisabled]} onPress={onSubmit} disabled={loading} activeOpacity={0.9}>
+          <Text style={styles.buttonText}>{loading ? 'Creating...' : 'Create Account'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+})
+
+const LoginForm = React.memo(function LoginForm({ formData, setField, showPassword, togglePassword, loading, onSubmit }) {
+  return (
+    <View style={{ gap: 12 }}>
+      {/* Phone */}
+      <View>
+        <Text style={styles.label}>Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Phone Number"
+          placeholderTextColor="#9ca3af"
+          keyboardType={Platform.select({ ios: 'number-pad', android: 'numeric' })}
+          maxLength={8}
+          value={formData.phoneNumber}
+          onChangeText={(v) => setField('phoneNumber', v.replace(/\D/g, ''))}
+        />
+      </View>
+
+      {/* Password */}
+      <View>
+        <Text style={styles.label}>Password</Text>
+        <View style={styles.passwordWrap}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Password"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry={!showPassword}
+            value={formData.password}
+            onChangeText={(v) => setField('password', v)}
+            autoComplete="password"
+          />
+          <TouchableOpacity onPress={togglePassword} style={styles.eyeBtn}>
+            {showPassword ? <EyeOff size={18} color="#6b7280" /> : <Eye size={18} color="#6b7280" />}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Forgot link */}
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={styles.linkMuted}>Forgot Password?</Text>
+      </View>
+
+      <TouchableOpacity style={[styles.button, { marginTop: 12 }]} onPress={onSubmit} disabled={loading} activeOpacity={0.9}>
+        <Text style={styles.buttonText}>{loading ? 'Logging in...' : 'Login'}</Text>
+      </TouchableOpacity>
+    </View>
+  )
+})
+
+export default function AuthLayout({ mode = 'login' }) {
+  const navigation = useNavigation()
+  const isLoginInitial = mode === 'login'
+  const [isLogin, setIsLogin] = useState(isLoginInitial)
+  const [step, setStep] = useState(1)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [formData, setFormData] = useState({ cid:'', name:'', location:'', dzongkhag:'', phoneNumber:'', role:'', password:'', confirm:'' })
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [scrollLocked, setScrollLocked] = useState(false)
+
+  const setField = useCallback((key, val) => setFormData(prev => ({ ...prev, [key]: val })), [])
+
+  const handleSubmit = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      if (isLogin) {
+        const res = await api.loginUser({ phoneNumber: formData.phoneNumber, password: formData.password })
+        console.log('login ok', res)
+
+        // Redirect to Dashboard after login
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Dashboard' }],
+        })
+      } else {
+        if (formData.password !== formData.confirm) { setError('Passwords do not match.'); return }
+        const res = await api.registerUser({ ...formData, role: String(formData.role || '').toLowerCase() })
+        console.log('register ok', res)
+
+        // After register, also redirect to Dashboard
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Dashboard' }],
+        })
+      }
+    } catch (err) {
+      const message = err?.body?.error || err?.message || 'An error occurred.'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }, [isLogin, formData, navigation])
+
+  const title = isLogin ? 'Hello Again!' : 'Create Account'
+  const subtitle = isLogin
+    ? 'Login to continue managing your orders and products.'
+    : (step === 1 ? 'Step 1: Enter your basic details.' : 'Step 2: Set your contact and password.')
+
+  return (
+    <View style={styles.page}>
+      <ScrollView
+        contentContainerStyle={styles.center}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={!scrollLocked}
+      >
+        <View style={styles.card}>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
+          {!!error && (
+            <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>
+          )}
+
+          {/* Forms */}
+          {isLogin ? (
+            <LoginForm
+              formData={formData}
+              setField={setField}
+              showPassword={showPassword}
+              togglePassword={() => setShowPassword(p => !p)}
+              loading={loading}
+              onSubmit={handleSubmit}
+            />
+          ) : step === 1 ? (
+            <RegisterStep1
+              formData={formData}
+              setField={setField}
+              nextStep={() => setStep(2)}
+              onDropdownOpenChange={setScrollLocked}
+            />
+          ) : (
+            <RegisterStep2
+              formData={formData}
+              setField={setField}
+              showPassword={showPassword}
+              showConfirm={showConfirm}
+              togglePassword={() => setShowPassword(p => !p)}
+              toggleConfirm={() => setShowConfirm(p => !p)}
+              prevStep={() => setStep(1)}
+              loading={loading}
+              onSubmit={handleSubmit}
+              onDropdownOpenChange={setScrollLocked}
+            />
+          )}
+
+          {/* Footer switch text */}
+          <TouchableOpacity
+            onPress={() => { setIsLogin(v => !v); setStep(1); setError(''); }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.footerSwitch}>
+              {isLogin ? "Don't have an account? " : 'Already have an account? '}
+              <Text style={styles.footerLink}>{isLogin ? 'Sign Up' : 'Login'}</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  )
+}
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FB' },
-  wrapper: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
-  card: { 
-    width: '100%', 
-    maxWidth: 400, 
-    minHeight: CARD_HEIGHT,
-    backgroundColor: 'white', 
-    borderRadius: 20, 
-    padding: 20, 
-    elevation: 5,
-    justifyContent: 'center'
+  page: { flex: 1, backgroundColor: '#F5F7FB' },
+  center: { minHeight: Dimensions.get('window').height, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  card: {
+    width: '100%', maxWidth: 384, backgroundColor: '#fff', borderRadius: 16, padding: 24,
+    height: 600,
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    justifyContent: 'center',
   },
-  title: { fontSize: 22, fontWeight: '600', textAlign: 'center', marginBottom: 8, color: '#064E3B' },
-  subtitle: { fontSize: 14, textAlign: 'center', color: '#6B7280', marginBottom: 16 },
-  label: { fontSize: 12, color: '#374151', marginBottom: 4 },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 14 },
-  passwordContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, paddingHorizontal: 10, marginBottom: 12 },
-  inputPassword: { flex: 1, height: 40, fontSize: 14 },
-  button: { backgroundColor: '#059669', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 8 },
-  buttonText: { color: 'white', fontWeight: '600' },
-  forgotText: { fontSize: 12, color: '#3B82F6', textAlign: 'right', marginBottom: 12 },
-  signUpContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: 12 },
-  signUpText: { fontSize: 12, color: '#6B7280' },
-  signUpLink: { fontSize: 12, color: '#3B82F6' },
-});
+  title: { fontSize: 22, fontWeight: '600', textAlign: 'center' },
+  subtitle: { fontSize: 14, color: '#64748b', textAlign: 'center', marginTop: 8, marginBottom: 12 },
+  errorBox: { backgroundColor: '#fee2e2', borderRadius: 8, padding: 8, marginBottom: 8 },
+  errorText: { color: '#dc2626', textAlign: 'center', fontSize: 13 },
+
+  label: { fontSize: 12, fontWeight: '500', color: '#374151' },
+  input: { marginTop: 4, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#111827' },
+
+  passwordWrap: { marginTop: 4, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center' },
+  passwordInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: '#111827' },
+  eyeBtn: { padding: 4 },
+
+  button: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: '#fff', fontWeight: '600' },
+  buttonOutline: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  buttonOutlineText: { color: '#374151', fontWeight: '500' },
+
+  linkMuted: { fontSize: 12, color: '#2563eb' },
+
+  dropdownTrigger: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dropdownText: { fontSize: 14, color: '#111827', flex: 1, marginRight: 8 },
+  placeholder: { color: '#9ca3af' },
+  dropdownWrap: { position: 'relative' },
+  dropdownList: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '100%',
+    marginTop: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 12,
+    zIndex: 20,
+  },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12 },
+  dropdownItemActive: { backgroundColor: '#ecfdf5' },
+  dropdownItemText: { fontSize: 14, color: '#111827' },
+
+  footerSwitch: { marginTop: 16, fontSize: 13, color: '#374151', textAlign: 'center' },
+  footerLink: { color: '#059669', fontWeight: '600' },
+})

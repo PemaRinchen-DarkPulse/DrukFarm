@@ -1,11 +1,10 @@
 import React from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
-import Hero from '../components/Hero'; // make sure path is correct
-import Features from '../components/Features';
-import ShopByCategory from '../components/ShopByCategory';
-import FeaturedProducts from '../components/FeaturedProducts';
-import Testimonials from '../components/Testimonials';
-import CTA from '../components/CTA';
+import Hero from '../components/home/Hero'; // make sure path is correct
+import ShopByCategory from '../components/home/ShopByCategory';
+import FeaturedProducts from '../components/home/FeaturedProducts';
+import Testimonials from '../components/home/Testimonials';
+import CTA from '../components/home/CTA';
 import Footer from '../components/Footer';
 
 export default function HomePage() {
@@ -16,7 +15,6 @@ export default function HomePage() {
     >
       {/* Hero Section */}
       <Hero />
-      <Features />
       <ShopByCategory />
       <FeaturedProducts />
       <Testimonials />

@@ -9,7 +9,11 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Home from './screens/HomePage';
 import Login from './screens/Login';
 import Register from './screens/Register';
-
+import About from './screens/About';
+import How from './screens/How';
+import Contact from './screens/Contact';
+import Dashboard from './screens/Dashboard';
+import Products from './screens/Products';
 // Components
 import Navbar from './components/Navbar';
 import BottomDock from './components/BottomDock';
@@ -47,6 +51,12 @@ export default function App() {
           {/* Public screens without dock/navbar */}
           <Stack.Screen name="Login" component={Login} />
           <Stack.Screen name="Register" component={Register} />
+          <Stack.Screen name="About" component={About} />
+          <Stack.Screen name="How It Works" component={How} />
+          <Stack.Screen name="Contact" component={Contact} />
+          <Stack.Screen name="Dashboard" component={Dashboard} />
+          <Stack.Screen name="Products" component={Products} />
+
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
