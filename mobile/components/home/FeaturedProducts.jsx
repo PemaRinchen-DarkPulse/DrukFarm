@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import api from '../../lib/api'
 import { getCurrentCid } from '../../lib/auth'
@@ -80,18 +80,11 @@ export default function FeaturedProducts() {
       {loading ? (
         <ActivityIndicator size="large" color="#047857" style={{ marginTop: 20 }} />
       ) : (
-        <FlatList
-          data={items}
-          renderItem={({ item }) => (
-            <ProductCard
-              item={item}
-              onAdd={handleAdd}
-              onBuy={handleBuyNow}
-            />
-          )}
-          keyExtractor={(item) => item.id?.toString()}
-          contentContainerStyle={styles.list}
-        />
+        <View style={styles.list}>
+          {items.map((item) => (
+            <ProductCard key={item.id?.toString?.() || String(item.id)} item={item} onAdd={handleAdd} onBuy={handleBuyNow} />
+          ))}
+        </View>
       )}
 
       {/* View All Products Button */}

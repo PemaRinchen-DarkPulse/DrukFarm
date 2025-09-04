@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ImageBackground,
-  ScrollView,
   ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -53,7 +52,7 @@ export default function ShopByCategory() {
   }, []);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 20 }}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Shop by Category</Text>
         <Text style={styles.subtitle}>
@@ -135,7 +134,7 @@ export default function ShopByCategory() {
       {loading && (
         <ActivityIndicator size="large" color="#065f46" style={{ marginTop: 20 }} />
       )}
-    </ScrollView>
+    </View>
   );
 }
 

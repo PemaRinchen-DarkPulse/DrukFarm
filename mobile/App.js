@@ -14,13 +14,22 @@ import How from './screens/How';
 import Contact from './screens/Contact';
 import Dashboard from './screens/Dashboard';
 import Products from './screens/Products';
+import Cart from './screens/Cart';
+import Checkout from './components/Checkout';
+import MyOrders from './screens/MyOrders';
+import Wishlist from './components/Wishlist';
+import HelpCenter from './components/support/HelpCenter';
+import TermsOfService from './components/support/TermsOfService';
+import PrivacyPolicy from './components/support/PrivacyPolicy';
+import FarmerGuide from './components/support/FarmerGuide';
+import AccountSettings from './components/setting/AccountSettings';
+import Scanner from './screens/Scanner';
 // Components
 import Navbar from './components/Navbar';
 import BottomDock from './components/BottomDock';
 
 const Stack = createNativeStackNavigator();
 
-// Layout wrapper with Navbar + BottomDock
 function MainLayout({ children }) {
   return (
     <View style={styles.container}>
@@ -31,31 +40,45 @@ function MainLayout({ children }) {
   );
 }
 
-// Example: Home screen wrapped with layout
-function HomeWithLayout() {
-  return (
-    <MainLayout>
-      <Home />
-    </MainLayout>
-  );
-}
+// Helper to wrap any screen with the common layout (Navbar + BottomDock)
+const withMainLayout = (ScreenComponent) => (props) => (
+  <MainLayout>
+    <ScreenComponent {...props} />
+  </MainLayout>
+);
 
 export default function App() {
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
           {/* Screens with Navbar + BottomDock */}
-          <Stack.Screen name="Home" component={HomeWithLayout} />
+          <Stack.Screen name="Home" component={withMainLayout(Home)} />
+          <Stack.Screen name="About" component={withMainLayout(About)} />
+          <Stack.Screen name="How It Works" component={withMainLayout(How)} />
+          <Stack.Screen name="Contact" component={withMainLayout(Contact)} />
+          <Stack.Screen name="Dashboard" component={withMainLayout(Dashboard)} />
+          <Stack.Screen name="Products" component={withMainLayout(Products)} />
+          <Stack.Screen name="Cart" component={withMainLayout(Cart)} />
+          <Stack.Screen name="Checkout" component={withMainLayout(Checkout)} />
+          <Stack.Screen name="My Orders" component={withMainLayout(MyOrders)} />
+          <Stack.Screen name="Wishlist" component={withMainLayout(Wishlist)} />
+          <Stack.Screen name="Help Center" component={withMainLayout(HelpCenter)} />
+          <Stack.Screen name="Terms of Service" component={withMainLayout(TermsOfService)} />
+          <Stack.Screen name="Privacy Policy" component={withMainLayout(PrivacyPolicy)} />
+          <Stack.Screen name="Farmer Guide" component={withMainLayout(FarmerGuide)} />
+          <Stack.Screen name="Account Settings" component={withMainLayout(AccountSettings)} />
 
           {/* Public screens without dock/navbar */}
           <Stack.Screen name="Login" component={Login} />
           <Stack.Screen name="Register" component={Register} />
-          <Stack.Screen name="About" component={About} />
-          <Stack.Screen name="How It Works" component={How} />
-          <Stack.Screen name="Contact" component={Contact} />
-          <Stack.Screen name="Dashboard" component={Dashboard} />
-          <Stack.Screen name="Products" component={Products} />
+
+          {/* Modal Scanner */}
+          <Stack.Screen
+            name="Scanner"
+            component={Scanner}
+            options={{ presentation: 'modal', headerShown: false }}
+          />
 
         </Stack.Navigator>
       </NavigationContainer>

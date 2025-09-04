@@ -12,6 +12,7 @@ import {
 import { Eye, EyeOff, ChevronDown, Check } from 'lucide-react-native'
 import { useNavigation } from '@react-navigation/native'
 import api from '../lib/api'
+import { setCurrentUser } from '../lib/auth'
 
 const dzongkhags = [
   'Bumthang','Chhukha','Dagana','Gasa','Haa','Lhuentse','Mongar','Paro',
@@ -289,22 +290,23 @@ export default function AuthLayout({ mode = 'login' }) {
       if (isLogin) {
         const res = await api.loginUser({ phoneNumber: formData.phoneNumber, password: formData.password })
         console.log('login ok', res)
+        // Save in-memory user for app-wide auth state
+        if (res && res.user) setCurrentUser(res.user)
 
-        // Redirect to Dashboard after login
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Dashboard' }],
-        })
+        // Redirect based on role
+        const role = String(res?.user?.role || '').toLowerCase()
+        const routeName = (role === 'farmer' || role === 'transporter') ? 'Dashboard' : 'Products'
+        navigation.reset({ index: 0, routes: [{ name: routeName }] })
       } else {
         if (formData.password !== formData.confirm) { setError('Passwords do not match.'); return }
         const res = await api.registerUser({ ...formData, role: String(formData.role || '').toLowerCase() })
         console.log('register ok', res)
+        if (res && res.user) setCurrentUser(res.user)
 
-        // After register, also redirect to Dashboard
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Dashboard' }],
-        })
+        // Redirect based on role
+        const role = String(res?.user?.role || '').toLowerCase()
+        const routeName = (role === 'farmer' || role === 'transporter') ? 'Dashboard' : 'Products'
+        navigation.reset({ index: 0, routes: [{ name: routeName }] })
       }
     } catch (err) {
       const message = err?.body?.error || err?.message || 'An error occurred.'

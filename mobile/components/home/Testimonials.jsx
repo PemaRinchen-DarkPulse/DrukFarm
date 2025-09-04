@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 
 const testimonials = [
   {
@@ -21,14 +21,14 @@ const testimonials = [
 
 export default function Testimonials() {
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       {testimonials.map((t, index) => (
         <View key={index} style={styles.card}>
           <Text style={styles.quote}>"{t.quote}"</Text>
           <Text style={styles.author}>— {t.author} ({t.role})</Text>
         </View>
       ))}
-    </ScrollView>
+    </View>
   );
 }
 
