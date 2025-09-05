@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   FlatList,
   Image,
+  Platform, // 1. Import Platform API
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { fetchProducts } from "../lib/api";
@@ -43,52 +44,57 @@ export default function Products({ navigation }) {
 
   const renderProduct = ({ item }) => {
     if (item?.empty) {
-      // Invisible placeholder to keep 2-column grid aligned when count is odd
+      // Invisible placeholder
       return <View style={[styles.card, { opacity: 0 }]} pointerEvents="none" />
     }
     return (
-    <View style={styles.card}>
-      {/* Product Image */}
-      <View style={styles.imageWrapper}>
-        <Image source={{ uri: item.image }} style={styles.image} />
+      // 2. Wrap the entire card in a TouchableOpacity and add the onPress handler
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('Product Detail', { product: item })}
+      >
+        {/* Product Image */}
+        <View style={styles.imageWrapper}>
+          <Image source={{ uri: item.image }} style={styles.image} />
 
-        {/* Stock Badge */}
-        <View style={styles.stockBadge}>
-          <Text style={styles.stockText}>
-            {item.stock} {item.unit}
-          </Text>
-        </View>
-
-        {/* Wishlist Heart */}
-        <TouchableOpacity style={styles.heartBtn}>
-          <Icon name="heart-outline" size={20} color="#DC2626" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Product Info */}
-      <View style={styles.info}>
-        <Text style={styles.title}>{item.name}</Text>
-        <Text style={styles.farmer}>{item.farmer}</Text>
-        <Text style={styles.price}>{item.price}</Text>
-
-        <View style={styles.row}>
-          <View style={styles.ratingRow}>
-            <Icon name="star" size={14} color="#FBBF24" />
-            <Text style={styles.rating}>{item.rating}</Text>
+          {/* Stock Badge */}
+          <View style={styles.stockBadge}>
+            <Text style={styles.stockText}>
+              {item.stock} {item.unit}
+            </Text>
           </View>
-          <TouchableOpacity style={styles.cartBtn}>
-            <Icon name="cart-plus" size={16} color="#fff" />
-            <Text style={styles.cartText}>Add to Cart</Text>
+
+          {/* Wishlist Heart */}
+          <TouchableOpacity style={styles.heartBtn}>
+            <Icon name="heart-outline" size={20} color="#DC2626" />
           </TouchableOpacity>
         </View>
-      </View>
-    </View>
-  );
+
+        {/* Product Info */}
+        <View style={styles.info}>
+          <Text style={styles.title}>{item.name}</Text>
+          <Text style={styles.farmer}>{item.farmer}</Text>
+          <Text style={styles.price}>{item.price}</Text>
+
+          <View style={styles.row}>
+            <View style={styles.ratingRow}>
+              <Icon name="star" size={14} color="#FBBF24" />
+              <Text style={styles.rating}>{item.rating}</Text>
+            </View>
+            <TouchableOpacity style={styles.cartBtn}>
+              <Icon name="cart-plus" size={16} color="#fff" />
+              <Text style={styles.cartText}>Add to Cart</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header with Filter on same row */}
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Icon name="arrow-left" size={24} color="#111827" />
@@ -153,6 +159,12 @@ const styles = StyleSheet.create({
     elevation: 2,
     marginHorizontal: 4,
     overflow: "hidden",
+    // 3. Add cursor style for web platform
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+      },
+    }),
   },
 
   imageWrapper: {

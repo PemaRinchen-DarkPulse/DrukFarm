@@ -1,26 +1,23 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 export default function EmptyCart() {
   const navigation = useNavigation();
 
   return (
     <View style={styles.container}>
-      {/* Empty Cart Image */}
-      <Image
-        source={require("../assets/empty-cart.png")} // your image path
-        style={styles.image}
-        resizeMode="contain"
-      />
+      {/* Empty Cart Icon */}
+      <Icon name="cart-off" size={70} color="#D1D5DB" style={styles.icon} />
 
       {/* Title */}
       <Text style={styles.title}>Your cart is empty</Text>
 
       {/* Description */}
       <Text style={styles.subtitle}>
-        Looks like you haven't added anything to your cart yet. 
-        Let's find something fresh for you!
+        Looks like you haven't added anything to your cart yet. Let's find
+        something fresh for you!
       </Text>
 
       {/* Browse Products Button */}
@@ -40,30 +37,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
-    backgroundColor: "#fff",
+    // ❌ removed backgroundColor so it blends with the page
   },
-  image: {
-    width: 200,
-    height: 200,
-    marginBottom: 20,
+  icon: {
+    marginBottom: 15,
   },
   title: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "600",
     color: "#111",
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#666",
     textAlign: "center",
     marginBottom: 20,
     paddingHorizontal: 10,
+    lineHeight: 21,
   },
   button: {
-    backgroundColor: "#065F46", // green theme
-    paddingVertical: 12,
+    backgroundColor: "#065F46",
+    paddingVertical: 10,
     paddingHorizontal: 24,
     borderRadius: 8,
     shadowColor: "#000",
