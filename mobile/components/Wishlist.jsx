@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,58 +8,85 @@ import {
   TouchableOpacity,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import api, { getWishlist, removeFromWishlist, addToCart } from "../lib/api";
+import { getCurrentCid } from "../lib/auth";
+import EmptyWishlist from "./EmptyWishlist";
 
 export default function Wishlist({ navigation }) {
-  const [wishlist, setWishlist] = useState([
-    {
-      id: "1",
-      name: "Organic Red Rice",
-      farmer: "From Tashi's Farm",
-      price: "Nu. 150/kg",
-      image: "https://www.pngall.com/wp-content/uploads/2016/04/Rice-PNG.png",
-    },
-    {
-      id: "2",
-      name: "Fresh Apples",
-      farmer: "From Dema's Orchard",
-      price: "Nu. 120/kg",
-      image: "https://www.pngall.com/wp-content/uploads/2016/04/Apple-PNG.png",
-    },
-    {
-      id: "3",
-      name: "Organic Spinach",
-      farmer: "From Pema's Garden",
-      price: "Nu. 80/bunch",
-      image: "https://www.pngall.com/wp-content/uploads/2016/05/Spinach-PNG.png",
-    },
-  ]);
+  const [wishlist, setWishlist] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const removeItem = (id) => {
-    setWishlist(wishlist.filter((item) => item.id !== id));
+  useEffect(() => {
+    const load = async () => {
+      const cid = getCurrentCid();
+      if (!cid) { navigation.navigate('Login'); return; }
+      setLoading(true);
+      try {
+        const resp = await getWishlist({ cid });
+        const items = (resp.items || []).map(i => {
+          const mime = i.productImageBase64 ? 'image/jpeg' : null;
+          return {
+            id: String(i.productId || i.itemId),
+            productId: String(i.productId),
+            name: i.productName || 'Product',
+            price: `Nu ${Number(i.price ?? 0)}${i.unit ? `/${i.unit}` : ''}`,
+            image: i.productImageBase64 && mime ? `data:${mime};base64,${i.productImageBase64}` : 'https://via.placeholder.com/600x400.png?text=Product',
+          }
+        })
+        setWishlist(items);
+      } catch (e) {
+        setWishlist([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [navigation]);
+
+  const removeItem = async (productId) => {
+    const cid = getCurrentCid();
+    if (!cid) { navigation.navigate('Login'); return; }
+    try {
+      await removeFromWishlist({ productId, cid });
+      setWishlist(prev => prev.filter(it => it.productId !== productId));
+    } catch (e) {}
   };
+
+  const handleAddToCart = async (productId) => {
+    const cid = getCurrentCid();
+    if (!cid) { navigation.navigate('Login'); return; }
+    try {
+      await addToCart({ productId, quantity: 1, cid });
+    } catch (e) {}
+  }
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
       {/* Image */}
       <Image source={{ uri: item.image }} style={styles.image} />
 
-      {/* Info */}
-      <View style={styles.info}>
-        <Text style={styles.title}>{item.name}</Text>
-        <Text style={styles.farmer}>{item.farmer}</Text>
-        <Text style={styles.price}>{item.price}</Text>
+      {/* Middle container for info and add button */}
+      <View style={styles.contentContainer}>
+        {/* Info Text */}
+        <View>
+          <Text style={styles.title}>{item.name}</Text>
+          <Text style={styles.price}>{item.price}</Text>
+        </View>
+
+        {/* Add button (small and at the bottom) */}
+        <TouchableOpacity style={styles.addBtn} onPress={() => handleAddToCart(item.productId)}>
+          <Icon name="cart-outline" size={18} color="#fff" />
+          <Text style={styles.addText}>Add to Cart</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Buttons */}
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.addBtn}>
-          <Icon name="cart-outline" size={18} color="#fff" />
-          <Text style={styles.addText}>Add</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => removeItem(item.id)}>
-          <Icon name="delete-outline" size={22} color="#6B7280" />
-        </TouchableOpacity>
-      </View>
+      {/* Delete button on the far right */}
+      <TouchableOpacity
+        style={styles.deleteAction}
+        onPress={() => removeItem(item.productId)}
+      >
+        <Icon name="delete-outline" size={22} color="#6B7280" />
+      </TouchableOpacity>
     </View>
   );
 
@@ -71,16 +98,22 @@ export default function Wishlist({ navigation }) {
           <Icon name="arrow-left" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Wishlist</Text>
-        <View style={{ width: 24 }} /> 
+        <View style={{ width: 24 }} />
       </View>
 
       {/* List */}
-      <FlatList
-        data={wishlist}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      />
+      {loading ? (
+        <Text>Loading...</Text>
+      ) : wishlist.length === 0 ? (
+        <EmptyWishlist />
+      ) : (
+        <FlatList
+          data={wishlist}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        />
+      )}
     </View>
   );
 }
@@ -94,34 +127,50 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#111827" },
-
   card: {
     flexDirection: "row",
     backgroundColor: "#fff",
-    padding: 12,
     borderRadius: 12,
-    marginBottom: 12,
-    alignItems: "center",
+    padding: 18,
+    marginBottom: 14,
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
     elevation: 2,
+    minHeight: 150,
   },
-  image: { width: 60, height: 60, borderRadius: 8, marginRight: 12 },
-  info: { flex: 1 },
-  title: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  farmer: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  price: { fontSize: 13, fontWeight: "700", color: "#059669", marginTop: 4 },
-  actions: { flexDirection: "row", alignItems: "center", gap: 12 },
+  image: {
+    width: 90,
+    height: "100%",
+    borderRadius: 10,
+    resizeMode: "cover",
+  },
+  contentContainer: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+  },
+  title: { fontSize: 17, fontWeight: "700", color: "#111" },
+  farmer: { fontSize: 12, color: "#6B7280", marginTop: 4 },
+  price: { fontSize: 15, fontWeight: "bold", color: "#059669", marginTop: 8 },
+  deleteAction: {
+    paddingTop: 0,
+  },
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#22C55E",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 8,
-    marginRight: 8,
+    alignSelf: "flex-start",
+    marginTop: 8,
   },
-  addText: { color: "#fff", fontSize: 12, fontWeight: "600", marginLeft: 4 },
+  addText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
 });

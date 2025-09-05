@@ -86,6 +86,26 @@ export async function addToCart({ productId, quantity = 1, cid }){
   return resp
 }
 
+// Wishlist APIs
+export async function addToWishlist({ productId, cid }){
+  const body = { productId }
+  if (cid) body.cid = cid
+  return request('/wishlist', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function getWishlist({ cid } = {}){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  const resp = await request('/wishlist', { headers })
+  return resp?.wishlist || { userCid: cid || null, items: [] }
+}
+
+export async function removeFromWishlist({ productId, cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request(`/wishlist/${productId}`, { method: 'DELETE', headers })
+}
+
 export async function getCart({ cid } = {}){
   const headers = {}
   if (cid) headers['x-cid'] = cid
@@ -178,4 +198,5 @@ export default {
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
   addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder,
   searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered,
+  addToWishlist, getWishlist, removeFromWishlist,
 }

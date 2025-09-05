@@ -82,7 +82,17 @@ export default function FeaturedProducts() {
       ) : (
         <View style={styles.list}>
           {items.map((item) => (
-            <ProductCard key={item.id?.toString?.() || String(item.id)} item={item} onAdd={handleAdd} onBuy={handleBuyNow} />
+            <ProductCard
+              key={item.id?.toString?.() || String(item.id)}
+              item={item}
+              onAdd={handleAdd}
+              onBuy={handleBuyNow}
+              onWish={async (pid) => {
+                const cid = getCurrentCid()
+                if (!cid) { navigation.navigate('Login'); return }
+                try { await api.addToWishlist({ productId: pid, cid }) } catch(e) { console.warn(e?.message||e) }
+              }}
+            />
           ))}
         </View>
       )}

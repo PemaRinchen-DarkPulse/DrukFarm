@@ -1,8 +1,20 @@
 import React from 'react'
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native'
 import { ShoppingCart, CreditCard, Heart, MapPin, Star } from 'lucide-react-native'
+import api from '../../lib/api'
+import { getCurrentCid } from '../../lib/auth'
 
-export default function ProductCard({ item, onAdd, onBuy }) {
+export default function ProductCard({ item, onAdd, onBuy, onWish }) {
+  const handleWish = async () => {
+    try {
+      if (typeof onWish === 'function') return onWish(item.id)
+      const cid = getCurrentCid()
+      if (!cid) return
+      await api.addToWishlist({ productId: item.id, cid })
+    } catch (e) {
+      console.warn('Wishlist error:', e?.message || e)
+    }
+  }
   return (
     <View style={styles.card}>
       <View>
@@ -14,8 +26,8 @@ export default function ProductCard({ item, onAdd, onBuy }) {
           </View>
         )}
 
-        {/* Wishlist Heart */}
-        <TouchableOpacity style={styles.heartBtn}>
+  {/* Wishlist Heart */}
+  <TouchableOpacity style={styles.heartBtn} onPress={handleWish}>
           <Heart size={20} color="#047857" />
         </TouchableOpacity>
       </View>

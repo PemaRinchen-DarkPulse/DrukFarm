@@ -10,7 +10,8 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useRoute } from "@react-navigation/native";
-import { fetchProducts } from "../lib/api";
+import { fetchProducts, addToWishlist } from "../lib/api";
+import { getCurrentCid } from "../lib/auth";
 
 export default function Products({ navigation }) {
   const route = useRoute();
@@ -85,7 +86,21 @@ export default function Products({ navigation }) {
           </View>
 
           {/* Wishlist Heart */}
-          <TouchableOpacity style={styles.heartBtn}>
+          <TouchableOpacity
+            style={styles.heartBtn}
+            onPress={async () => {
+              const cid = getCurrentCid()
+              if (!cid) {
+                navigation.navigate('Login')
+                return
+              }
+              try {
+                await addToWishlist({ productId: item.id, cid })
+              } catch (e) {
+                console.warn('Add to wishlist failed:', e?.message || e)
+              }
+            }}
+          >
             <Icon name="heart-outline" size={20} color="#DC2626" />
           </TouchableOpacity>
         </View>

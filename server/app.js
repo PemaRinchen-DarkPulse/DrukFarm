@@ -9,6 +9,7 @@ const categoriesRouter = require('./routes/categories')
 const productsRouter = require('./routes/products')
 const cartRouter = require('./routes/cart')
 const ordersRouter = require('./routes/orders')
+const wishlistRouter = require('./routes/wishlist')
 
 function createApp() {
   const app = express()
@@ -47,6 +48,7 @@ function createApp() {
   app.use('/api/products', productsRouter)
   app.use('/api/cart', cartRouter)
   app.use('/api/orders', ordersRouter)
+  app.use('/api/wishlist', wishlistRouter)
 
   // 404 for unmatched routes
   app.use((req, res, next) => {
