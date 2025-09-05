@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,14 @@ import {
   Platform, // 1. Import Platform API
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { useRoute } from "@react-navigation/native";
 import { fetchProducts } from "../lib/api";
 
 export default function Products({ navigation }) {
+  const route = useRoute();
+  const selectedCategory = route?.params?.category;
   const [products, setProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
 
   useEffect(() => {
     let isActive = true;
@@ -28,11 +32,15 @@ export default function Products({ navigation }) {
           rating: Number(p.rating ?? 0),
           stock: Number(p.stockQuantity ?? 0),
           unit: p.unit || '',
+          category: p.categoryName || p.category || '',
           image: p.productImageBase64
             ? `data:image/jpeg;base64,${p.productImageBase64}`
             : (p.image || 'https://via.placeholder.com/600x400.png?text=Product'),
         }));
-        if (isActive) setProducts(mapped);
+        if (isActive) {
+          setAllProducts(mapped);
+          setProducts(mapped);
+        }
       } catch (e) {
         console.warn('Failed to load products:', e?.message || e);
       }
@@ -41,6 +49,17 @@ export default function Products({ navigation }) {
       isActive = false;
     };
   }, []);
+
+  // Apply category filter when navigating with a category param
+  useEffect(() => {
+    if (!selectedCategory) {
+      setProducts(allProducts);
+      return;
+    }
+    const sel = String(selectedCategory).toLowerCase();
+    const filtered = allProducts.filter((p) => String(p.category || '').toLowerCase() === sel);
+    setProducts(filtered);
+  }, [selectedCategory, allProducts]);
 
   const renderProduct = ({ item }) => {
     if (item?.empty) {
@@ -99,7 +118,7 @@ export default function Products({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Icon name="arrow-left" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Fresh Produce</Text>
+        <Text style={styles.headerTitle}>{selectedCategory ? selectedCategory : 'Fresh Produce'}</Text>
         <TouchableOpacity style={styles.filterBtn}>
           <Icon name="tune" size={16} color="#111827" />
           <Text style={styles.filterText}>Filters</Text>

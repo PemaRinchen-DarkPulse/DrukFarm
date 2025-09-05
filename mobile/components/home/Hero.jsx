@@ -92,14 +92,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   outlineButton: {
-    borderWidth: 1,
-    borderColor: '#059669',
+    backgroundColor: '#fff',   // white background
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
   },
   outlineButtonText: {
-    color: '#fff',
+    color: '#000',             // black text
     fontSize: 16,
     fontWeight: '600',
   },

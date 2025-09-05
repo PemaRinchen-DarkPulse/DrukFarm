@@ -46,7 +46,7 @@ export default function AccountSettings({ navigation }) {
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.row}>
-            <Text style={styles.rowText}>Payment Methods</Text>
+            <Text style={styles.rowText}>Payouts</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
         </View>

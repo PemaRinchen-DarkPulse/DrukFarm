@@ -64,7 +64,7 @@ export default function FeaturedProducts() {
   const handleBuyNow = (productId) => {
     const cid = getCurrentCid()
     if (!cid) {
-      navigation.navigate('Login', { redirectTo: `Buy`, pid: productId })
+      navigation.navigate('Login', { redirectTo: 'Buy', pid: productId })
       return
     }
     navigation.navigate('Buy', { pid: productId })
@@ -78,7 +78,7 @@ export default function FeaturedProducts() {
       </Text>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#047857" style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color="#047857" />
       ) : (
         <View style={styles.list}>
           {items.map((item) => (
@@ -103,8 +103,8 @@ export default function FeaturedProducts() {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: '#ECFDF5',
     flex: 1,
+    gap: 16, // Added to control spacing between all direct children
   },
   heading: {
     fontSize: 24,
@@ -113,17 +113,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   subHeading: {
-    marginTop: 8,
+    // marginTop removed
     fontSize: 14,
     color: '#047857',
     textAlign: 'center',
   },
   list: {
-    marginTop: 20,
-    paddingBottom: 20,
+    // marginTop and paddingBottom removed
   },
   footer: {
-    marginTop: 20,
+    // marginTop removed
     alignItems: 'center',
   },
   viewAllBtn: {

@@ -28,7 +28,7 @@ import Scanner from './screens/Scanner';
 import Navbar from './components/Navbar';
 import BottomDock from './components/BottomDock';
 import ProductDetail from './components/products/ProductDetail';
-
+import Category from './components/Category';
 const Stack = createNativeStackNavigator();
 
 function MainLayout({ children }) {
@@ -70,6 +70,8 @@ export default function App() {
           <Stack.Screen name="Farmer Guide" component={withMainLayout(FarmerGuide)} />
           <Stack.Screen name="Account Settings" component={withMainLayout(AccountSettings)} />
           <Stack.Screen name="Product Detail" component={withMainLayout(ProductDetail)} />
+          <Stack.Screen name="Categories" component={withMainLayout(Category)} />
+
 
           {/* Public screens without dock/navbar */}
           <Stack.Screen name="Login" component={Login} />

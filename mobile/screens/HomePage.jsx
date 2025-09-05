@@ -21,7 +21,7 @@ export default function HomePage() {
         </View>
       )}
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+    contentContainerStyle={styles.contentContainer}
     />
   );
 }
@@ -32,6 +32,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb', // matches web bg-background
   },
   contentContainer: {
-  paddingBottom: 0,
+  // Add extra bottom space so the bottom dock doesn't cover tappable items
+  paddingBottom: 140,
   },
 });
