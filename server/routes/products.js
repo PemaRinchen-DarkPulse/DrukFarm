@@ -9,6 +9,13 @@ const router = express.Router()
 
 const MAX_IMG_BYTES = 10 * 1024 * 1024
 
+function extractBase64(dataUriOrRaw){
+	if (!dataUriOrRaw) return ''
+	const s = String(dataUriOrRaw)
+	if (s.includes(',')) return s.split(',').pop()
+	return s
+}
+
 function validateProductPayload(payload, isUpdate = false) {
 	const errors = []
 	const required = field => {
@@ -35,14 +42,19 @@ function validateProductPayload(payload, isUpdate = false) {
 	}
 	if (payload.productImageBase64 !== undefined && payload.productImageBase64 !== null) {
 		try {
-			const len = Buffer.from(payload.productImageBase64, 'base64').length
+			const base = extractBase64(payload.productImageBase64)
+			const len = Buffer.from(base, 'base64').length
 			if (len > MAX_IMG_BYTES) errors.push('productImageBase64 exceeds 10MB')
 		} catch (e) {
 			errors.push('productImageBase64 is not valid base64')
 		}
 	}
+	// categoryId can arrive as ObjectId or category name (we'll resolve name later). Only flag if it looks like an ObjectId but invalid pattern.
 	if (payload.categoryId !== undefined) {
-		if (!mongoose.Types.ObjectId.isValid(String(payload.categoryId))) errors.push('categoryId must be a valid ObjectId')
+		const cid = String(payload.categoryId)
+		if (!(mongoose.Types.ObjectId.isValid(cid) || /^[A-Za-z0-9 _-]{2,40}$/.test(cid))) {
+			errors.push('categoryId must be a valid ObjectId or category name')
+		}
 	}
 	return errors
 }
@@ -55,6 +67,7 @@ function buildLocationLabel(userDoc){
 }
 
 function mapProduct(p, categoryDoc, sellerDoc) {
+	// Provide both new API shape & legacy fields the mobile UI currently expects
 	return {
 		productId: p.productId,
 		productName: p.productName,
@@ -64,7 +77,7 @@ function mapProduct(p, categoryDoc, sellerDoc) {
 		price: p.price,
 		unit: p.unit,
 		stockQuantity: p.stockQuantity,
-		productImageBase64: p.productImageBase64,
+		productImage: p.productImage, // stored Cloudinary URL
 		createdBy: p.createdBy,
 		rating: p.rating,
 		reviews: p.reviews,
@@ -76,6 +89,13 @@ function mapProduct(p, categoryDoc, sellerDoc) {
 		sellerLocationLabel: buildLocationLabel(sellerDoc),
 		createdAt: p.createdAt,
 		updatedAt: p.updatedAt,
+		// Legacy fields for existing mobile list renderer
+		id: p.productId,
+		name: p.productName,
+		category: categoryDoc ? categoryDoc.categoryName : undefined,
+		stock: p.stockQuantity > 0,
+		stockUnit: p.unit,
+		image: p.productImage,
 	}
 }
 
@@ -115,51 +135,52 @@ router.get('/category/:categoryId', async (req, res) => {
 	}
 })
 
-// POST /api/products -> Create a new product
+// POST /api/products -> Create (single implementation)
 router.post('/', async (req, res) => {
-	const validationErrors = validateProductPayload(req.body)
-	if (validationErrors.length > 0) {
-		return res.status(400).json({ success: false, errors: validationErrors })
-	}
-
 	try {
-		const { productImageBase64, ...productData } = req.body
+		const incoming = { ...(req.body || {}) }
+		// Resolve category by name if not a valid ObjectId
+		if (incoming.categoryId && !mongoose.Types.ObjectId.isValid(String(incoming.categoryId))) {
+			const name = String(incoming.categoryId).trim()
+			if (name) {
+				const cat = await Category.findOne({ categoryName: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') })
+				if (cat) incoming.categoryId = cat._id
+			}
+		}
+		const errors = validateProductPayload(incoming, false)
+		if (errors.length) return res.status(400).json({ success: false, errors })
 
 		const [category, user] = await Promise.all([
-			Category.findById(productData.categoryId),
-			User.findOne({ cid: productData.createdBy }),
+			Category.findById(incoming.categoryId),
+			User.findOne({ cid: incoming.createdBy }),
 		])
+		if (!category) return res.status(400).json({ success: false, error: 'Category not found' })
+		if (!user) return res.status(400).json({ success: false, error: 'User not found' })
 
-		if (!category) {
-			return res.status(400).json({ success: false, error: 'Category not found' })
-		}
-		if (!user) {
-			return res.status(400).json({ success: false, error: 'User not found' })
-		}
-
-		const imageUrl = await uploadToCloudinary(productImageBase64, {
+		const rawB64 = incoming.productImageBase64
+		const base = extractBase64(rawB64)
+		// Ensure data URI for Cloudinary helper
+		const dataUri = rawB64.startsWith('data:') ? rawB64 : `data:image/jpeg;base64,${base}`
+		const imageUrl = await uploadToCloudinary(dataUri, {
 			folder: 'products',
-			public_id: `${productData.createdBy}_${Date.now()}`,
+			public_id: `${incoming.createdBy}_${Date.now()}`,
 		})
 
-		const newProduct = new Product({
-			...productData,
+		const newProduct = await Product.create({
+			productName: incoming.productName,
+			categoryId: incoming.categoryId,
+			description: incoming.description,
+			price: Number(incoming.price),
+			unit: incoming.unit,
+			stockQuantity: Number(incoming.stockQuantity),
 			productImage: imageUrl,
+			createdBy: incoming.createdBy,
 		})
 
-		await newProduct.save()
-
-		res.status(201).json({
-			success: true,
-			message: 'Product created successfully',
-			product: mapProduct(newProduct, category, user),
-		})
+		return res.status(201).json({ success: true, message: 'Product created successfully', product: mapProduct(newProduct, category, user) })
 	} catch (err) {
 		console.error('Create product error:', err)
-		if (err.name === 'ValidationError') {
-			return res.status(400).json({ success: false, error: err.message })
-		}
-		res.status(500).json({ success: false, error: 'Failed to create product' })
+		return res.status(500).json({ success: false, error: 'Failed to create product' })
 	}
 })
 
@@ -179,37 +200,7 @@ router.get('/:productId', async (req, res) => {
 	}
 })
 
-// POST /api/products -> Create
-router.post('/', async (req, res) => {
-	try {
-		const payload = req.body || {}
-		const errors = validateProductPayload(payload, false)
-		if (errors.length) return res.status(400).json({ success: false, error: errors.join(', ') })
-
-		// Ensure category exists
-		const category = await Category.findById(payload.categoryId)
-		if (!category) return res.status(400).json({ success: false, error: 'Invalid categoryId' })
-
-			const capFirst = s => (s && typeof s === 'string') ? (s.trim().charAt(0).toUpperCase() + s.trim().slice(1)) : s
-			const doc = await Product.create({
-				productName: capFirst(payload.productName),
-			categoryId: payload.categoryId,
-				description: capFirst(payload.description),
-			price: Number(payload.price),
-			unit: String(payload.unit),
-			stockQuantity: Number(payload.stockQuantity),
-			productImageBase64: payload.productImageBase64,
-			createdBy: String(payload.createdBy),
-		})
-
-		const seller = await User.findOne({ cid: doc.createdBy }).select('cid name phoneNumber location dzongkhag')
-		const resBody = mapProduct(doc, category, seller)
-		res.status(201).json({ ...resBody, success: true, message: 'Product saved successfully' })
-	} catch (err) {
-		console.error('Create product error:', err)
-		res.status(500).json({ success: false, error: 'Failed to create product' })
-	}
-})
+// (Removed duplicate POST route implementation above)
 
 // PUT /api/products/:id -> Update
 router.put('/:id', async (req, res) => {

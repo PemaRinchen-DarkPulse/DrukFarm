@@ -26,7 +26,13 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-barcode-scanner"
+      "expo-barcode-scanner",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app needs access to your photos to let you select a product image."
+        }
+      ]
     ]
   }
 }

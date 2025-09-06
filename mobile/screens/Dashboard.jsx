@@ -10,10 +10,13 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  PermissionsAndroid,
+  Platform,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { Picker } from '@react-native-picker/picker';
-import { launchImageLibrary } from 'react-native-image-picker';
+// Switched to Expo Image Picker (react-native-image-picker won't open inside Expo Go)
+import * as ImagePicker from 'expo-image-picker';
 import { createProduct, fetchProducts } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -126,26 +129,27 @@ export default function Dashboard({ navigation }) {
     }
   }, [activeTab]);
 
-  const handleSelectImage = () => {
-    const options = {
-      mediaType: 'photo',
-      includeBase64: true,
-      maxHeight: 2000,
-      maxWidth: 2000,
-    };
+  const handleSelectImage = async () => {
+    // Ask for media library permission (handles iOS + Android inc. Android 13+)
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please allow photo access to pick an image.');
+      return;
+    }
 
-    launchImageLibrary(options, (response) => {
-      if (response.didCancel) {
-        console.log('User cancelled image picker');
-      } else if (response.errorCode) {
-        console.log('ImagePicker Error: ', response.errorMessage);
-      } else {
-        let image = response.assets[0];
-        setProductImage({
-          uri: image.uri,
-          base64: `data:${image.type};base64,${image.base64}`,
-        });
-      }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4,3],
+      quality: 0.85,
+      base64: true,
+    });
+
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    setProductImage({
+      uri: asset.uri,
+      base64: `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`,
     });
   };
 
@@ -270,7 +274,7 @@ export default function Dashboard({ navigation }) {
             <FlatList
               data={products}
               renderItem={renderProduct}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.productId}
               contentContainerStyle={{ paddingBottom: 20 }}
               refreshing={loading}
               onRefresh={getProducts}

@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+
 // Lightweight auth state for React Native apps without persistent storage.
 // If @react-native-async-storage/async-storage is present, we could extend this later.
 
@@ -20,6 +22,21 @@ export function onAuthChange(cb) {
   if (typeof cb !== 'function') return () => {}
   _listeners.add(cb)
   return () => _listeners.delete(cb)
+}
+
+export function useAuth() {
+  const [user, setUser] = useState(_currentUser)
+
+  useEffect(() => {
+    const unsubscribe = onAuthChange(newUser => {
+      setUser(newUser)
+    })
+    // On mount, ensure we have the latest user state
+    setUser(getCurrentUser())
+    return unsubscribe
+  }, [])
+
+  return { user }
 }
 
 // Small helper to extract current user's CID
