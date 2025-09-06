@@ -73,7 +73,11 @@ export default function Cart({ navigation }) {
     const cid = getCurrentCid();
     // Update backend first to avoid desync
     try {
-      const resp = await updateCartItem({ itemId: current.itemId || id, quantity: current.quantity + 1, cid });
+      const resp = await updateCartItem({
+        itemId: current.itemId || id,
+        quantity: current.quantity + 1,
+        cid,
+      });
       const next = mapApiCartToUiItems(resp?.cart);
       setCartItems(next);
     } catch (e) {
@@ -87,7 +91,11 @@ export default function Cart({ navigation }) {
     if (current.quantity <= 1) return;
     const cid = getCurrentCid();
     try {
-      const resp = await updateCartItem({ itemId: current.itemId || id, quantity: current.quantity - 1, cid });
+      const resp = await updateCartItem({
+        itemId: current.itemId || id,
+        quantity: current.quantity - 1,
+        cid,
+      });
       const next = mapApiCartToUiItems(resp?.cart);
       setCartItems(next);
     } catch (e) {
@@ -118,7 +126,11 @@ export default function Cart({ navigation }) {
         {/* Left Column for Image and Quantity Controls */}
         <View style={styles.leftColumn}>
           <Image
-            source={item.image ? { uri: item.image } : require("../assets/heroimage.jpg")}
+            source={
+              item.image
+                ? { uri: item.image }
+                : require("../assets/heroimage.jpg")
+            }
             style={styles.image}
           />
           <View style={styles.qtyBox}>
@@ -146,7 +158,8 @@ export default function Cart({ navigation }) {
               Nu. {displayPrice.toFixed(0)}/{displayUnit}
             </Text>
             <Text style={styles.itemStock}>
-              Stock: {item.stock} {displayUnit === "bunch" ? item.unit : "Kg"}
+              Stock: {item.stock}{" "}
+              {displayUnit === "bunch" ? item.unit : "Kg"}
             </Text>
           </View>
           <TouchableOpacity
@@ -154,7 +167,10 @@ export default function Cart({ navigation }) {
             onPress={async () => {
               const cid = getCurrentCid();
               try {
-                const resp = await removeCartItem({ itemId: item.itemId || item.id, cid });
+                const resp = await removeCartItem({
+                  itemId: item.itemId || item.id,
+                  cid,
+                });
                 const next = mapApiCartToUiItems(resp?.cart);
                 setCartItems(next);
               } catch (e) {
@@ -218,9 +234,10 @@ export default function Cart({ navigation }) {
         data={cartItems}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={cartItems.length
-          ? { paddingBottom: 40, paddingRight: 8 }
-          : { flexGrow: 1, justifyContent: "center", alignItems: "center" }
+        contentContainerStyle={
+          cartItems.length
+            ? { paddingBottom: 40, paddingRight: 8 }
+            : { flexGrow: 1, justifyContent: "center", alignItems: "center" }
         }
         ListFooterComponent={cartItems.length ? renderFooter : null}
         ListEmptyComponent={!loading ? <EmptyCart /> : null}
@@ -258,6 +275,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
     minHeight: 150,
+    marginLeft: 4, // Added a small left margin
   },
   leftColumn: {
     justifyContent: "space-between",

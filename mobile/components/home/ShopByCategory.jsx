@@ -166,7 +166,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ecfdf5", // emerald-50
     backgroundColor: "#fff",
-    padding: 16,
     height: 200,
     justifyContent: "center",
     shadowColor: "#000",
@@ -174,6 +173,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
     marginBottom: 16,
+  overflow: 'hidden',
   },
   bg: {
     flex: 1,
@@ -190,6 +190,8 @@ const styles = StyleSheet.create({
   overlay: {
     alignItems: "center",
     justifyContent: "center",
+  paddingHorizontal: 16,
+  paddingVertical: 16,
   },
   catTitle: {
     fontSize: 22,

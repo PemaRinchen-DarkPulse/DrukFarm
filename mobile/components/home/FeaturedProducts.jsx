@@ -67,7 +67,8 @@ export default function FeaturedProducts() {
       navigation.navigate('Login', { redirectTo: 'Buy', pid: productId })
       return
     }
-    navigation.navigate('Buy', { pid: productId })
+  const prod = items.find(i => i.id === productId)
+  navigation.navigate('Buy', { productId, product: prod })
   }
 
   return (
@@ -91,6 +92,22 @@ export default function FeaturedProducts() {
                 const cid = getCurrentCid()
                 if (!cid) { navigation.navigate('Login'); return }
                 try { await api.addToWishlist({ productId: pid, cid }) } catch(e) { console.warn(e?.message||e) }
+              }}
+              onOpen={(prod) => {
+                // map to the Product Detail expectations
+                navigation.navigate('Product Detail', {
+                  productId: prod?.id,
+                  product: {
+                    id: prod?.id,
+                    name: prod?.title,
+                    image: prod?.image,
+                    stock: prod?.stock,
+                    unit: prod?.unit,
+                    rating: prod?.rating,
+                    farmer: '',
+                    locationLabel: prod?.locationLabel,
+                  },
+                })
               }}
             />
           ))}

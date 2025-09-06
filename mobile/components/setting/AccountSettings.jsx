@@ -8,6 +8,8 @@ import {
   ScrollView,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { logoutUser } from "../../lib/api";
+import { setCurrentUser } from "../../lib/auth";
 
 export default function AccountSettings({ navigation }) {
   return (
@@ -90,6 +92,22 @@ export default function AccountSettings({ navigation }) {
           <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Farmer Guide')}>
             <Text style={styles.rowText}>Farmer Guide</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
+          </TouchableOpacity>
+        </View>
+        {/* Sign Out (row style like others) */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={async () => {
+              try { await logoutUser() } catch (e) {}
+              setCurrentUser(null)
+              try { if (typeof localStorage !== 'undefined') localStorage.clear() } catch(e){}
+              try { if (typeof sessionStorage !== 'undefined') sessionStorage.clear() } catch(e){}
+              navigation.navigate('Home')
+            }}
+          >
+            <Text style={[styles.rowText, { color: '#DC2626' }]}>Sign Out</Text>
+            <Icon name="logout" size={20} color="#6B7280" />
           </TouchableOpacity>
         </View>
       </ScrollView>

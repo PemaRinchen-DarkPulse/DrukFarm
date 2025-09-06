@@ -2,9 +2,11 @@ import React from 'react'
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native'
 import { ShoppingCart, CreditCard, Heart, MapPin, Star } from 'lucide-react-native'
 import api from '../../lib/api'
+import { useNavigation } from '@react-navigation/native'
 import { getCurrentCid } from '../../lib/auth'
 
-export default function ProductCard({ item, onAdd, onBuy, onWish }) {
+export default function ProductCard({ item, onAdd, onBuy, onWish, onOpen }) {
+  const navigation = useNavigation()
   const handleWish = async () => {
     try {
       if (typeof onWish === 'function') return onWish(item.id)
@@ -19,7 +21,14 @@ export default function ProductCard({ item, onAdd, onBuy, onWish }) {
     <View style={styles.card}>
       <View>
         {item.image ? (
-          <Image source={{ uri: item.image }} style={styles.image} />
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => {
+              if (typeof onOpen === 'function') onOpen(item)
+            }}
+          >
+            <Image source={{ uri: item.image }} style={styles.image} />
+          </TouchableOpacity>
         ) : (
           <View style={[styles.image, styles.imagePlaceholder]}>
             <Text>No Image</Text>
@@ -67,7 +76,10 @@ export default function ProductCard({ item, onAdd, onBuy, onWish }) {
 
         <TouchableOpacity
           style={styles.actionBtn}
-          onPress={() => onBuy(item.id)}
+          onPress={() => {
+            if (typeof onBuy === 'function') return onBuy(item.id)
+            navigation.navigate('Buy', { productId: item.id, product: item })
+          }}
         >
           <CreditCard size={16} color="#047857" />
           <Text style={styles.actionText}>Buy Now</Text>

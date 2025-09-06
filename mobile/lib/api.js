@@ -74,6 +74,11 @@ export async function loginUser(dto){
   return request('/users/login', { method: 'POST', body: JSON.stringify(dto) })
 }
 
+export async function logoutUser(){
+  // Stateless server; this will always succeed and lets app clear local state
+  try { return await request('/users/logout', { method: 'POST' }) } catch(e) { return { ok: true } }
+}
+
 export async function fetchUsers(){
   return request('/users')
 }
@@ -199,4 +204,5 @@ export default {
   addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder,
   searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered,
   addToWishlist, getWishlist, removeFromWishlist,
+  logoutUser,
 }

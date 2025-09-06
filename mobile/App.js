@@ -29,6 +29,7 @@ import Navbar from './components/Navbar';
 import BottomDock from './components/BottomDock';
 import ProductDetail from './components/products/ProductDetail';
 import Category from './components/Category';
+import Buy from './screens/Buy';
 const Stack = createNativeStackNavigator();
 
 function MainLayout({ children }) {
@@ -70,6 +71,7 @@ export default function App() {
           <Stack.Screen name="Farmer Guide" component={withMainLayout(FarmerGuide)} />
           <Stack.Screen name="Account Settings" component={withMainLayout(AccountSettings)} />
           <Stack.Screen name="Product Detail" component={withMainLayout(ProductDetail)} />
+          <Stack.Screen name="Buy" component={withMainLayout(Buy)} />
           <Stack.Screen name="Categories" component={withMainLayout(Category)} />
 
 

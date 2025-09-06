@@ -8,6 +8,7 @@ import { getCurrentUser, onAuthChange } from '../lib/auth';
 export default function Navbar() {
   const navigation = useNavigation();
   const [user, setUser] = useState(() => getCurrentUser());
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const off = onAuthChange(setUser);
@@ -35,6 +36,19 @@ export default function Navbar() {
             placeholder="Type to search..."
             placeholderTextColor="#9ca3af"
             style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            returnKeyType="search"
+            onSubmitEditing={() => {
+              const q = String(search || '').trim();
+              navigation.navigate('Products', q ? { query: q } : {});
+            }}
+            onKeyPress={({ nativeEvent }) => {
+              if (nativeEvent?.key === 'Enter') {
+                const q = String(search || '').trim();
+                navigation.navigate('Products', q ? { query: q } : {});
+              }
+            }}
           />
           <Mic size={18} color="#6b7280" style={{ marginRight: 8 }} />
         </View>

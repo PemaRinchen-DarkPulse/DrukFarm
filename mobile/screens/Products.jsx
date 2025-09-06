@@ -10,19 +10,26 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useRoute } from "@react-navigation/native";
-import { fetchProducts, addToWishlist } from "../lib/api";
+import { fetchProducts, addToWishlist, addToCart } from "../lib/api";
 import { getCurrentCid } from "../lib/auth";
+import LoadingSpinner from "../components/ui/LoadingSpinner";
+import ErrorScreen from "../components/ui/ErrorScreen";
 
 export default function Products({ navigation }) {
   const route = useRoute();
   const selectedCategory = route?.params?.category;
+  const searchQuery = String(route?.params?.query || '').trim().toLowerCase();
   const [products, setProducts] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let isActive = true;
     (async () => {
       try {
+        setLoading(true);
+        setError('');
         const data = await fetchProducts();
         if (!Array.isArray(data)) return;
         const mapped = data.map((p) => ({
@@ -44,6 +51,9 @@ export default function Products({ navigation }) {
         }
       } catch (e) {
         console.warn('Failed to load products:', e?.message || e);
+        if (isActive) setError(e?.message || 'Failed to load products');
+      } finally {
+        if (isActive) setLoading(false);
       }
     })();
     return () => {
@@ -51,16 +61,24 @@ export default function Products({ navigation }) {
     };
   }, []);
 
-  // Apply category filter when navigating with a category param
+  // Apply category and search query filters when navigating with params
   useEffect(() => {
-    if (!selectedCategory) {
-      setProducts(allProducts);
-      return;
+    let list = allProducts;
+    if (selectedCategory) {
+      const sel = String(selectedCategory).toLowerCase();
+      list = list.filter((p) => String(p.category || '').toLowerCase() === sel);
     }
-    const sel = String(selectedCategory).toLowerCase();
-    const filtered = allProducts.filter((p) => String(p.category || '').toLowerCase() === sel);
-    setProducts(filtered);
-  }, [selectedCategory, allProducts]);
+    if (searchQuery) {
+      const q = searchQuery;
+      list = list.filter((p) => {
+        const name = String(p.name || '').toLowerCase();
+        const cat = String(p.category || '').toLowerCase();
+        const farmer = String(p.farmer || '').toLowerCase();
+        return name.includes(q) || cat.includes(q) || farmer.includes(q);
+      });
+    }
+    setProducts(list);
+  }, [selectedCategory, searchQuery, allProducts]);
 
   const renderProduct = ({ item }) => {
     if (item?.empty) {
@@ -116,13 +134,42 @@ export default function Products({ navigation }) {
               <Icon name="star" size={14} color="#FBBF24" />
               <Text style={styles.rating}>{item.rating}</Text>
             </View>
-            <TouchableOpacity style={styles.cartBtn}>
+            <TouchableOpacity
+              style={styles.cartBtn}
+              onPress={async () => {
+                const cid = getCurrentCid()
+                if (!cid) {
+                  navigation.navigate('Login')
+                  return
+                }
+                try {
+                  await addToCart({ productId: item.id, quantity: 1, cid })
+                } catch (e) {
+                  console.warn('Add to cart failed:', e?.message || e)
+                }
+              }}
+            >
               <Icon name="cart-plus" size={16} color="#fff" />
               <Text style={styles.cartText}>Add to Cart</Text>
             </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <LoadingSpinner />
+      </View>
+    );
+  }
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <ErrorScreen message={error} />
+      </View>
     );
   }
 
@@ -148,6 +195,7 @@ export default function Products({ navigation }) {
         numColumns={2}
         columnWrapperStyle={{ justifyContent: "space-between" }}
         contentContainerStyle={{ paddingBottom: 20 }}
+  ListEmptyComponent={<ErrorScreen message="No products found" />}
       />
     </View>
   );

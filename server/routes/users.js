@@ -166,6 +166,16 @@ router.post('/login', async (req, res) => {
 	}
 })
 
+// POST /api/users/logout
+// Stateless app: this is a no-op on the server, provided for client flow symmetry
+router.post('/logout', async (_req, res) => {
+	try {
+		return res.status(200).json({ message: 'Logged out' })
+	} catch (err) {
+		return res.status(200).json({ message: 'Logged out' })
+	}
+})
+
 // (Optional) list users - for admin/debug only (do not expose in production without auth)
 router.get('/', async (_req, res) => {
 	const users = await User.find().sort({ createdAt: -1 })

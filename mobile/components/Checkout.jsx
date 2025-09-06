@@ -10,7 +10,8 @@ import {
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 export default function Checkout({ navigation }) {
-  const [paymentMethod, setPaymentMethod] = useState("mobile"); // default mobile
+  // 1. Changed default payment method to 'cod'
+  const [paymentMethod, setPaymentMethod] = useState("cod");
   const [journalNumber, setJournalNumber] = useState("");
 
   const subtotal = 970;
@@ -46,32 +47,32 @@ export default function Checkout({ navigation }) {
         {/* Payment Method */}
         <Text style={styles.sectionTitle}>Payment Method</Text>
 
-        {/* Mobile Banking */}
+        {/* Mobile Banking - Disabled */}
         <TouchableOpacity
+          disabled={true} // 2. Disabled the touch action
           style={[
             styles.card,
-            paymentMethod === "mobile" && styles.cardSelected,
+            styles.cardDisabled, // 3. Applied disabled visual style
           ]}
-          onPress={() => setPaymentMethod("mobile")}
         >
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Icon
-              name={
-                paymentMethod === "mobile" ? "radiobox-marked" : "radiobox-blank"
-              }
+              name={"radiobox-blank"}
               size={22}
-              color="#DC2626"
+              color="#9CA3AF" // Grayed out icon
             />
             <View style={{ marginLeft: 12 }}>
-              <Text style={styles.paymentTitle}>Mobile Banking</Text>
-              <Text style={styles.paymentDesc}>
+              <Text style={[styles.paymentTitle, styles.textDisabled]}>
+                Mobile Banking
+              </Text>
+              <Text style={[styles.paymentDesc, styles.textDisabled]}>
                 Pay with mBoB or M-Pay.
               </Text>
             </View>
           </View>
         </TouchableOpacity>
 
-        {/* Journal Number Field */}
+        {/* Journal Number Field - This will not show */}
         {paymentMethod === "mobile" && (
           <View style={styles.inputBox}>
             <Text style={styles.inputLabel}>Enter Journal Number</Text>
@@ -127,21 +128,21 @@ export default function Checkout({ navigation }) {
             <Text style={styles.totalValue}>Nu. {total.toFixed(2)}</Text>
           </View>
         </View>
-      </ScrollView>
 
-      {/* Place Order Button */}
-      <TouchableOpacity
-        style={styles.placeOrderBtn}
-        onPress={() => {
-          if (paymentMethod === "mobile" && !journalNumber) {
-            alert("Please enter your journal number.");
-            return;
-          }
-          alert("Order placed successfully!");
-        }}
-      >
-        <Text style={styles.placeOrderText}>Place Order</Text>
-      </TouchableOpacity>
+        {/* Place Order Button - MOVED INSIDE SCROLLVIEW */}
+        <TouchableOpacity
+          style={styles.placeOrderBtn}
+          onPress={() => {
+            if (paymentMethod === "mobile" && !journalNumber) {
+              alert("Please enter your journal number.");
+              return;
+            }
+            alert("Order placed successfully!");
+          }}
+        >
+          <Text style={styles.placeOrderText}>Place Order</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
@@ -156,7 +157,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#111827" },
 
-  sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8, color: "#111" },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 8,
+    color: "#111",
+  },
 
   card: {
     backgroundColor: "#fff",
@@ -167,6 +173,13 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   cardSelected: { borderColor: "#DC2626", borderWidth: 2 },
+  // 4. Added new styles for the disabled look
+  cardDisabled: {
+    backgroundColor: "#F3F4F6",
+  },
+  textDisabled: {
+    color: "#9CA3AF",
+  },
   name: { fontSize: 15, fontWeight: "700", color: "#111" },
   address: { fontSize: 13, color: "#374151", marginTop: 2 },
   changeBtn: { color: "#DC2626", fontWeight: "600" },
@@ -175,7 +188,12 @@ const styles = StyleSheet.create({
   paymentDesc: { fontSize: 13, color: "#6B7280" },
 
   inputBox: { marginBottom: 12 },
-  inputLabel: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 4 },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 4,
+  },
   input: {
     backgroundColor: "#fff",
     borderWidth: 1,
@@ -185,7 +203,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
   label: { fontSize: 14, color: "#374151" },
   value: { fontSize: 14, fontWeight: "600", color: "#111" },
   divider: { height: 1, backgroundColor: "#E5E7EB", marginVertical: 8 },
@@ -198,6 +220,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     marginTop: 8,
+    // Added a bottom margin for better spacing when scrolling
+    marginBottom: 16,
   },
   placeOrderText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

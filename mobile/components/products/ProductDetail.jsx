@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,20 +9,21 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { FontAwesome, AntDesign } from '@expo/vector-icons';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { fetchProductById, addToCart, buyProduct } from '../../lib/api';
+import { getCurrentCid } from '../../lib/auth';
+import LoadingSpinner from '../ui/LoadingSpinner';
+import ErrorScreen from '../ui/ErrorScreen';
 
-// --- Static Data ---
-const product = {
-  name: 'Organic Tomatoes',
-  description: 'Freshly harvested organic tomatoes from the fields of Paro, Bhutan. These tomatoes are known for their rich flavor and nutritional value.',
-  price: 'Nu. 150/kg',
-  available: '50 kg',
-  image: 'https://images.unsplash.com/photo-1582284540020-8acbe03f4924?q=80&w=2070&auto=format&fit=crop', // A placeholder image
-};
-
-const farmer = {
-  name: 'Tenzin Wangchuk',
-  location: 'Farmer from Paro',
-  avatar: 'https://images.unsplash.com/photo-1560365163-3e8d64e762ef?q=80&w=1964&auto=format&fit=crop', // A placeholder image
+// Helper: best-effort MIME guess for base64 images
+const guessMimeFromBase64 = (b64) => {
+  if (!b64 || typeof b64 !== 'string') return null;
+  const s = b64.slice(0, 12);
+  if (s.startsWith('/9j/')) return 'image/jpeg';
+  if (s.startsWith('iVBORw0KG')) return 'image/png';
+  if (s.startsWith('R0lGODdh') || s.startsWith('R0lGODlh')) return 'image/gif';
+  if (s.startsWith('UklGR') || s.startsWith('RIFF')) return 'image/webp';
+  return 'image/jpeg';
 };
 
 const reviews = [
@@ -84,16 +85,95 @@ const RatingBar = ({ label, percentage }) => (
 
 // --- Main Screen Component ---
 const ProductDetailScreen = () => {
+  const route = useRoute();
+  const navigation = useNavigation();
+  const initialFromList = route?.params?.product || null;
+  const productId = initialFromList?.id || route?.params?.productId || route?.params?.id || null;
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [uiProduct, setUiProduct] = useState(() => {
+    if (!initialFromList) return null;
+    return {
+      name: initialFromList.name || '',
+      description: '',
+      price: initialFromList.price || '',
+      available: `${initialFromList.stock ?? ''} ${initialFromList.unit ?? ''}`.trim(),
+      image: initialFromList.image || null,
+    };
+  });
+  const [farmer, setFarmer] = useState(() => ({
+    name: initialFromList?.farmer || 'Farmer',
+    location: initialFromList?.locationLabel || '',
+    avatar: 'https://images.unsplash.com/photo-1560365163-3e8d64e762ef?q=80&w=1964&auto=format&fit=crop',
+  }));
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!productId) { setLoading(false); return; }
+      try {
+        const data = await fetchProductById(productId);
+        if (!active || !data) return;
+        const mime = data.productImageBase64 ? guessMimeFromBase64(data.productImageBase64) : null;
+        const mapped = {
+          name: data.productName || initialFromList?.name || '',
+          description: data.description || '',
+          price: `Nu. ${Number(data.price ?? 0)}${data.unit ? `/${data.unit}` : ''}`,
+          available: `${Number(data.stockQuantity ?? 0)} ${data.unit || ''}`.trim(),
+          image: data.productImageBase64 && mime ? `data:${mime};base64,${data.productImageBase64}` : (initialFromList?.image || null),
+          rating: Number(data.rating ?? initialFromList?.rating ?? 0),
+          reviews: Number(data.reviews ?? 0),
+        };
+        setUiProduct(mapped);
+        setFarmer({
+          name: data.sellerName || (data.sellerCid ? `CID ${data.sellerCid}` : 'Farmer'),
+          location: data.sellerLocationLabel || '',
+          avatar: 'https://images.unsplash.com/photo-1560365163-3e8d64e762ef?q=80&w=1964&auto=format&fit=crop',
+        });
+      } catch (e) {
+        setError(e?.message || 'Failed to load product');
+      } finally {
+        setLoading(false);
+      }
+    })();
+    return () => { active = false };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId]);
+
+  const averageRating = useMemo(() => {
+    return uiProduct?.rating && uiProduct.rating > 0 ? uiProduct.rating : 4.5;
+  }, [uiProduct?.rating]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <LoadingSpinner />
+      </SafeAreaView>
+    );
+  }
+  if (error || !uiProduct) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ErrorScreen message={error || 'Product not found'} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Changed: Removed the paddingBottom from contentContainerStyle */}
       <ScrollView>
-        <Image source={{ uri: product.image }} style={styles.productImage} />
+        {uiProduct.image ? (
+          <Image source={{ uri: uiProduct.image }} style={styles.productImage} />
+        ) : (
+          <View style={[styles.productImage, { backgroundColor: '#f3f4f6' }]} />
+        )}
 
         <View style={styles.container}>
           {/* Product Info */}
-          <Text style={styles.title}>{product.name}</Text>
-          <Text style={styles.description}>{product.description}</Text>
+          <Text style={styles.title}>{uiProduct.name}</Text>
+          <Text style={styles.description}>{uiProduct.description}</Text>
 
           {/* Farmer Info */}
           <TouchableOpacity style={styles.farmerCard}>
@@ -109,20 +189,32 @@ const ProductDetailScreen = () => {
           <View style={styles.detailsRow}>
             <View>
               <Text style={styles.detailLabel}>Price</Text>
-              <Text style={styles.detailValue}>{product.price}</Text>
+              <Text style={styles.detailValue}>{uiProduct.price}</Text>
             </View>
             <View style={{alignItems: 'flex-end'}}>
               <Text style={styles.detailLabel}>Available Quantity</Text>
-              <Text style={styles.detailValue}>{product.available}</Text>
+              <Text style={styles.detailValue}>{uiProduct.available}</Text>
             </View>
           </View>
           
           {/* ==== Buttons Moved Here ==== */}
           <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity style={[styles.button, styles.addToCartButton]}>
+            <TouchableOpacity
+              style={[styles.button, styles.addToCartButton]}
+              onPress={async () => {
+                const cid = getCurrentCid();
+                if (!cid) { navigation.navigate('Login'); return; }
+                try { await addToCart({ productId, quantity: 1, cid }); } catch(e) { /* swallow */ }
+              }}
+            >
               <Text style={styles.addToCartText}>Add to Cart</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.buyNowButton]}>
+            <TouchableOpacity
+              style={[styles.button, styles.buyNowButton]}
+              onPress={() => {
+                navigation.navigate('Buy', { productId, product: uiProduct });
+              }}
+            >
               <Text style={styles.buyNowText}>Buy Now</Text>
             </TouchableOpacity>
           </View>
@@ -133,9 +225,9 @@ const ProductDetailScreen = () => {
           <Text style={styles.sectionTitle}>Reviews & Ratings</Text>
           <View style={styles.ratingsSummary}>
             <View style={styles.ratingsSummaryLeft}>
-                <Text style={styles.averageRating}>4.5</Text>
-                <StarRating rating={4.5} size={20} />
-                <Text style={styles.reviewCount}>25 reviews</Text>
+                <Text style={styles.averageRating}>{averageRating}</Text>
+                <StarRating rating={averageRating} size={20} />
+                <Text style={styles.reviewCount}>{uiProduct?.reviews || 25} reviews</Text>
             </View>
             <View style={styles.ratingsSummaryRight}>
                 {Object.entries(ratingBreakdown).reverse().map(([label, percentage]) => (

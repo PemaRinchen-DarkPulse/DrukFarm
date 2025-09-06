@@ -19,46 +19,60 @@ export default function Wishlist({ navigation }) {
   useEffect(() => {
     const load = async () => {
       const cid = getCurrentCid();
-      if (!cid) { navigation.navigate('Login'); return; }
+      if (!cid) {
+        navigation.navigate("Login");
+        return;
+      }
       setLoading(true);
       try {
         const resp = await getWishlist({ cid });
-        const items = (resp.items || []).map(i => {
-          const mime = i.productImageBase64 ? 'image/jpeg' : null;
+        const items = (resp.items || []).map((i) => {
+          const mime = i.productImageBase64 ? "image/jpeg" : null;
           return {
             id: String(i.productId || i.itemId),
             productId: String(i.productId),
-            name: i.productName || 'Product',
-            price: `Nu ${Number(i.price ?? 0)}${i.unit ? `/${i.unit}` : ''}`,
-            image: i.productImageBase64 && mime ? `data:${mime};base64,${i.productImageBase64}` : 'https://via.placeholder.com/600x400.png?text=Product',
-          }
-        })
+            name: i.productName || "Product",
+            price: `Nu ${Number(i.price ?? 0)}${i.unit ? `/${i.unit}` : ""}`,
+            unit: i.unit || "kg",
+            stock: Number(i.stockQuantity ?? 0),
+            image:
+              i.productImageBase64 && mime
+                ? `data:${mime};base64,${i.productImageBase64}`
+                : "https://via.placeholder.com/600x400.png?text=Product",
+          };
+        });
         setWishlist(items);
       } catch (e) {
         setWishlist([]);
       } finally {
         setLoading(false);
       }
-    }
+    };
     load();
   }, [navigation]);
 
   const removeItem = async (productId) => {
     const cid = getCurrentCid();
-    if (!cid) { navigation.navigate('Login'); return; }
+    if (!cid) {
+      navigation.navigate("Login");
+      return;
+    }
     try {
       await removeFromWishlist({ productId, cid });
-      setWishlist(prev => prev.filter(it => it.productId !== productId));
+      setWishlist((prev) => prev.filter((it) => it.productId !== productId));
     } catch (e) {}
   };
 
   const handleAddToCart = async (productId) => {
     const cid = getCurrentCid();
-    if (!cid) { navigation.navigate('Login'); return; }
+    if (!cid) {
+      navigation.navigate("Login");
+      return;
+    }
     try {
       await addToCart({ productId, quantity: 1, cid });
     } catch (e) {}
-  }
+  };
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
@@ -71,10 +85,16 @@ export default function Wishlist({ navigation }) {
         <View>
           <Text style={styles.title}>{item.name}</Text>
           <Text style={styles.price}>{item.price}</Text>
+          <Text style={styles.stock}>
+            Stock: {item.stock} {item.unit === "bunch" ? item.unit : "Kg"}
+          </Text>
         </View>
 
         {/* Add button (small and at the bottom) */}
-        <TouchableOpacity style={styles.addBtn} onPress={() => handleAddToCart(item.productId)}>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={() => handleAddToCart(item.productId)}
+        >
           <Icon name="cart-outline" size={18} color="#fff" />
           <Text style={styles.addText}>Add to Cart</Text>
         </TouchableOpacity>
@@ -139,9 +159,10 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
     minHeight: 150,
+    marginHorizontal: 4, // Added horizontal margin
   },
   image: {
-    width: 90,
+    width: 110,
     height: "100%",
     borderRadius: 10,
     resizeMode: "cover",
@@ -172,5 +193,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 6,
+  },
+  stock: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "green",
+    marginTop: 6,
   },
 });
