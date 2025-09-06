@@ -182,5 +182,98 @@ router.get('/', async (_req, res) => {
 	res.json(users.map(u => u.toJSONSafe()))
 })
 
+// GET /api/users/:cid - fetch single user
+router.get('/:cid', async (req, res) => {
+	try {
+		const { cid } = req.params
+		if (!cid || !/^\d{11}$/.test(cid)) return res.status(400).json({ error: 'Invalid CID' })
+		const user = await User.findOne({ cid })
+		if (!user) return res.status(404).json({ error: 'User not found' })
+		return res.json(user.toJSONSafe())
+	} catch (err) {
+		console.error('Get user error:', err)
+		return res.status(500).json({ error: 'Failed to fetch user' })
+	}
+})
+
+// PATCH /api/users/:cid - update limited user profile fields
+router.patch('/:cid', async (req, res) => {
+	try {
+		const { cid } = req.params
+		if (!cid || !/^\d{11}$/.test(cid)) {
+			return res.status(400).json({ error: 'Invalid CID' })
+		}
+		const user = await User.findOne({ cid })
+		if (!user) return res.status(404).json({ error: 'User not found' })
+
+		// Only allow updating certain fields (name & cid immutable as per request)
+		let { phoneNumber, location, dzongkhag, profileImageBase64, profileImageMime, role, gender } = req.body || {}
+
+		if (typeof phoneNumber === 'string') {
+			phoneNumber = phoneNumber.trim().replace(/\D/g, '')
+			if (phoneNumber && !/^\d{8}$/.test(phoneNumber)) {
+				return res.status(400).json({ error: 'Phone number must be exactly 8 digits' })
+			}
+		} else {
+			phoneNumber = undefined
+		}
+
+		if (typeof dzongkhag === 'string') dzongkhag = dzongkhag.trim()
+		if (typeof location === 'string') location = location.trim()
+		if (typeof profileImageMime === 'string') profileImageMime = profileImageMime.trim().toLowerCase()
+		if (typeof role === 'string') role = role.trim().toLowerCase()
+		if (typeof gender === 'string') gender = gender.trim().toLowerCase()
+
+		// Validate dzongkhag if provided
+		const validDzongkhags = new Set([
+			'Bumthang','Chhukha','Dagana','Gasa','Haa','Lhuentse','Mongar','Paro','Pemagatshel','Punakha','Samdrup Jongkhar','Samtse','Sarpang','Thimphu','Trashigang','Trashiyangtse','Trongsa','Tsirang','Wangdue Phodrang','Zhemgang'
+		])
+		if (dzongkhag && !validDzongkhags.has(dzongkhag)) {
+			return res.status(400).json({ error: 'Invalid Dzongkhag' })
+		}
+
+		// If changing phone number ensure uniqueness
+		if (phoneNumber && phoneNumber !== user.phoneNumber) {
+			const exists = await User.findOne({ phoneNumber })
+			if (exists) return res.status(409).json({ error: 'Phone number already exists' })
+			user.phoneNumber = phoneNumber
+		}
+			if (location !== undefined) user.location = location
+			if (dzongkhag !== undefined) user.dzongkhag = dzongkhag
+			if (role) {
+				const allowedRoles = ['consumer','farmer','transporter']
+				if (allowedRoles.includes(role)) user.role = role
+			}
+			if (gender) {
+				const allowedGender = ['male','female','other']
+				if (allowedGender.includes(gender)) user.gender = gender
+			}
+			if (profileImageBase64) {
+				// Basic validation: only allow png/jpg/jpeg
+				const allowed = new Set(['image/png','image/jpeg','image/jpg'])
+				if (!profileImageMime || !allowed.has(profileImageMime)) {
+					profileImageMime = 'image/png'
+				}
+				try {
+					const b64 = profileImageBase64.replace(/^data:[^;]+;base64,/, '')
+					user.profileImageData = Buffer.from(b64, 'base64')
+					user.profileImageMime = profileImageMime
+				} catch(e){
+					return res.status(400).json({ error: 'Invalid profile image data' })
+				}
+			} else if (profileImageBase64 === '') {
+				// Explicit clear
+				user.profileImageData = undefined
+				user.profileImageMime = ''
+			}
+
+		await user.save()
+		return res.json({ message: 'Profile updated', user: user.toJSONSafe() })
+	} catch (err) {
+		console.error('Update user error:', err)
+		return res.status(500).json({ error: 'Failed to update user' })
+	}
+})
+
 module.exports = router
 

@@ -83,6 +83,16 @@ export async function fetchUsers(){
   return request('/users')
 }
 
+export async function fetchUserByCid(cid){
+  if (!cid) throw new Error('cid required')
+  return request(`/users/${cid}`)
+}
+
+export async function updateUser(cid, dto){
+  if (!cid) throw new Error('cid required')
+  return request(`/users/${cid}`, { method: 'PATCH', body: JSON.stringify(dto) })
+}
+
 export async function addToCart({ productId, quantity = 1, cid }){
   const body = { productId, quantity }
   if (cid) body.cid = cid
@@ -201,6 +211,7 @@ export async function markDelivered({ orderId, cid }){
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
+  fetchUserByCid, updateUser,
   addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder,
   searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered,
   addToWishlist, getWishlist, removeFromWishlist,

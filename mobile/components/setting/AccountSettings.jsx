@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,9 +9,16 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { logoutUser } from "../../lib/api";
-import { setCurrentUser } from "../../lib/auth";
+import { setCurrentUser, getCurrentUser, onAuthChange } from "../../lib/auth";
 
 export default function AccountSettings({ navigation }) {
+  const [user, setUser] = useState(() => getCurrentUser());
+  useEffect(() => {
+    const off = onAuthChange(setUser);
+    return off;
+  }, []);
+  const isFarmer = !!user && String(user.role || '').toLowerCase() === 'farmer';
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -20,7 +27,7 @@ export default function AccountSettings({ navigation }) {
           <Icon name="arrow-left" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Account</Text>
-        <View style={{ width: 24 }} /> 
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
@@ -39,29 +46,41 @@ export default function AccountSettings({ navigation }) {
         {/* Account Settings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>ACCOUNT SETTINGS</Text>
-          <TouchableOpacity style={styles.row}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Profile")}
+          >
             <Text style={styles.rowText}>Personal Information</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.row}>
+
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Address")}
+          >
             <Text style={styles.rowText}>Address Book</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.row}>
-            <Text style={styles.rowText}>Payouts</Text>
-            <Icon name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
+
+          {isFarmer && (
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() => navigation.navigate("Payouts")}
+            >
+              <Text style={styles.rowText}>Payouts</Text>
+              <Icon name="chevron-right" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* My Activity */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>MY ACTIVITY</Text>
-          <TouchableOpacity style={styles.row}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Orders History")}
+          >
             <Text style={styles.rowText}>Order History</Text>
-            <Icon name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.row}>
-            <Text style={styles.rowText}>Wishlist</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
         </View>
@@ -69,44 +88,72 @@ export default function AccountSettings({ navigation }) {
         {/* Support */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SUPPORT</Text>
-          <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('About')}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("About")}
+          >
             <Text style={styles.rowText}>About Us</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Contact')}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Contact")}
+          >
             <Text style={styles.rowText}>Contact</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Help Center')}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Help Center")}
+          >
             <Text style={styles.rowText}>Help Center</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Terms of Service')}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Terms of Service")}
+          >
             <Text style={styles.rowText}>Terms of Service</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Privacy Policy')}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Privacy Policy")}
+          >
             <Text style={styles.rowText}>Privacy Policy</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Farmer Guide')}>
-            <Text style={styles.rowText}>Farmer Guide</Text>
-            <Icon name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
+          {isFarmer && (
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() => navigation.navigate("Farmer Guide")}
+            >
+              <Text style={styles.rowText}>Farmer Guide</Text>
+              <Icon name="chevron-right" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          )}
         </View>
-        {/* Sign Out (row style like others) */}
+
+        {/* Sign Out */}
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.row}
             onPress={async () => {
-              try { await logoutUser() } catch (e) {}
-              setCurrentUser(null)
-              try { if (typeof localStorage !== 'undefined') localStorage.clear() } catch(e){}
-              try { if (typeof sessionStorage !== 'undefined') sessionStorage.clear() } catch(e){}
-              navigation.navigate('Home')
+              try {
+                await logoutUser();
+              } catch (e) {}
+              setCurrentUser(null);
+              try {
+                if (typeof localStorage !== "undefined") localStorage.clear();
+              } catch (e) {}
+              try {
+                if (typeof sessionStorage !== "undefined")
+                  sessionStorage.clear();
+              } catch (e) {}
+              navigation.navigate("Home");
             }}
           >
-            <Text style={[styles.rowText, { color: '#DC2626' }]}>Sign Out</Text>
+            <Text style={[styles.rowText, { color: "#DC2626" }]}>Sign Out</Text>
             <Icon name="logout" size={20} color="#6B7280" />
           </TouchableOpacity>
         </View>

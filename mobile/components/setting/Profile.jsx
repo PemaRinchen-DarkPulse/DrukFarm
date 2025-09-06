@@ -1,95 +1,280 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons'; // Assuming you're using Expo for icons
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+} from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
+import { ChevronDown, Check } from 'lucide-react-native';
+import { getCurrentUser, setCurrentUser, onAuthChange } from '../../lib/auth';
+import { fetchUserByCid, updateUser } from '../../lib/api';
 
-export default function Profile() {
-  const [name, setName] = useState('Sonam Choden');
-  const [phoneNumber, setPhoneNumber] = useState('+975 17123456');
-  const [email, setEmail] = useState('sonam.choden@example.com');
+const DZONGKHAGS = [
+  'Bumthang','Chhukha','Dagana','Gasa','Haa','Lhuentse','Mongar','Paro','Pemagatshel','Punakha','Samdrup Jongkhar','Samtse','Sarpang','Thimphu','Trashigang','Trashiyangtse','Trongsa','Tsirang','Wangdue Phodrang','Zhemgang'
+]
 
-  const handleSaveChanges = () => {
-    // Implement your save logic here
-    console.log('Saving changes:', { name, phoneNumber, email });
-    alert('Profile Updated!');
-  };
+const LIST_MAX = 160; // Same as AuthLayout
+
+export default function Profile({ navigation }) {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [cid, setCid] = useState('')
+  const [name, setName] = useState('')
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [location, setLocation] = useState('')
+  const [dzongkhag, setDzongkhag] = useState('')
+  const [profileImageBase64, setProfileImageBase64] = useState('')
+  const [profileImageMime, setProfileImageMime] = useState('')
+  const [gender, setGender] = useState('')
+  const [openDropdown, setOpenDropdown] = useState(null) // 'dzongkhag' | 'gender'
+
+  // Hydrate from current auth user
+  useEffect(() => {
+    const initial = getCurrentUser()
+    if (initial) applyUser(initial)
+    const off = onAuthChange(u => { if (u) applyUser(u) })
+    return off
+  }, [])
+
+  function applyUser(u){
+    setCid(u?.cid || '')
+    setName(u?.name || '')
+    setPhoneNumber(u?.phoneNumber || '')
+    setLocation(u?.location || '')
+    setDzongkhag(u?.dzongkhag || '')
+    setGender(u?.gender ? capitalize(u.gender) : '')
+    if (u?.profileImageBase64){
+      setProfileImageBase64(u.profileImageBase64)
+      setProfileImageMime(u.profileImageMime || 'image/png')
+    } else {
+      setProfileImageBase64('')
+      setProfileImageMime('')
+    }
+  }
+
+  // Fetch fresh copy from backend (in case app state stale)
+  useEffect(() => {
+    let active = true
+    async function load(){
+      const u = getCurrentUser()
+      if (!u?.cid) { setLoading(false); return }
+      try {
+        const fresh = await fetchUserByCid(u.cid)
+        if (active && fresh) { applyUser(fresh); setCurrentUser(fresh) }
+      } catch(e){ /* ignore fetch errors */ }
+      if (active) setLoading(false)
+    }
+    load()
+    return () => { active = false }
+  }, [])
+
+  async function handleSaveChanges(){
+    if (!cid) return
+    setSaving(true)
+    setError('')
+    try {
+      const dto = { phoneNumber: phoneNumber.replace(/\D/g,'').trim(), location, dzongkhag, gender: gender.toLowerCase() }
+      if (profileImageBase64) {
+        dto.profileImageBase64 = profileImageBase64
+        dto.profileImageMime = profileImageMime || 'image/png'
+      }
+      const res = await updateUser(cid, dto)
+      if (res && res.user){
+        applyUser(res.user)
+        setCurrentUser(res.user)
+        alert('Profile updated')
+      } else {
+        alert('Updated')
+      }
+    } catch(e){
+      console.log('Update error', e)
+      setError(e?.body?.error || e.message || 'Failed to update')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function pickImage(){
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1,1],
+        quality: 0.6,
+        base64: true,
+      })
+      if (!result.canceled && result.assets && result.assets.length){
+        const asset = result.assets[0]
+        if (asset.base64){
+          setProfileImageBase64(asset.base64)
+          setProfileImageMime(asset.mimeType || 'image/jpeg')
+        }
+      }
+    } catch (e){
+      setError('Failed to pick image')
+    }
+  }
+
+  function capitalize(s){ return typeof s === 'string' && s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s }
+
+  const genderOptions = ['Male','Female','Other']
+
+  function toggleDropdown(which){ 
+    setOpenDropdown(prev => prev === which ? null : which) 
+  }
+
+  // Updated to match AuthLayout's dropdown style
+  function renderDropdown(which, options, value, onSelect){
+    const open = openDropdown === which
+    
+    return (
+      <View style={styles.dropdownWrap}>
+        <TouchableOpacity 
+          style={styles.dropdownTrigger} 
+          activeOpacity={0.8} 
+          onPress={() => toggleDropdown(which)}
+        >
+          <Text style={[styles.dropdownText, !value && styles.placeholder]} numberOfLines={1}>
+            {value || 'Select...'}
+          </Text>
+          <ChevronDown size={16} color="#059669" style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
+        </TouchableOpacity>
+
+        {open && (
+          <View style={styles.dropdownList}>
+            <ScrollView style={{ maxHeight: LIST_MAX }} nestedScrollEnabled>
+              {options.length > 0 ? (
+                options.map(opt => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.dropdownItem, value === opt && styles.dropdownItemActive]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      onSelect(opt);
+                      setOpenDropdown(null);
+                    }}
+                  >
+                    <Text style={styles.dropdownItemText}>{opt}</Text>
+                    {value === opt ? <Check size={16} color="#059669" /> : null}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                  <Text style={{ color: '#6b7280' }}>No options available</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    )
+  }
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Ionicons name="arrow-back" size={24} color="#333" />
+        <TouchableOpacity onPress={() => {
+          if (navigation?.canGoBack()) navigation.goBack();
+          else navigation?.navigate?.('Account Settings');
+        }}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
-        <View style={{ width: 24 }} /> {/* Spacer to balance header */}
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Profile Picture and Edit Icon */}
-        <View style={styles.profilePicContainer}>
-          <Image
-            source={require('../../assets/profile-placeholder.png')} // Replace with your image path
-            style={styles.profilePic}
-          />
-          <TouchableOpacity style={styles.editIconContainer}>
-            <Ionicons name="pencil" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.userName}>Sonam Choden</Text>
-
-        {/* Profile Information */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={!openDropdown}
+      >
         <View style={styles.infoCard}>
-          <Text style={styles.label}>Name</Text>
+          {/* Unified Profile Section */}
+          <View style={{alignItems:'center', marginBottom: 10}}>
+            <View style={styles.profilePicContainer}>
+              <Image
+                source={{
+                  uri: profileImageBase64
+                    ? `data:${profileImageMime||'image/png'};base64,${profileImageBase64}`
+                    : 'https://cdn-icons-png.flaticon.com/512/4140/4140037.png',
+                }}
+                style={styles.profilePic}
+              />
+              <TouchableOpacity style={styles.editIconContainer} onPress={pickImage}> 
+                <Ionicons name="pencil" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.userName}>{name || 'Your Name'}</Text>
+          </View>
+          
+          <Text style={styles.label}>CID (read-only)</Text>
+          <TextInput 
+            style={[styles.textInput, styles.readOnly]} 
+            value={cid} 
+            editable={false} 
+            selectTextOnFocus={false} 
+          />
+
+          <Text style={styles.label}>Name (read-only)</Text>
+          <TextInput 
+            style={[styles.textInput, styles.readOnly]} 
+            value={name} 
+            editable={false} 
+            selectTextOnFocus={false} 
+          />
+
+          <Text style={[styles.label, { marginBottom: 4 }]}>Gender</Text>
+          {renderDropdown('gender', genderOptions, gender, setGender)}
+          
+          <Text style={[styles.label, { marginBottom: 4 }]}>Dzongkhag</Text>
+          {renderDropdown('dzongkhag', DZONGKHAGS, dzongkhag, setDzongkhag)}
+
+          <Text style={styles.label}>Location</Text>
           <TextInput
             style={styles.textInput}
-            value={name}
-            onChangeText={setName}
-            placeholder="Enter your name"
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Village / Area"
           />
-
-          <Text style={styles.label}>Phone number</Text>
+          
+          <Text style={styles.label}>Phone Number</Text>
           <TextInput
             style={styles.textInput}
             value={phoneNumber}
             onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
-            placeholder="Enter your phone number"
+            keyboardType="number-pad"
+            placeholder="8 digit phone number"
+            maxLength={12}
           />
-
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.textInput}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholder="Enter your email"
-          />
+          
+          {profileImageBase64 ? (
+            <Text style={{fontSize:12, color:'#555', marginTop:4}}>
+              Photo selected ({Math.round(profileImageBase64.length/1024)} KB)
+            </Text>
+          ) : null}
+          
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
 
         {/* Save Changes Button */}
-        <TouchableOpacity style={styles.saveButton} onPress={handleSaveChanges}>
-          <Text style={styles.saveButtonText}>Update Profile</Text>
+        <TouchableOpacity 
+          disabled={saving || loading} 
+          style={[styles.saveButton, (saving||loading)&&{opacity:0.7}]} 
+          onPress={handleSaveChanges}
+        >
+          <Text style={styles.saveButtonText}>
+            {saving? 'Saving...' : 'Update Profile'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
-
-      {/* Bottom Navigation (Placeholder) */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="home-outline" size={24} color="#999" />
-          <Text style={styles.navText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="grid-outline" size={24} color="#999" />
-          <Text style={styles.navText}>Categories</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="cart-outline" size={24} color="#999" />
-          <Text style={styles.navText}>Cart</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="person" size={24} color="#047857" /> {/* Active state */}
-          <Text style={[styles.navText, { color: '#047857' }]}>Profile</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -97,7 +282,7 @@ export default function Profile() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f7f7f7', // Light gray background to match image
+    backgroundColor: '#f7f7f7',
   },
   header: {
     flexDirection: 'row',
@@ -118,7 +303,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
     paddingHorizontal: 16,
-    flexGrow: 1, // Allows ScrollView to grow and push button to bottom if content is short
+    flexGrow: 1,
   },
   profilePicContainer: {
     width: 100,
@@ -139,14 +324,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#047857', // Green background for the pencil icon
+    backgroundColor: '#047857',
     borderRadius: 15,
     width: 30,
     height: 30,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#fff', // White border to make it pop
+    borderColor: '#fff',
   },
   userName: {
     fontSize: 20,
@@ -165,12 +350,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
+    overflow: 'visible',
   },
   label: {
     fontSize: 14,
     color: '#666',
     marginBottom: 8,
-    marginTop: 15, // Space between fields
+    marginTop: 15,
   },
   textInput: {
     borderWidth: 1,
@@ -179,40 +365,84 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: '#333',
-    backgroundColor: '#f9f9f9', // Slightly different background for input
+    backgroundColor: '#f9f9f9',
+  },
+  readOnly: {
+    backgroundColor: '#f0f0f0',
+    color: '#555'
   },
   saveButton: {
-    backgroundColor: '#047857', // Green save button
+    backgroundColor: '#047857',
     borderRadius: 8,
     paddingVertical: 14,
     width: '100%',
     alignItems: 'center',
-    marginBottom: 20, // Space above bottom nav
+    marginBottom: 20,
   },
   saveButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    paddingVertical: 10,
+  
+  // Dropdown styles - exactly matching AuthLayout
+  dropdownTrigger: { 
+    borderWidth: 1, 
+    borderColor: '#d1d5db', 
+    borderRadius: 8, 
+    paddingHorizontal: 12, 
+    paddingVertical: 10, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between' 
+  },
+  dropdownText: { 
+    fontSize: 14, 
+    color: '#111827', 
+    flex: 1, 
+    marginRight: 8 
+  },
+  placeholder: { 
+    color: '#9ca3af' 
+  },
+  dropdownWrap: { 
+    position: 'relative' 
+  },
+  dropdownList: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
+    top: '100%',
+    marginTop: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 12,
+    zIndex: 20,
   },
-  navItem: {
-    alignItems: 'center',
+  dropdownItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingVertical: 10, 
+    paddingHorizontal: 12 
   },
-  navText: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 4,
+  dropdownItemActive: { 
+    backgroundColor: '#ecfdf5' 
+  },
+  dropdownItemText: { 
+    fontSize: 14, 
+    color: '#111827' 
+  },
+  errorText: { 
+    color: '#dc2626', 
+    marginTop: 12, 
+    fontSize: 14 
   },
 });

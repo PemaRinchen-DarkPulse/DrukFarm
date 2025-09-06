@@ -29,6 +29,11 @@ const UserSchema = new mongoose.Schema(
 				message: 'Phone number must be exactly 8 digits',
 			},
 		},
+		// Optional profile image URL (could be extended to file upload later)
+		// Binary image storage (base64 handled at API layer)
+		profileImageData: { type: Buffer },
+		profileImageMime: { type: String, default: '' },
+		gender: { type: String, enum: ['male','female','other',''], default: '' },
 	},
 	{ timestamps: true }
 )
@@ -37,6 +42,12 @@ const UserSchema = new mongoose.Schema(
 UserSchema.methods.toJSONSafe = function () {
 	const obj = this.toObject({ versionKey: false })
 	delete obj.password
+	if (obj.profileImageData) {
+		obj.profileImageBase64 = obj.profileImageData.toString('base64')
+		delete obj.profileImageData
+		if (!obj.profileImageMime) obj.profileImageMime = 'image/png'
+	}
+	if (!obj.gender) obj.gender = ''
 	return obj
 }
 

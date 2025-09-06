@@ -1,6 +1,6 @@
 // App.jsx
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -30,24 +30,45 @@ import BottomDock from './components/BottomDock';
 import ProductDetail from './components/products/ProductDetail';
 import Category from './components/Category';
 import Buy from './screens/Buy';
+import Profile from './components/setting/Profile';
+import Address from './components/Address';
+import Payouts from './components/setting/Payouts';
+import OrdersHistory from './components/OrdersHistory';
+
+
 const Stack = createNativeStackNavigator();
+
+function ensureElement(node) {
+  if (typeof node === 'string' || typeof node === 'number') {
+    return <Text>{node}</Text>;
+  }
+  if (Array.isArray(node)) {
+    return node.map((n, i) => (
+      typeof n === 'string' || typeof n === 'number' ? <Text key={i}>{n}</Text> : n
+    ));
+  }
+  return node;
+}
 
 function MainLayout({ children }) {
   return (
     <View style={styles.container}>
       <Navbar />
-      <View style={styles.content}>{children}</View>
+      <View style={styles.content}>{ensureElement(children)}</View>
       <BottomDock />
     </View>
   );
 }
 
 // Helper to wrap any screen with the common layout (Navbar + BottomDock)
-const withMainLayout = (ScreenComponent) => (props) => (
-  <MainLayout>
-    <ScreenComponent {...props} />
-  </MainLayout>
-);
+const withMainLayout = (ScreenComponent) => (props) => {
+  const rendered = <ScreenComponent {...props} />;
+  return (
+    <MainLayout>
+      {ensureElement(rendered)}
+    </MainLayout>
+  );
+};
 
 export default function App() {
   return (
@@ -73,6 +94,10 @@ export default function App() {
           <Stack.Screen name="Product Detail" component={withMainLayout(ProductDetail)} />
           <Stack.Screen name="Buy" component={withMainLayout(Buy)} />
           <Stack.Screen name="Categories" component={withMainLayout(Category)} />
+          <Stack.Screen name="Profile" component={withMainLayout(Profile)} />
+          <Stack.Screen name="Address" component={withMainLayout(Address)} />
+          <Stack.Screen name="Payouts" component={withMainLayout(Payouts)} />
+          <Stack.Screen name="Orders History" component={withMainLayout(OrdersHistory)} />
 
 
           {/* Public screens without dock/navbar */}
