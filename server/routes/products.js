@@ -3,6 +3,7 @@ const mongoose = require('mongoose')
 const Product = require('../models/Product')
 const Category = require('../models/Category')
 const User = require('../models/User')
+const { uploadToCloudinary } = require('../utils/cloudinary')
 
 const router = express.Router()
 
@@ -114,12 +115,60 @@ router.get('/category/:categoryId', async (req, res) => {
 	}
 })
 
-// GET /api/products/:id -> Fetch one
-router.get('/:id', async (req, res) => {
+// POST /api/products -> Create a new product
+router.post('/', async (req, res) => {
+	const validationErrors = validateProductPayload(req.body)
+	if (validationErrors.length > 0) {
+		return res.status(400).json({ success: false, errors: validationErrors })
+	}
+
 	try {
-		const { id } = req.params
-		if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, error: 'Invalid product id' })
-		const prod = await Product.findById(id)
+		const { productImageBase64, ...productData } = req.body
+
+		const [category, user] = await Promise.all([
+			Category.findById(productData.categoryId),
+			User.findOne({ cid: productData.createdBy }),
+		])
+
+		if (!category) {
+			return res.status(400).json({ success: false, error: 'Category not found' })
+		}
+		if (!user) {
+			return res.status(400).json({ success: false, error: 'User not found' })
+		}
+
+		const imageUrl = await uploadToCloudinary(productImageBase64, {
+			folder: 'products',
+			public_id: `${productData.createdBy}_${Date.now()}`,
+		})
+
+		const newProduct = new Product({
+			...productData,
+			productImage: imageUrl,
+		})
+
+		await newProduct.save()
+
+		res.status(201).json({
+			success: true,
+			message: 'Product created successfully',
+			product: mapProduct(newProduct, category, user),
+		})
+	} catch (err) {
+		console.error('Create product error:', err)
+		if (err.name === 'ValidationError') {
+			return res.status(400).json({ success: false, error: err.message })
+		}
+		res.status(500).json({ success: false, error: 'Failed to create product' })
+	}
+})
+
+// GET /api/products/:productId -> Fetch a single product by ID
+router.get('/:productId', async (req, res) => {
+	try {
+		const { productId } = req.params
+		if (!mongoose.Types.ObjectId.isValid(productId)) return res.status(400).json({ success: false, error: 'Invalid product id' })
+		const prod = await Product.findById(productId)
 		if (!prod) return res.status(404).json({ success: false, error: 'Product not found' })
 		const category = await Category.findById(prod.categoryId)
 		const seller = await User.findOne({ cid: prod.createdBy }).select('cid name phoneNumber location dzongkhag')

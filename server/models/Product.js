@@ -23,7 +23,7 @@ const ProductSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0.01 },
     unit: { type: String, required: true, trim: true },
     stockQuantity: { type: Number, required: true, min: 0 },
-    productImageBase64: { type: String, required: true },
+    productImage: { type: String, required: true },
     createdBy: { type: String, required: true, trim: true }, // CID of user
   rating: { type: Number, min: 0, max: 5, default: 0 },
   reviews: { type: Number, min: 0, default: 0 },

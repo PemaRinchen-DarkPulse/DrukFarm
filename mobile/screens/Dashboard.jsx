@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,69 +6,248 @@ import {
   TouchableOpacity,
   FlatList,
   Image,
+  Alert,
+  Modal,
+  TextInput,
+  ScrollView,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { Picker } from '@react-native-picker/picker';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { createProduct, fetchProducts } from '../lib/api';
+import { useAuth } from '../lib/auth';
+
+// NOTE: The Picker and ImagePicker imports are commented out as per your original TODO.
+// When you're ready, you'll need to install and import them.
+// import { Picker } from '@react-native-picker/picker';
+// import { launchImageLibrary } from 'react-native-image-picker';
+
+
+// CustomDropdown component, adapted from your AuthLayout.js
+const LIST_MAX = 160;
+function CustomDropdown({ options, value, onChange, placeholder = "Select…" }) {
+  const [open, setOpen] = useState(false);
+
+  const handleToggle = useCallback(() => {
+    setOpen((prev) => !prev);
+  }, []);
+
+  const handleSelect = useCallback(
+    (option) => {
+      onChange(option);
+      setOpen(false);
+    },
+    [onChange]
+  );
+
+  return (
+    <View style={styles.dropdownWrap}>
+      <TouchableOpacity
+        style={styles.dropdownTrigger}
+        activeOpacity={0.8}
+        onPress={handleToggle}
+      >
+        <Text
+          style={[styles.dropdownText, !value && styles.placeholderTextDropdown]}
+          numberOfLines={1}
+        >
+          {value || placeholder}
+        </Text>
+        <Icon
+          name={open ? "chevron-up" : "chevron-down"}
+          size={20}
+          color="#6B7280"
+        />
+      </TouchableOpacity>
+
+      {open && (
+        <View style={styles.dropdownList}>
+          <ScrollView style={{ maxHeight: LIST_MAX }} nestedScrollEnabled>
+            {options.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                style={[
+                  styles.dropdownItem,
+                  value === opt && styles.dropdownItemActive,
+                ]}
+                activeOpacity={0.85}
+                onPress={() => handleSelect(opt)}
+              >
+                <Text style={styles.dropdownItemText}>{opt}</Text>
+                {value === opt ? (
+                  <Icon name="check" size={18} color="#059669" />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function Dashboard({ navigation }) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("Products");
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
 
-  const products = [
-    {
-      id: "1",
-      category: "Vegetables",
-      name: "Organic Spinach",
-      description: "Freshly harvested, 500g",
-      price: 150,
-      stock: true,
-      image:
-        "https://www.pngall.com/wp-content/uploads/2016/05/Spinach-PNG.png",
-    },
-    {
-      id: "2",
-      category: "Fruits",
-      name: "Red Apples",
-      description: "Locally grown, 1kg",
-      price: 120,
-      stock: true,
-      image: "https://www.pngall.com/wp-content/uploads/2016/04/Apple-PNG.png",
-    },
-    {
-      id: "3",
-      category: "Dairy",
-      name: "Yak Cheese",
-      description: "Traditional, 200g",
-      price: 250,
-      stock: false,
-      image: "https://www.pngall.com/wp-content/uploads/2016/05/Cheese-PNG.png",
-    },
-  ];
+  // State for new product form fields
+  const [productName, setProductName] = useState("");
+  const [productCategory, setProductCategory] = useState("");
+  const [productDescription, setProductDescription] = useState("");
+  const [productPrice, setProductPrice] = useState("");
+  const [productUnit, setProductUnit] = useState("");
+  const [productStockQuantity, setProductStockQuantity] = useState("");
+  // Updated productImage state to hold uri and potentially other info
+  const [productImage, setProductImage] = useState(null);
+
+  // Dropdown options
+  const categoryOptions = ["Vegetables", "Fruits", "Dairy", "Bakery", "Grains"];
+  const unitOptions = ["Kg", "g", "L", "ml", "Dozen", "Pcs"];
+
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const getProducts = async () => {
+    try {
+      setLoading(true);
+      const fetchedProducts = await fetchProducts();
+      setProducts(fetchedProducts);
+    } catch (error) {
+      Alert.alert("Error", "Failed to fetch products.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "Products") {
+      getProducts();
+    }
+  }, [activeTab]);
+
+  const handleSelectImage = () => {
+    const options = {
+      mediaType: 'photo',
+      includeBase64: true,
+      maxHeight: 2000,
+      maxWidth: 2000,
+    };
+
+    launchImageLibrary(options, (response) => {
+      if (response.didCancel) {
+        console.log('User cancelled image picker');
+      } else if (response.errorCode) {
+        console.log('ImagePicker Error: ', response.errorMessage);
+      } else {
+        let image = response.assets[0];
+        setProductImage({
+          uri: image.uri,
+          base64: `data:${image.type};base64,${image.base64}`,
+        });
+      }
+    });
+  };
+
+  const handleRemoveImage = () => {
+    Alert.alert(
+      "Remove Image",
+      "Are you sure you want to remove this image?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Remove", onPress: () => setProductImage(null) },
+      ]
+    );
+  };
+
+  const handleAddProduct = async () => {
+    if (!productName || !productCategory || !productDescription || !productPrice || !productUnit || !productStockQuantity || !productImage) {
+      Alert.alert("Error", "Please fill all fields and upload an image.");
+      return;
+    }
+    if (productDescription.length < 70 || productDescription.length > 150) {
+      Alert.alert("Error", "Description must be between 70 and 150 characters.");
+      return;
+    }
+
+    const productData = {
+      productName,
+      categoryId: productCategory, // Assuming category name is used as ID for now
+      description: productDescription,
+      price: parseFloat(productPrice),
+      unit: productUnit,
+      stockQuantity: parseInt(productStockQuantity),
+      productImageBase64: productImage.base64,
+      createdBy: user?.cid,
+    };
+
+    try {
+      await createProduct(productData);
+      Alert.alert("Success", "Product added successfully!");
+      setShowAddProductModal(false);
+      getProducts(); // Refresh products list
+      // Clear form fields
+      setProductName("");
+      setProductCategory("");
+      setProductDescription("");
+      setProductPrice("");
+      setProductUnit("");
+      setProductStockQuantity("");
+      setProductImage(null);
+    } catch (error) {
+      Alert.alert("Error", "Failed to add product.");
+    }
+  };
+
+  const handleEditProduct = (productId) => {
+    Alert.alert("Edit Product", `You want to edit product ID: ${productId}`);
+  };
+
+  const handleDeleteProduct = (productId) => {
+    Alert.alert(
+      "Delete Product",
+      `Are you sure you want to delete product ID: ${productId}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          onPress: () => {
+            setProducts(products.filter((product) => product.id !== productId));
+            Alert.alert("Deleted", `Product ID: ${productId} deleted.`);
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
 
   const renderProduct = ({ item }) => (
     <View style={styles.card}>
       <Image source={{ uri: item.image }} style={styles.image} />
-      <View style={{ flex: 1, marginLeft: 12 }}>
-        <Text style={styles.category}>{item.category}</Text>
-        <Text style={styles.title}>{item.name}</Text>
-        <Text style={styles.desc}>{item.description}</Text>
-
-        <View style={styles.row}>
-          <Text style={styles.price}>Nu.{item.price}</Text>
-          <View
-            style={[
-              styles.badge,
-              { backgroundColor: item.stock ? "#DCFCE7" : "#FEE2E2" },
-            ]}
-          >
-            <Text
-              style={[
-                styles.badgeText,
-                { color: item.stock ? "#16A34A" : "#DC2626" },
-              ]}
-            >
-              {item.stock ? "In Stock" : "Out of Stock"}
-            </Text>
-          </View>
+      <View style={styles.cardDetails}>
+        <View>
+          <Text style={styles.title}>{item.name}</Text>
+          <Text style={[styles.stock, { color: item.stock ? "#16A34A" : "#DC2626" }]}>
+            Stock: {item.stockQuantity} {item.stockUnit}
+          </Text>
         </View>
+        <Text style={styles.price}>
+          Nu.{item.price} / {item.unit}
+        </Text>
+      </View>
+      <View style={styles.cardActions}>
+        <TouchableOpacity
+          onPress={() => handleEditProduct(item.id)}
+          style={styles.actionIcon}
+        >
+          <Icon name="pencil-outline" size={20} color="#6B7280" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleDeleteProduct(item.id)}
+          style={styles.actionIcon}
+        >
+          <Icon name="delete-outline" size={20} color="#DC2626" />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -80,7 +259,10 @@ export default function Dashboard({ navigation }) {
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>My Products</Text>
-              <TouchableOpacity style={styles.addBtn}>
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={() => setShowAddProductModal(true)}
+              >
                 <Icon name="plus" size={18} color="#fff" />
                 <Text style={styles.addBtnText}>Add New</Text>
               </TouchableOpacity>
@@ -90,10 +272,11 @@ export default function Dashboard({ navigation }) {
               renderItem={renderProduct}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingBottom: 20 }}
+              refreshing={loading}
+              onRefresh={getProducts}
             />
           </>
         );
-
       case "Orders":
         return (
           <View style={styles.placeholder}>
@@ -101,23 +284,24 @@ export default function Dashboard({ navigation }) {
             <Text style={styles.placeholderText}>No orders yet.</Text>
           </View>
         );
-
       case "Stats":
         return (
           <View style={styles.placeholder}>
             <Icon name="chart-line" size={48} color="#6B7280" />
-            <Text style={styles.placeholderText}>Your sales stats will show here.</Text>
+            <Text style={styles.placeholderText}>
+              Your sales stats will show here.
+            </Text>
           </View>
         );
-
       case "Settings":
         return (
           <View style={styles.placeholder}>
             <Icon name="cog-outline" size={48} color="#6B7280" />
-            <Text style={styles.placeholderText}>Manage your settings here.</Text>
+            <Text style={styles.placeholderText}>
+              Manage your settings here.
+            </Text>
           </View>
         );
-
       default:
         return null;
     }
@@ -125,7 +309,6 @@ export default function Dashboard({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Icon name="arrow-left" size={24} color="#111827" />
@@ -133,38 +316,158 @@ export default function Dashboard({ navigation }) {
         <Text style={styles.headerTitle}>Farmer Dashboard</Text>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
-  {["Stats", "Products", "Orders", "Settings"].map((tab) => (
-    <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}>
-      <Text
-        style={[
-          styles.tab,
-          activeTab === tab && styles.activeTab,
-        ]}
-      >
-        {tab}
-      </Text>
-    </TouchableOpacity>
-  ))}
-</View>
+        {["Stats", "Products", "Orders", "Settings"].map((tab) => (
+          <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}>
+            <Text
+              style={[styles.tab, activeTab === tab && styles.activeTab]}
+            >
+              {tab}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      {/* Dynamic Content */}
       {renderContent()}
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showAddProductModal}
+        onRequestClose={() => setShowAddProductModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Product</Text>
+              <TouchableOpacity
+                style={styles.closeButtonHeader}
+                onPress={() => setShowAddProductModal(false)}
+              >
+                <Icon name="close-circle-outline" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Product Name */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Product Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., Organic Apples"
+                  placeholderTextColor="#9ca3af"
+                  value={productName}
+                  onChangeText={setProductName}
+                />
+              </View>
+
+              {/* Category and Stock Quantity Row */}
+              <View style={styles.formRow}>
+                <View style={{ width: '58%' }}>
+                  <Text style={styles.inputLabel}>Category</Text>
+                  <CustomDropdown
+                    options={categoryOptions}
+                    value={productCategory}
+                    onChange={setProductCategory}
+                    placeholder="Select category..."
+                  />
+                </View>
+                <View style={{ width: '38%' }}>
+                  <Text style={styles.inputLabel}>Stock Qty</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., 50"
+                    placeholderTextColor="#9ca3af"
+                    keyboardType="numeric"
+                    value={productStockQuantity}
+                    onChangeText={setProductStockQuantity}
+                  />
+                </View>
+              </View>
+
+              {/* Description */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Description</Text>
+                <TextInput
+                  style={styles.descriptionInput}
+                  placeholder="Min 70, Max 150 characters"
+                  placeholderTextColor="#9ca3af"
+                  multiline
+                  maxLength={150}
+                  value={productDescription}
+                  onChangeText={setProductDescription}
+                />
+                <Text style={styles.charCount}>{productDescription.length} / 150</Text>
+              </View>
+
+              {/* Price and Unit Row */}
+              <View style={styles.formRow}>
+                <View style={{ width: '38%' }}>
+                  <Text style={styles.inputLabel}>Price (Nu.)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., 120"
+                    placeholderTextColor="#9ca3af"
+                    keyboardType="numeric"
+                    value={productPrice}
+                    onChangeText={setProductPrice}
+                  />
+                </View>
+                <View style={{ width: '58%' }}>
+                  <Text style={styles.inputLabel}>Unit</Text>
+                  <CustomDropdown
+                    options={unitOptions}
+                    value={productUnit}
+                    onChange={setProductUnit}
+                    placeholder="Select a unit..."
+                  />
+                </View>
+              </View>
+
+              {/* Product Image Uploader */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Product Image</Text>
+                {!productImage ? (
+                  <TouchableOpacity style={styles.imageUploadButton} onPress={handleSelectImage}>
+                    <Icon name="camera-plus-outline" size={24} color="#374151" />
+                    <Text style={styles.imageUploadButtonText}>Upload Image</Text>
+                    <Text style={styles.imageUploadHint}>PNG, JPG, up to 5MB</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.imagePreviewContainer}>
+                    <Image source={{ uri: productImage.uri }} style={styles.imagePreview} />
+                    <TouchableOpacity style={styles.imageEditButton} onPress={handleRemoveImage}>
+                      <Icon name="pencil-outline" size={18} color="#fff" />
+                      <Text style={styles.imageEditButtonText}>Edit/Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
+
+              <TouchableOpacity style={styles.submitButton} onPress={handleAddProduct}>
+                <Text style={styles.submitButtonText}>Submit Product</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // --- BASE STYLES ---
   container: {
     flex: 1,
     backgroundColor: "#F9FAFB",
-    padding: 16,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   headerTitle: {
     fontSize: 18,
@@ -176,6 +479,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     marginBottom: 20,
+    paddingHorizontal: 16,
   },
   tab: {
     fontSize: 14,
@@ -193,6 +497,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    paddingHorizontal: 16,
   },
   sectionTitle: {
     fontSize: 16,
@@ -219,6 +524,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
+    marginHorizontal: 16,
+    minHeight: 120,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 1 },
@@ -229,40 +536,28 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 8,
+    alignSelf: "center",
   },
-  category: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 2,
+  cardDetails: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: "space-between",
   },
   title: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "700",
     color: "#111827",
   },
-  desc: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 6,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  stock: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 2,
   },
   price: {
     fontSize: 14,
     fontWeight: "700",
     color: "#DC2626",
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: "600",
+    marginTop: 8,
   },
   placeholder: {
     flex: 1,
@@ -273,5 +568,223 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
     marginTop: 8,
+  },
+  cardActions: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    flexDirection: "row",
+  },
+  actionIcon: {
+    marginLeft: 10,
+    padding: 5,
+  },
+
+  // --- MODAL AND FORM STYLES ---
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContainer: {
+    width: "90%",
+    maxHeight: "85%",
+    backgroundColor: "white",
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingTop: 10, // Adjusted padding top
+    paddingBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 15,
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 20, // Slightly smaller to fit header
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "left", // Aligned to left
+  },
+  closeButtonHeader: {
+    padding: 5,
+  },
+  formRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  inputGroup: {
+    marginBottom: 15,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#374151",
+    marginBottom: 4,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111827",
+    height: 45,
+  },
+  descriptionInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111827",
+    height: 80, // Height reduced
+    textAlignVertical: 'top',
+  },
+  charCount: {
+    textAlign: 'right',
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+
+  // --- MODERN IMAGE UPLOADER STYLES ---
+  imageUploadButton: {
+    height: 120, // Taller button
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    borderStyle: 'dashed', // Dashed border
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f9fafb', // Light background
+    marginBottom: 10,
+  },
+  imageUploadButtonText: {
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  imageUploadHint: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    height: 160, // Larger preview area
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  imageEditButton: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Semi-transparent background
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  imageEditButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+
+  submitButton: {
+    backgroundColor: "#059669",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 20, // Added margin bottom for scroll
+  },
+  submitButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+
+  // --- DROPDOWN STYLES ---
+  dropdownTrigger: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 45,
+  },
+  dropdownText: {
+    fontSize: 14,
+    color: '#111827',
+    flex: 1,
+    marginRight: 8,
+  },
+  placeholderTextDropdown: {
+    color: '#9ca3af'
+  },
+  dropdownWrap: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  dropdownList: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '100%',
+    marginTop: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 12,
+    zIndex: 20,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  dropdownItemActive: {
+    backgroundColor: '#ecfdf5'
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#111827'
   },
 });
