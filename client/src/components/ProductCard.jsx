@@ -1,5 +1,6 @@
 import React from 'react'
 import { MapPin } from 'lucide-react'
+import { resolveProductImage } from '@/lib/image'
 
 export default function ProductCard({ product, children, showLocation = true }){
   const locationLabel = product.locationLabel || product.location || ''
@@ -16,11 +17,12 @@ export default function ProductCard({ product, children, showLocation = true }){
         </div>
         {/* favorite/status */}
         <div className="absolute top-3 right-3 rounded-full border p-2 text-emerald-600 bg-white/60">♡</div>
-        {product.image ? (
-          <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full" />
-        )}
+        {(() => {
+          const img = resolveProductImage(product)
+          return img ? (
+            <img src={img} alt={product.title || product.productName} className="w-full h-full object-cover" />
+          ) : <div className="w-full h-full" />
+        })()}
       </div>
 
   <div className="p-4 bg-white product-body">

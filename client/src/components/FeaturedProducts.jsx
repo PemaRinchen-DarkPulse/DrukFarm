@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { MapPin, ShoppingCart, CreditCard } from 'lucide-react'
 import ProductCard from './ProductCard'
 import api from '@/lib/api'
+import { resolveProductImage } from '@/lib/image'
 import { getCurrentCid } from '@/lib/auth'
 import { useToast } from '@/components/ui/toast'
 
@@ -31,22 +32,19 @@ export default function FeaturedProducts(){
         const top3 = [...list]
           .sort((a, b) => (b.rating || 0) - (a.rating || 0))
           .slice(0, 3)
-      .map(p => {
-            const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
-            return {
-              id: p.productId,
-              title: p.productName,
-              desc: p.description,
-              price: p.price,
-              unit: p.unit,
-              stock: p.stockQuantity,
-              rating: p.rating || 0,
-              reviews: p.reviews || 0,
-              tags: [],
-        locationLabel: p.sellerLocationLabel || '',
-              image: p.productImageBase64 && mime ? `data:${mime};base64,${p.productImageBase64}` : null
-            }
-          })
+          .map(p => ({
+            id: p.productId,
+            title: p.productName,
+            desc: p.description,
+            price: p.price,
+            unit: p.unit,
+            stock: p.stockQuantity,
+            rating: p.rating || 0,
+            reviews: p.reviews || 0,
+            tags: [],
+            locationLabel: p.sellerLocationLabel || '',
+            image: resolveProductImage(p),
+          }))
         setItems(top3)
       })
       .catch(() => setItems([]))

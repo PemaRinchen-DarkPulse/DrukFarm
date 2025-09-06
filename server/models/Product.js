@@ -23,7 +23,11 @@ const ProductSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0.01 },
     unit: { type: String, required: true, trim: true },
     stockQuantity: { type: Number, required: true, min: 0 },
-    productImage: { type: String, required: true },
+  // Legacy string (URL or data URI). Kept optional for backward compatibility.
+  productImage: { type: String, required: false },
+  // New binary storage fields
+  productImageData: { type: Buffer, required: false },
+  productImageMime: { type: String, required: false },
     createdBy: { type: String, required: true, trim: true }, // CID of user
   rating: { type: Number, min: 0, max: 5, default: 0 },
   reviews: { type: Number, min: 0, default: 0 },
@@ -34,6 +38,18 @@ const ProductSchema = new mongoose.Schema(
 // Expose productId instead of _id
 ProductSchema.virtual('productId').get(function () {
   return this._id
+})
+
+// Virtual to expose an image URL when blob exists
+ProductSchema.virtual('productImageUrl').get(function () {
+  if (this.productImageData && this.productImageData.length) {
+    return `/api/products/${this._id}/image`
+  }
+  // fallback to legacy productImage if it is a full URL or data URI
+  if (this.productImage && /^(data:image\/(png|jpe?g|webp);base64,|https?:)/i.test(this.productImage)) {
+    return this.productImage
+  }
+  return undefined
 })
 
 module.exports = mongoose.model('Product', ProductSchema)

@@ -3,7 +3,7 @@ const mongoose = require('mongoose')
 const Product = require('../models/Product')
 const Category = require('../models/Category')
 const User = require('../models/User')
-const { uploadToCloudinary } = require('../utils/cloudinary')
+// Cloudinary removed; storing data URI directly.
 
 const router = express.Router()
 
@@ -67,6 +67,36 @@ function buildLocationLabel(userDoc){
 }
 
 function mapProduct(p, categoryDoc, sellerDoc) {
+	// Resolve image from current or legacy fields
+	function resolveImage(doc){
+		let raw = doc.productImage
+		// attempt legacy fields if missing (older docs may have productImageBase64 not in schema now)
+		if (!raw) raw = doc.productImageBase64 || (doc._doc && doc._doc.productImageBase64)
+		if (!raw) return undefined
+		// If already a data URI or http(s) URL just return
+		if (/^(data:image\/(png|jpe?g|webp);base64,)/i.test(raw)) return raw
+		if (/^https?:\/\//i.test(raw)) return raw
+		// If it looks like bare base64 (no spaces, only base64 charset) prefix a data URI
+		if (/^[A-Za-z0-9+/=]+$/.test(raw.trim()) && raw.length > 40) {
+			return `data:image/jpeg;base64,${raw}`
+		}
+		return raw // fallback (maybe a relative path)
+	}
+	const img = resolveImage(p)
+	const hasBlob = p.productImageData && p.productImageData.length
+	const imageUrl = hasBlob ? `/api/products/${p._id}/image` : (img && /^https?:/i.test(img) ? img : (img && img.startsWith('data:') ? img : img))
+
+	// Provide a base64 representation for backward compatibility (many clients expect productImageBase64)
+	let productImageBase64
+	if (hasBlob) {
+		try { productImageBase64 = Buffer.from(p.productImageData).toString('base64') } catch (_) {}
+	} else if (img && img.startsWith('data:image/')) {
+		const m = img.match(/^data:image\/[^;]+;base64,(.+)$/i)
+		if (m) productImageBase64 = m[1]
+	} else if (img && /^[A-Za-z0-9+/=]+$/.test(img.trim()) && img.length > 40) {
+		// raw base64 without data URI
+		productImageBase64 = img.trim()
+	}
 	// Provide both new API shape & legacy fields the mobile UI currently expects
 	return {
 		productId: p.productId,
@@ -77,7 +107,9 @@ function mapProduct(p, categoryDoc, sellerDoc) {
 		price: p.price,
 		unit: p.unit,
 		stockQuantity: p.stockQuantity,
-		productImage: p.productImage, // stored Cloudinary URL
+		productImage: img, // raw (could be data URI)
+		productImageUrl: imageUrl, // preferred URL for blob or direct
+		productImageBase64, // backward compatibility field expected by existing frontend code
 		createdBy: p.createdBy,
 		rating: p.rating,
 		reviews: p.reviews,
@@ -89,13 +121,13 @@ function mapProduct(p, categoryDoc, sellerDoc) {
 		sellerLocationLabel: buildLocationLabel(sellerDoc),
 		createdAt: p.createdAt,
 		updatedAt: p.updatedAt,
-		// Legacy fields for existing mobile list renderer
+		// Legacy fields consumed by current mobile list renderer
 		id: p.productId,
 		name: p.productName,
 		category: categoryDoc ? categoryDoc.categoryName : undefined,
 		stock: p.stockQuantity > 0,
 		stockUnit: p.unit,
-		image: p.productImage,
+		image: imageUrl || img,
 	}
 }
 
@@ -159,13 +191,14 @@ router.post('/', async (req, res) => {
 
 		const rawB64 = incoming.productImageBase64
 		const base = extractBase64(rawB64)
-		// Ensure data URI for Cloudinary helper
-		const dataUri = rawB64.startsWith('data:') ? rawB64 : `data:image/jpeg;base64,${base}`
-		const imageUrl = await uploadToCloudinary(dataUri, {
-			folder: 'products',
-			public_id: `${incoming.createdBy}_${Date.now()}`,
-		})
-
+		const dataUri = rawB64 && rawB64.startsWith('data:') ? rawB64 : `data:image/jpeg;base64,${base}`
+		let mime = 'image/jpeg'
+		let basePart = base
+		if (rawB64.startsWith('data:')) {
+			const m = rawB64.match(/^data:(image\/[^;]+);base64,(.+)$/i)
+			if (m) { mime = m[1]; basePart = m[2] }
+		}
+		const buffer = Buffer.from(basePart, 'base64')
 		const newProduct = await Product.create({
 			productName: incoming.productName,
 			categoryId: incoming.categoryId,
@@ -173,7 +206,9 @@ router.post('/', async (req, res) => {
 			price: Number(incoming.price),
 			unit: incoming.unit,
 			stockQuantity: Number(incoming.stockQuantity),
-			productImage: imageUrl,
+			// Store blob
+			productImageData: buffer,
+			productImageMime: mime,
 			createdBy: incoming.createdBy,
 		})
 
@@ -197,6 +232,36 @@ router.get('/:productId', async (req, res) => {
 	} catch (err) {
 		console.error('Fetch product error:', err)
 		res.status(500).json({ success: false, error: 'Failed to fetch product' })
+	}
+})
+
+// GET /api/products/:productId/image -> Serve binary image blob
+router.get('/:productId/image', async (req, res) => {
+	try {
+		const { productId } = req.params
+		if (!mongoose.Types.ObjectId.isValid(productId)) return res.status(400).send('Invalid id')
+		const prod = await Product.findById(productId).select('productImageData productImageMime productImage')
+		if (!prod) return res.status(404).send('Not found')
+		if (prod.productImageData && prod.productImageData.length) {
+			res.setHeader('Content-Type', prod.productImageMime || 'image/jpeg')
+			return res.send(prod.productImageData)
+		}
+		// Fallback redirect if legacy string image present
+		if (prod.productImage && /^https?:/i.test(prod.productImage)) {
+			return res.redirect(prod.productImage)
+		}
+		if (prod.productImage && prod.productImage.startsWith('data:image/')) {
+			// Extract and send
+			const m = prod.productImage.match(/^data:(image\/[^;]+);base64,(.+)$/i)
+			if (m) {
+				res.setHeader('Content-Type', m[1])
+				return res.send(Buffer.from(m[2], 'base64'))
+			}
+		}
+		return res.status(404).send('Image not available')
+	} catch (e) {
+		console.error('Serve image error', e)
+		res.status(500).send('Server error')
 	}
 })
 

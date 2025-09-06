@@ -17,7 +17,8 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { Picker } from '@react-native-picker/picker';
 // Switched to Expo Image Picker (react-native-image-picker won't open inside Expo Go)
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory } from '../lib/api';
+import { resolveProductImage } from '../lib/image';
 import { useAuth } from '../lib/auth';
 
 // NOTE: The Picker and ImagePicker imports are commented out as per your original TODO.
@@ -103,9 +104,16 @@ export default function Dashboard({ navigation }) {
   const [productStockQuantity, setProductStockQuantity] = useState("");
   // Updated productImage state to hold uri and potentially other info
   const [productImage, setProductImage] = useState(null);
+  // New category creation state
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [newCategoryImage, setNewCategoryImage] = useState(null); // { uri, base64 }
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
-  // Dropdown options
-  const categoryOptions = ["Vegetables", "Fruits", "Dairy", "Bakery", "Grains"];
+  // Categories fetched from backend
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [categoriesMap, setCategoriesMap] = useState({}); // id -> name
   const unitOptions = ["Kg", "g", "L", "ml", "Dozen", "Pcs"];
 
   const [products, setProducts] = useState([]);
@@ -114,10 +122,27 @@ export default function Dashboard({ navigation }) {
   const getProducts = async () => {
     try {
       setLoading(true);
-      const fetchedProducts = await fetchProducts();
-      setProducts(fetchedProducts);
+      const fetched = await fetchProducts();
+      // Normalize shape for dashboard list rendering
+      const normalized = Array.isArray(fetched) ? fetched.map(p => ({
+        id: String(p.productId || p._id || ''),
+        productId: String(p.productId || p._id || ''),
+        productName: p.productName,
+        name: p.productName, // legacy field usage in current render
+        description: p.description,
+        price: p.price,
+        unit: p.unit,
+        stockQuantity: p.stockQuantity,
+        stockUnit: p.unit,
+        rating: p.rating,
+        productImageUrl: p.productImageUrl,
+        productImageBase64: p.productImageBase64,
+        productImage: p.productImage,
+        image: p.image, // server legacy mapping
+      })) : [];
+      setProducts(normalized);
     } catch (error) {
-      Alert.alert("Error", "Failed to fetch products.");
+      Alert.alert('Error', 'Failed to fetch products.');
     } finally {
       setLoading(false);
     }
@@ -128,6 +153,23 @@ export default function Dashboard({ navigation }) {
       getProducts();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    // fetch categories once when screen mounts
+    (async () => {
+      try {
+        const list = await fetchCategories();
+        // list expected array of { categoryId, categoryName }
+        const names = list.map(c => c.categoryName).sort();
+        setCategoryOptions(names);
+        const map = {};
+        list.forEach(c => { map[c.categoryName] = c.categoryId; });
+        setCategoriesMap(map);
+      } catch (e) {
+        console.log('Failed to fetch categories', e);
+      }
+    })();
+  }, []);
 
   const handleSelectImage = async () => {
     // Ask for media library permission (handles iOS + Android inc. Android 13+)
@@ -153,6 +195,63 @@ export default function Dashboard({ navigation }) {
     });
   };
 
+  const handleSelectCategoryImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please allow photo access to pick an image.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1,1],
+      quality: 0.7,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    setNewCategoryImage({ uri: asset.uri, base64: asset.base64, mime: asset.mimeType || 'image/jpeg' });
+  };
+
+  const resetCategoryForm = () => {
+    setNewCategoryName('');
+    setNewCategoryDescription('');
+    setNewCategoryImage(null);
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim() || !newCategoryDescription.trim() || !newCategoryImage) {
+      Alert.alert('Error', 'Please fill category name, description and image.');
+      return;
+    }
+    if (newCategoryDescription.trim().length < 15 || newCategoryDescription.trim().length > 45) {
+      Alert.alert('Error', 'Description must be 15-45 characters.');
+      return;
+    }
+    try {
+      setCreatingCategory(true);
+      // backend expects raw base64 WITHOUT data uri
+      const payload = {
+        categoryName: newCategoryName.trim(),
+        description: newCategoryDescription.trim(),
+        imageBase64: newCategoryImage.base64,
+      };
+      const created = await createCategory(payload);
+      // merge new category
+      setCategoryOptions(prev => [...new Set([...prev, created.categoryName])].sort());
+      setCategoriesMap(prev => ({ ...prev, [created.categoryName]: created.categoryId }));
+      setProductCategory(created.categoryName);
+      resetCategoryForm();
+      setShowAddCategory(false);
+      Alert.alert('Success', 'Category created.');
+    } catch (e) {
+      console.log('Create category error', e);
+      Alert.alert('Error', e.body?.error || 'Failed to create category');
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
+
   const handleRemoveImage = () => {
     Alert.alert(
       "Remove Image",
@@ -174,9 +273,10 @@ export default function Dashboard({ navigation }) {
       return;
     }
 
+    const resolvedCategoryId = categoriesMap[productCategory] || productCategory;
     const productData = {
       productName,
-      categoryId: productCategory, // Assuming category name is used as ID for now
+      categoryId: resolvedCategoryId,
       description: productDescription,
       price: parseFloat(productPrice),
       unit: productUnit,
@@ -225,36 +325,32 @@ export default function Dashboard({ navigation }) {
     );
   };
 
-  const renderProduct = ({ item }) => (
-    <View style={styles.card}>
-      <Image source={{ uri: item.image }} style={styles.image} />
-      <View style={styles.cardDetails}>
-        <View>
-          <Text style={styles.title}>{item.name}</Text>
-          <Text style={[styles.stock, { color: item.stock ? "#16A34A" : "#DC2626" }]}>
-            Stock: {item.stockQuantity} {item.stockUnit}
-          </Text>
+  const renderProduct = ({ item }) => {
+    const img = resolveProductImage(item);
+    const stockOk = (Number(item.stockQuantity) || 0) > 0;
+    return (
+      <View style={styles.card}>
+        <Image source={{ uri: img }} style={styles.image} />
+        <View style={styles.cardDetails}>
+          <View>
+            <Text style={styles.title}>{item.name || item.productName}</Text>
+            <Text style={[styles.stock, { color: stockOk ? '#16A34A' : '#DC2626' }]}>
+              Stock: {item.stockQuantity} {item.stockUnit}
+            </Text>
+          </View>
+          <Text style={styles.price}>Nu.{item.price} / {item.unit}</Text>
         </View>
-        <Text style={styles.price}>
-          Nu.{item.price} / {item.unit}
-        </Text>
+        <View style={styles.cardActions}>
+          <TouchableOpacity onPress={() => handleEditProduct(item.id)} style={styles.actionIcon}>
+            <Icon name="pencil-outline" size={20} color="#6B7280" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleDeleteProduct(item.id)} style={styles.actionIcon}>
+            <Icon name="delete-outline" size={20} color="#DC2626" />
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.cardActions}>
-        <TouchableOpacity
-          onPress={() => handleEditProduct(item.id)}
-          style={styles.actionIcon}
-        >
-          <Icon name="pencil-outline" size={20} color="#6B7280" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => handleDeleteProduct(item.id)}
-          style={styles.actionIcon}
-        >
-          <Icon name="delete-outline" size={20} color="#DC2626" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+    );
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -274,7 +370,7 @@ export default function Dashboard({ navigation }) {
             <FlatList
               data={products}
               renderItem={renderProduct}
-              keyExtractor={(item) => item.productId}
+              keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingBottom: 20 }}
               refreshing={loading}
               onRefresh={getProducts}
@@ -375,6 +471,9 @@ export default function Dashboard({ navigation }) {
                     onChange={setProductCategory}
                     placeholder="Select category..."
                   />
+                  <TouchableOpacity onPress={() => setShowAddCategory(true)} style={styles.inlineAddLink}>
+                    <Text style={styles.inlineAddLinkText}>+ New Category</Text>
+                  </TouchableOpacity>
                 </View>
                 <View style={{ width: '38%' }}>
                   <Text style={styles.inputLabel}>Stock Qty</Text>
@@ -451,6 +550,70 @@ export default function Dashboard({ navigation }) {
 
               <TouchableOpacity style={styles.submitButton} onPress={handleAddProduct}>
                 <Text style={styles.submitButtonText}>Submit Product</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Category Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showAddCategory}
+        onRequestClose={() => { setShowAddCategory(false); resetCategoryForm(); }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New Category</Text>
+              <TouchableOpacity style={styles.closeButtonHeader} onPress={() => { setShowAddCategory(false); resetCategoryForm(); }}>
+                <Icon name="close-circle-outline" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., Herbs"
+                  placeholderTextColor="#9ca3af"
+                  value={newCategoryName}
+                  onChangeText={setNewCategoryName}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Description (15-45 chars)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Short description"
+                  placeholderTextColor="#9ca3af"
+                  value={newCategoryDescription}
+                  onChangeText={setNewCategoryDescription}
+                  maxLength={60}
+                />
+                <Text style={styles.charCount}>{newCategoryDescription.length} / 45</Text>
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Image</Text>
+                {!newCategoryImage ? (
+                  <TouchableOpacity style={styles.imageUploadButton} onPress={handleSelectCategoryImage}>
+                    <Icon name="image-plus" size={24} color="#374151" />
+                    <Text style={styles.imageUploadButtonText}>Pick Image</Text>
+                    <Text style={styles.imageUploadHint}>Square preferred</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.imagePreviewContainer}>
+                    <Image source={{ uri: newCategoryImage.uri }} style={styles.imagePreview} />
+                    <TouchableOpacity style={styles.imageEditButton} onPress={() => setNewCategoryImage(null)}>
+                      <Icon name="pencil-outline" size={18} color="#fff" />
+                      <Text style={styles.imageEditButtonText}>Change</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity disabled={creatingCategory} style={[styles.submitButton, creatingCategory && { opacity: 0.6 }]} onPress={handleCreateCategory}>
+                <Text style={styles.submitButtonText}>{creatingCategory ? 'Saving...' : 'Save Category'}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>

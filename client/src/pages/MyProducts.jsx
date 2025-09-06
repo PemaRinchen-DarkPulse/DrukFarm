@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { resolveProductImage } from '@/lib/image'
 import { Button } from '@/components/ui/button'
 import { Package } from 'lucide-react'
 import api from '@/lib/api'
@@ -57,23 +58,18 @@ export default function MyProducts({ onAdd }) {
           return 'image/jpeg'
         }
 
-        setProducts(
-          list.map(p => {
-            const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
-            return {
-              id: p.productId,
-              title: p.productName,
-              desc: p.description,
-              price: p.price,
-              unit: p.unit,
-              stock: p.stockQuantity,
-              locationLabel: p.sellerLocationLabel || '',
-              image: p.productImageBase64 && mime ? `data:${mime};base64,${p.productImageBase64}` : null,
-              categoryId: p.categoryId,
-              categoryName: p.categoryName
-            }
-          })
-        )
+        setProducts(list.map(p => ({
+          id: p.productId,
+          title: p.productName,
+          desc: p.description,
+          price: p.price,
+          unit: p.unit,
+          stock: p.stockQuantity,
+          locationLabel: p.sellerLocationLabel || '',
+          image: resolveProductImage(p),
+          categoryId: p.categoryId,
+          categoryName: p.categoryName
+        })))
       })
       .catch(e => console.error(e))
       .finally(() => setLoading(false))
@@ -110,12 +106,7 @@ export default function MyProducts({ onAdd }) {
                   price: updated.price,
                   unit: updated.unit,
                   stock: updated.stockQuantity,
-                  image: (() => {
-                    if (!updated.productImageBase64) return null
-                    const s = updated.productImageBase64.slice(0, 12)
-                    const mime = s.startsWith('/9j/') ? 'image/jpeg' : s.startsWith('iVBORw0KG') ? 'image/png' : s.startsWith('R0lGODd') ? 'image/gif' : s.startsWith('UklGR') || s.startsWith('RIFF') ? 'image/webp' : 'image/jpeg'
-                    return `data:${mime};base64,${updated.productImageBase64}`
-                  })(),
+                  image: resolveProductImage(updated),
                   categoryId: updated.categoryId,
                   categoryName: updated.categoryName,
                   locationLabel: updated.sellerLocationLabel || ''
@@ -132,12 +123,7 @@ export default function MyProducts({ onAdd }) {
           price: created.price,
           unit: created.unit,
           stock: created.stockQuantity,
-          image: (() => {
-            if (!created.productImageBase64) return null
-            const s = created.productImageBase64.slice(0, 12)
-            const mime = s.startsWith('/9j/') ? 'image/jpeg' : s.startsWith('iVBORw0KG') ? 'image/png' : s.startsWith('R0lGODd') ? 'image/gif' : s.startsWith('UklGR') || s.startsWith('RIFF') ? 'image/webp' : 'image/jpeg'
-            return `data:${mime};base64,${created.productImageBase64}`
-          })(),
+          image: resolveProductImage(created),
           categoryId: created.categoryId,
           categoryName: created.categoryName,
           locationLabel: created.sellerLocationLabel || ''
