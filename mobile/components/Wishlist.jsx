@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import api, { getWishlist, removeFromWishlist, addToCart } from "../lib/api";
+import { resolveProductImage } from '../lib/image';
 import { getCurrentCid } from "../lib/auth";
 import EmptyWishlist from "./EmptyWishlist";
 
@@ -27,21 +28,18 @@ export default function Wishlist({ navigation }) {
       try {
         const resp = await getWishlist({ cid });
         const items = (resp.items || []).map((i) => {
-          const mime = i.productImageBase64 ? "image/jpeg" : null;
+          const image = resolveProductImage(i);
           return {
             id: String(i.productId || i.itemId),
             productId: String(i.productId),
-            name: i.productName || "Product",
-            price: `Nu ${Number(i.price ?? 0)}${i.unit ? `/${i.unit}` : ""}`,
-            unit: i.unit || "kg",
+            name: i.productName || 'Product',
+            price: `Nu ${Number(i.price ?? 0)}${i.unit ? `/${i.unit}` : ''}`,
+            unit: i.unit || 'kg',
             stock: Number(i.stockQuantity ?? 0),
-            image:
-              i.productImageBase64 && mime
-                ? `data:${mime};base64,${i.productImageBase64}`
-                : "https://via.placeholder.com/600x400.png?text=Product",
-          };
-        });
-        setWishlist(items);
+            image,
+          }
+        })
+        setWishlist(items)
       } catch (e) {
         setWishlist([]);
       } finally {

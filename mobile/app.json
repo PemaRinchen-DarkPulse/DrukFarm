@@ -8,7 +8,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "extra": {
-      "API_BASE": "https://druk-farm-backend.vercel.app/api"
+      "API_BASE": "http://10.24.76.123:5000/api"
     },
     "splash": {
       "backgroundColor": "#ffffff"
@@ -19,8 +19,9 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+  },
+  "edgeToEdgeEnabled": true,
+  "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "bundler": "metro"

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -12,22 +12,18 @@ import {
   ScrollView,
   PermissionsAndroid,
   Platform,
+  KeyboardAvoidingView, // <-- Import KeyboardAvoidingView
+  Keyboard,
+  Dimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { Picker } from '@react-native-picker/picker';
-// Switched to Expo Image Picker (react-native-image-picker won't open inside Expo Go)
 import * as ImagePicker from 'expo-image-picker';
 import { createProduct, fetchProducts, fetchCategories, createCategory } from '../lib/api';
 import { resolveProductImage } from '../lib/image';
 import { useAuth } from '../lib/auth';
 
-// NOTE: The Picker and ImagePicker imports are commented out as per your original TODO.
-// When you're ready, you'll need to install and import them.
-// import { Picker } from '@react-native-picker/picker';
-// import { launchImageLibrary } from 'react-native-image-picker';
-
-
-// CustomDropdown component, adapted from your AuthLayout.js
+// CustomDropdown component
 const LIST_MAX = 160;
 function CustomDropdown({ options, value, onChange, placeholder = "Select…" }) {
   const [open, setOpen] = useState(false);
@@ -102,18 +98,20 @@ export default function Dashboard({ navigation }) {
   const [productPrice, setProductPrice] = useState("");
   const [productUnit, setProductUnit] = useState("");
   const [productStockQuantity, setProductStockQuantity] = useState("");
-  // Updated productImage state to hold uri and potentially other info
   const [productImage, setProductImage] = useState(null);
-  // New category creation state
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryDescription, setNewCategoryDescription] = useState('');
-  const [newCategoryImage, setNewCategoryImage] = useState(null); // { uri, base64 }
+  const [newCategoryImage, setNewCategoryImage] = useState(null);
   const [creatingCategory, setCreatingCategory] = useState(false);
+  // Track keyboard height (Android) so we can add bottom padding instead of shrinking modal
+  const [keyboardPadding, setKeyboardPadding] = useState(0);
+  // Keep a stable reference to full screen height (unaffected by keyboard) for modal sizing
+  const screenHeightRef = useRef(Dimensions.get('screen').height);
 
   // Categories fetched from backend
   const [categoryOptions, setCategoryOptions] = useState([]);
-  const [categoriesMap, setCategoriesMap] = useState({}); // id -> name
+  const [categoriesMap, setCategoriesMap] = useState({});
   const unitOptions = ["Kg", "g", "L", "ml", "Dozen", "Pcs"];
 
   const [products, setProducts] = useState([]);
@@ -123,12 +121,11 @@ export default function Dashboard({ navigation }) {
     try {
       setLoading(true);
       const fetched = await fetchProducts();
-      // Normalize shape for dashboard list rendering
       const normalized = Array.isArray(fetched) ? fetched.map(p => ({
         id: String(p.productId || p._id || ''),
         productId: String(p.productId || p._id || ''),
         productName: p.productName,
-        name: p.productName, // legacy field usage in current render
+        name: p.productName,
         description: p.description,
         price: p.price,
         unit: p.unit,
@@ -138,7 +135,7 @@ export default function Dashboard({ navigation }) {
         productImageUrl: p.productImageUrl,
         productImageBase64: p.productImageBase64,
         productImage: p.productImage,
-        image: p.image, // server legacy mapping
+        image: p.image,
       })) : [];
       setProducts(normalized);
     } catch (error) {
@@ -155,11 +152,9 @@ export default function Dashboard({ navigation }) {
   }, [activeTab]);
 
   useEffect(() => {
-    // fetch categories once when screen mounts
     (async () => {
       try {
         const list = await fetchCategories();
-        // list expected array of { categoryId, categoryName }
         const names = list.map(c => c.categoryName).sort();
         setCategoryOptions(names);
         const map = {};
@@ -171,8 +166,20 @@ export default function Dashboard({ navigation }) {
     })();
   }, []);
 
+  // Keyboard listeners (mainly for Android). We avoid shrinking modal and instead add scroll space.
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardPadding(e.endCoordinates?.height || 0);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardPadding(0));
+    // Track orientation changes to recompute base screen height
+    const dimSub = Dimensions.addEventListener('change', ({ screen }) => {
+      screenHeightRef.current = screen.height; // unaffected by keyboard
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+
   const handleSelectImage = async () => {
-    // Ask for media library permission (handles iOS + Android inc. Android 13+)
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission required', 'Please allow photo access to pick an image.');
@@ -230,14 +237,12 @@ export default function Dashboard({ navigation }) {
     }
     try {
       setCreatingCategory(true);
-      // backend expects raw base64 WITHOUT data uri
       const payload = {
         categoryName: newCategoryName.trim(),
         description: newCategoryDescription.trim(),
         imageBase64: newCategoryImage.base64,
       };
       const created = await createCategory(payload);
-      // merge new category
       setCategoryOptions(prev => [...new Set([...prev, created.categoryName])].sort());
       setCategoriesMap(prev => ({ ...prev, [created.categoryName]: created.categoryId }));
       setProductCategory(created.categoryName);
@@ -289,8 +294,7 @@ export default function Dashboard({ navigation }) {
       await createProduct(productData);
       Alert.alert("Success", "Product added successfully!");
       setShowAddProductModal(false);
-      getProducts(); // Refresh products list
-      // Clear form fields
+      getProducts();
       setProductName("");
       setProductCategory("");
       setProductDescription("");
@@ -339,11 +343,12 @@ export default function Dashboard({ navigation }) {
             </Text>
           </View>
           <Text style={styles.price}>Nu.{item.price} / {item.unit}</Text>
+          <TouchableOpacity onPress={() => handleEditProduct(item.id)} style={styles.editButton}>
+            <Icon name="pencil-outline" size={16} color="#059669" />
+            <Text style={styles.editButtonText}>Edit</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.cardActions}>
-          <TouchableOpacity onPress={() => handleEditProduct(item.id)} style={styles.actionIcon}>
-            <Icon name="pencil-outline" size={20} color="#6B7280" />
-          </TouchableOpacity>
           <TouchableOpacity onPress={() => handleDeleteProduct(item.id)} style={styles.actionIcon}>
             <Icon name="delete-outline" size={20} color="#DC2626" />
           </TouchableOpacity>
@@ -437,122 +442,142 @@ export default function Dashboard({ navigation }) {
         onRequestClose={() => setShowAddProductModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Product</Text>
-              <TouchableOpacity
-                style={styles.closeButtonHeader}
-                onPress={() => setShowAddProductModal(false)}
+          {/**
+           * NOTE: Previously we used behavior="height" on Android which shrinks the whole form
+           * when the keyboard appears. To keep the modal size stable, we only enable the
+           * KeyboardAvoidingView on iOS (using padding). On Android the view is rendered as a
+           * normal container so the form height remains constant and the keyboard may cover
+           * lower fields, but the internal ScrollView lets the user scroll them into view.
+           * If you prefer the keyboard to pan instead of overlay, set in app.json:
+           *   "android": { "softwareKeyboardLayoutMode": "pan" }
+           */}
+          <KeyboardAvoidingView
+            enabled={Platform.OS === 'ios'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+            style={styles.keyboardAvoidingWrapper}
+          >
+            <View style={[styles.modalContainer, { height: screenHeightRef.current * 0.85, maxHeight: screenHeightRef.current * 0.85 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add New Product</Text>
+                <TouchableOpacity
+                  style={styles.closeButtonHeader}
+                  onPress={() => setShowAddProductModal(false)}
+                >
+                  <Icon name="close-circle-outline" size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 20 + (Platform.OS === 'android' ? keyboardPadding : 0) }}
               >
-                <Icon name="close-circle-outline" size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Product Name */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Product Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., Organic Apples"
-                  placeholderTextColor="#9ca3af"
-                  value={productName}
-                  onChangeText={setProductName}
-                />
-              </View>
-
-              {/* Category and Stock Quantity Row */}
-              <View style={styles.formRow}>
-                <View style={{ width: '58%' }}>
-                  <Text style={styles.inputLabel}>Category</Text>
-                  <CustomDropdown
-                    options={categoryOptions}
-                    value={productCategory}
-                    onChange={setProductCategory}
-                    placeholder="Select category..."
-                  />
-                  <TouchableOpacity onPress={() => setShowAddCategory(true)} style={styles.inlineAddLink}>
-                    <Text style={styles.inlineAddLinkText}>+ New Category</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ width: '38%' }}>
-                  <Text style={styles.inputLabel}>Stock Qty</Text>
+                {/* Product Name */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Product Name</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="e.g., 50"
+                    placeholder="e.g., Organic Apples"
                     placeholderTextColor="#9ca3af"
-                    keyboardType="numeric"
-                    value={productStockQuantity}
-                    onChangeText={setProductStockQuantity}
+                    value={productName}
+                    onChangeText={setProductName}
                   />
                 </View>
-              </View>
 
-              {/* Description */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Description</Text>
-                <TextInput
-                  style={styles.descriptionInput}
-                  placeholder="Min 70, Max 150 characters"
-                  placeholderTextColor="#9ca3af"
-                  multiline
-                  maxLength={150}
-                  value={productDescription}
-                  onChangeText={setProductDescription}
-                />
-                <Text style={styles.charCount}>{productDescription.length} / 150</Text>
-              </View>
-
-              {/* Price and Unit Row */}
-              <View style={styles.formRow}>
-                <View style={{ width: '38%' }}>
-                  <Text style={styles.inputLabel}>Price (Nu.)</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., 120"
-                    placeholderTextColor="#9ca3af"
-                    keyboardType="numeric"
-                    value={productPrice}
-                    onChangeText={setProductPrice}
-                  />
-                </View>
-                <View style={{ width: '58%' }}>
-                  <Text style={styles.inputLabel}>Unit</Text>
-                  <CustomDropdown
-                    options={unitOptions}
-                    value={productUnit}
-                    onChange={setProductUnit}
-                    placeholder="Select a unit..."
-                  />
-                </View>
-              </View>
-
-              {/* Product Image Uploader */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Product Image</Text>
-                {!productImage ? (
-                  <TouchableOpacity style={styles.imageUploadButton} onPress={handleSelectImage}>
-                    <Icon name="camera-plus-outline" size={24} color="#374151" />
-                    <Text style={styles.imageUploadButtonText}>Upload Image</Text>
-                    <Text style={styles.imageUploadHint}>PNG, JPG, up to 5MB</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.imagePreviewContainer}>
-                    <Image source={{ uri: productImage.uri }} style={styles.imagePreview} />
-                    <TouchableOpacity style={styles.imageEditButton} onPress={handleRemoveImage}>
-                      <Icon name="pencil-outline" size={18} color="#fff" />
-                      <Text style={styles.imageEditButtonText}>Edit/Remove</Text>
+                {/* Category and Stock Quantity Row */}
+                <View style={styles.formRow}>
+                  <View style={{ width: '58%' }}>
+                    <Text style={styles.inputLabel}>Category</Text>
+                    <CustomDropdown
+                      options={categoryOptions}
+                      value={productCategory}
+                      onChange={setProductCategory}
+                      placeholder="Select category..."
+                    />
+                    <TouchableOpacity onPress={() => setShowAddCategory(true)} style={styles.inlineAddLink}>
+                      <Text style={styles.inlineAddLinkText}>+ New Category</Text>
                     </TouchableOpacity>
                   </View>
-                )}
-              </View>
+                  <View style={{ width: '38%' }}>
+                    <Text style={styles.inputLabel}>Stock Qty</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g., 50"
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                      value={productStockQuantity}
+                      onChangeText={setProductStockQuantity}
+                    />
+                  </View>
+                </View>
+
+                {/* Description */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Description</Text>
+                  <TextInput
+                    style={styles.descriptionInput}
+                    placeholder="Min 70, Max 150 characters"
+                    placeholderTextColor="#9ca3af"
+                    multiline
+                    maxLength={150}
+                    value={productDescription}
+                    onChangeText={setProductDescription}
+                  />
+                  <Text style={styles.charCount}>{productDescription.length} / 150</Text>
+                </View>
+
+                {/* Price and Unit Row */}
+                <View style={styles.formRow}>
+                  <View style={{ width: '38%' }}>
+                    <Text style={styles.inputLabel}>Price (Nu.)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g., 120"
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                      value={productPrice}
+                      onChangeText={setProductPrice}
+                    />
+                  </View>
+                  <View style={{ width: '58%' }}>
+                    <Text style={styles.inputLabel}>Unit</Text>
+                    <CustomDropdown
+                      options={unitOptions}
+                      value={productUnit}
+                      onChange={setProductUnit}
+                      placeholder="Select a unit..."
+                    />
+                  </View>
+                </View>
+
+                {/* Product Image Uploader */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Product Image</Text>
+                  {!productImage ? (
+                    <TouchableOpacity style={styles.imageUploadButton} onPress={handleSelectImage}>
+                      <Icon name="camera-plus-outline" size={24} color="#374151" />
+                      <Text style={styles.imageUploadButtonText}>Upload Image</Text>
+                      <Text style={styles.imageUploadHint}>PNG, JPG, up to 5MB</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.imagePreviewContainer}>
+                      <Image source={{ uri: productImage.uri }} style={styles.imagePreview} />
+                      <TouchableOpacity style={styles.imageEditButton} onPress={handleRemoveImage}>
+                        <Icon name="pencil-outline" size={18} color="#fff" />
+                        <Text style={styles.imageEditButtonText}>Edit/Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
 
 
-              <TouchableOpacity style={styles.submitButton} onPress={handleAddProduct}>
-                <Text style={styles.submitButtonText}>Submit Product</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+                <TouchableOpacity style={styles.submitButton} onPress={handleAddProduct}>
+                  <Text style={styles.submitButtonText}>Submit Product</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -564,59 +589,63 @@ export default function Dashboard({ navigation }) {
         onRequestClose={() => { setShowAddCategory(false); resetCategoryForm(); }}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New Category</Text>
-              <TouchableOpacity style={styles.closeButtonHeader} onPress={() => { setShowAddCategory(false); resetCategoryForm(); }}>
-                <Icon name="close-circle-outline" size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., Herbs"
-                  placeholderTextColor="#9ca3af"
-                  value={newCategoryName}
-                  onChangeText={setNewCategoryName}
-                />
+            <View style={[styles.modalContainer, { height: screenHeightRef.current * 0.6, maxHeight: screenHeightRef.current * 0.6 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>New Category</Text>
+                <TouchableOpacity style={styles.closeButtonHeader} onPress={() => { setShowAddCategory(false); resetCategoryForm(); }}>
+                  <Icon name="close-circle-outline" size={24} color="#6B7280" />
+                </TouchableOpacity>
               </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Description (15-45 chars)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Short description"
-                  placeholderTextColor="#9ca3af"
-                  value={newCategoryDescription}
-                  onChangeText={setNewCategoryDescription}
-                  maxLength={60}
-                />
-                <Text style={styles.charCount}>{newCategoryDescription.length} / 45</Text>
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Image</Text>
-                {!newCategoryImage ? (
-                  <TouchableOpacity style={styles.imageUploadButton} onPress={handleSelectCategoryImage}>
-                    <Icon name="image-plus" size={24} color="#374151" />
-                    <Text style={styles.imageUploadButtonText}>Pick Image</Text>
-                    <Text style={styles.imageUploadHint}>Square preferred</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.imagePreviewContainer}>
-                    <Image source={{ uri: newCategoryImage.uri }} style={styles.imagePreview} />
-                    <TouchableOpacity style={styles.imageEditButton} onPress={() => setNewCategoryImage(null)}>
-                      <Icon name="pencil-outline" size={18} color="#fff" />
-                      <Text style={styles.imageEditButtonText}>Change</Text>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 20 + (Platform.OS === 'android' ? keyboardPadding : 0) }}
+              >
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., Herbs"
+                    placeholderTextColor="#9ca3af"
+                    value={newCategoryName}
+                    onChangeText={setNewCategoryName}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Description (15-45 chars)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Short description"
+                    placeholderTextColor="#9ca3af"
+                    value={newCategoryDescription}
+                    onChangeText={setNewCategoryDescription}
+                    maxLength={60}
+                  />
+                  <Text style={styles.charCount}>{newCategoryDescription.length} / 45</Text>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Image</Text>
+                  {!newCategoryImage ? (
+                    <TouchableOpacity style={styles.imageUploadButton} onPress={handleSelectCategoryImage}>
+                      <Icon name="image-plus" size={24} color="#374151" />
+                      <Text style={styles.imageUploadButtonText}>Pick Image</Text>
+                      <Text style={styles.imageUploadHint}>Square preferred</Text>
                     </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-              <TouchableOpacity disabled={creatingCategory} style={[styles.submitButton, creatingCategory && { opacity: 0.6 }]} onPress={handleCreateCategory}>
-                <Text style={styles.submitButtonText}>{creatingCategory ? 'Saving...' : 'Save Category'}</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+                  ) : (
+                    <View style={styles.imagePreviewContainer}>
+                      <Image source={{ uri: newCategoryImage.uri }} style={styles.imagePreview} />
+                      <TouchableOpacity style={styles.imageEditButton} onPress={() => setNewCategoryImage(null)}>
+                        <Icon name="pencil-outline" size={18} color="#fff" />
+                        <Text style={styles.imageEditButtonText}>Change</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity disabled={creatingCategory} style={[styles.submitButton, creatingCategory && { opacity: 0.6 }]} onPress={handleCreateCategory}>
+                  <Text style={styles.submitButtonText}>{creatingCategory ? 'Saving...' : 'Save Category'}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
         </View>
       </Modal>
     </View>
@@ -700,8 +729,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   image: {
-    width: 70,
-    height: 70,
+    width: 110,
+    height: 110,
     borderRadius: 8,
     alignSelf: "center",
   },
@@ -746,6 +775,22 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     padding: 5,
   },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E6F3EF',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 15,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  editButtonText: {
+    color: '#059669',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
 
   // --- MODAL AND FORM STYLES ---
   modalOverlay: {
@@ -754,13 +799,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
-  modalContainer: {
+  keyboardAvoidingWrapper: {
     width: "90%",
     maxHeight: "85%",
+  },
+  modalContainer: {
+    width: '100%',
+    height: '100%',
     backgroundColor: "white",
     borderRadius: 16,
     paddingHorizontal: 20,
-    paddingTop: 10, // Adjusted padding top
+    paddingTop: 10,
     paddingBottom: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -778,10 +827,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   modalTitle: {
-    fontSize: 20, // Slightly smaller to fit header
+    fontSize: 20,
     fontWeight: "700",
     color: "#111827",
-    textAlign: "left", // Aligned to left
+    textAlign: "left",
   },
   closeButtonHeader: {
     padding: 5,
@@ -818,7 +867,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     color: "#111827",
-    height: 80, // Height reduced
+    height: 80,
     textAlignVertical: 'top',
   },
   charCount: {
@@ -830,14 +879,14 @@ const styles = StyleSheet.create({
 
   // --- MODERN IMAGE UPLOADER STYLES ---
   imageUploadButton: {
-    height: 120, // Taller button
+    height: 120,
     borderWidth: 2,
     borderColor: '#d1d5db',
-    borderStyle: 'dashed', // Dashed border
+    borderStyle: 'dashed',
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f9fafb', // Light background
+    backgroundColor: '#f9fafb',
     marginBottom: 10,
   },
   imageUploadButtonText: {
@@ -853,7 +902,7 @@ const styles = StyleSheet.create({
   },
   imagePreviewContainer: {
     position: 'relative',
-    height: 160, // Larger preview area
+    height: 160,
     borderRadius: 8,
     overflow: 'hidden',
     marginBottom: 10,
@@ -869,7 +918,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 10,
     right: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Semi-transparent background
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 6,
@@ -889,7 +938,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     marginTop: 10,
-    marginBottom: 20, // Added margin bottom for scroll
+    marginBottom: 20,
   },
   submitButtonText: {
     color: "white",

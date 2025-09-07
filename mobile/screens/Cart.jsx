@@ -11,6 +11,7 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import EmptyCart from "../components/EmptyCart";
 import { getCurrentCid } from "../lib/auth";
 import { getCart, updateCartItem, removeCartItem } from "../lib/api";
+import { resolveProductImage } from '../lib/image';
 
 export default function Cart({ navigation }) {
   const [cartItems, setCartItems] = useState([]);
@@ -19,23 +20,20 @@ export default function Cart({ navigation }) {
   // Map API cart shape to existing UI item shape without changing layout
   const mapApiCartToUiItems = (apiCart) => {
     const items = Array.isArray(apiCart?.items) ? apiCart.items : [];
-    return items.map((i) => {
-      const base64 = i?.productImageBase64;
-      const image = base64
-        ? `data:image/jpeg;base64,${base64}`
-        : undefined;
+    return items.map(i => {
+      const image = resolveProductImage(i);
       return {
-        id: String(i.itemId || i.productId || Math.random()), // used by keyExtractor and handlers
-        itemId: String(i.itemId || ""), // keep original id for API updates
-        name: i.productName || "",
+        id: String(i.itemId || i.productId || Math.random()),
+        itemId: String(i.itemId || ''),
+        name: i.productName || '',
         price: Number(i.price || 0),
-        unit: i.unit || "kg",
+        unit: i.unit || 'kg',
         stock: Number(i.stockQuantity || 0),
         quantity: Number(i.quantity || 1),
         image,
-      };
-    });
-  };
+      }
+    })
+  }
 
   const loadCart = async () => {
     try {

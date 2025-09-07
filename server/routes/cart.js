@@ -26,25 +26,52 @@ function authCid(req, res, next) {
 
 async function buildCartPayload(cart) {
   if (!cart) return { userCid: null, items: [] }
-  await cart.populate({ path: 'items.productId', select: 'productName price unit productImageBase64 createdBy stockQuantity' })
+  // Populate fields required to derive image info
+  await cart.populate({ path: 'items.productId', select: 'productName price unit productImage productImageData productImageMime createdBy stockQuantity' })
   const sellerCids = [...new Set(cart.items.map(i => i?.productId?.createdBy).filter(Boolean))]
   const sellers = sellerCids.length ? await User.find({ cid: { $in: sellerCids } }).select('cid name location phoneNumber') : []
   const sellerMap = new Map(sellers.map(s => [s.cid, s]))
+
+  function deriveImageFields(prod) {
+    if (!prod) return { productImageUrl: undefined, productImageBase64: undefined, productImage: undefined }
+    const hasBlob = prod.productImageData && prod.productImageData.length
+    let productImageUrl
+    if (hasBlob) productImageUrl = `/api/products/${prod._id}/image`
+    // legacy string / data URI
+    const raw = prod.productImage
+    if (!productImageUrl && raw) {
+      if (/^https?:/i.test(raw) || raw.startsWith('data:image/')) productImageUrl = raw
+    }
+    let productImageBase64
+    if (hasBlob) {
+      try { productImageBase64 = Buffer.from(prod.productImageData).toString('base64') } catch (_) {}
+    } else if (raw && raw.startsWith('data:image/')) {
+      const m = raw.match(/^data:image\/[^;]+;base64,(.+)$/i)
+      if (m) productImageBase64 = m[1]
+    } else if (raw && /^[A-Za-z0-9+/=]+$/.test(raw.trim()) && raw.length > 40) {
+      productImageBase64 = raw.trim()
+    }
+    return { productImageUrl, productImageBase64, productImage: raw }
+  }
+
   return {
     userCid: cart.userCid,
     items: cart.items.map(i => {
       const prod = i.productId
       const seller = prod ? sellerMap.get(prod.createdBy) : null
+      const img = deriveImageFields(prod)
       return {
         itemId: i._id,
         productId: prod?._id,
         productName: prod?.productName,
         price: prod?.price,
         unit: prod?.unit,
-        productImageBase64: prod?.productImageBase64,
+        productImageBase64: img.productImageBase64,
+        productImageUrl: img.productImageUrl,
+        productImage: img.productImage,
         sellerCid: prod?.createdBy,
-  sellerName: seller?.name || '',
-  sellerLocation: seller?.location || '',
+        sellerName: seller?.name || '',
+        sellerLocation: seller?.location || '',
         sellerPhoneNumber: seller?.phoneNumber || '',
         stockQuantity: prod?.stockQuantity,
         quantity: i.quantity,

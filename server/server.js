@@ -49,7 +49,7 @@ async function start() {
     await connectWithFallback();
 
     const app = createApp();
-    app.listen(PORT, () => console.log(`🚀 Server running locally on port ${PORT}`));
+    app.listen(PORT, "0.0.0.0",() => console.log(`🚀 Server running locally on port ${PORT}`));
   } catch (err) {
     console.error("❌ Failed to connect to MongoDB", err);
     process.exit(1);

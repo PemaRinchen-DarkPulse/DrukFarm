@@ -23,19 +23,47 @@ function authCid(req, res, next) {
 
 async function buildWishlistPayload(doc) {
   if (!doc) return { userCid: null, items: [] }
-  await doc.populate({ path: 'items.productId', select: 'productName price unit productImageBase64 createdBy stockQuantity' })
+  await doc.populate({ path: 'items.productId', select: 'productName price unit productImage productImageData productImageMime createdBy stockQuantity' })
+
+  function deriveImageFields(prod) {
+    if (!prod) return { productImageUrl: undefined, productImageBase64: undefined, productImage: undefined }
+    const hasBlob = prod.productImageData && prod.productImageData.length
+    let productImageUrl
+    if (hasBlob) productImageUrl = `/api/products/${prod._id}/image`
+    const raw = prod.productImage
+    if (!productImageUrl && raw && (/^https?:/i.test(raw) || raw.startsWith('data:image/'))) {
+      productImageUrl = raw
+    }
+    let productImageBase64
+    if (hasBlob) {
+      try { productImageBase64 = Buffer.from(prod.productImageData).toString('base64') } catch (_) {}
+    } else if (raw && raw.startsWith('data:image/')) {
+      const m = raw.match(/^data:image\/[^;]+;base64,(.+)$/i)
+      if (m) productImageBase64 = m[1]
+    } else if (raw && /^[A-Za-z0-9+/=]+$/.test(raw.trim()) && raw.length > 40) {
+      productImageBase64 = raw.trim()
+    }
+    return { productImageUrl, productImageBase64, productImage: raw }
+  }
+
   return {
     userCid: doc.userCid,
-    items: (doc.items || []).filter(i => i.productId).map(i => ({
-      itemId: i._id,
-      productId: i.productId?._id,
-      productName: i.productId?.productName,
-      price: i.productId?.price,
-      unit: i.productId?.unit,
-      productImageBase64: i.productId?.productImageBase64,
-      stockQuantity: i.productId?.stockQuantity,
-      addedAt: i.addedAt,
-    })),
+    items: (doc.items || []).filter(i => i.productId).map(i => {
+      const prod = i.productId
+      const img = deriveImageFields(prod)
+      return {
+        itemId: i._id,
+        productId: prod?._id,
+        productName: prod?.productName,
+        price: prod?.price,
+        unit: prod?.unit,
+        productImageBase64: img.productImageBase64,
+        productImageUrl: img.productImageUrl,
+        productImage: img.productImage,
+        stockQuantity: prod?.stockQuantity,
+        addedAt: i.addedAt,
+      }
+    }),
     updatedAt: doc.updatedAt,
   }
 }
