@@ -33,7 +33,6 @@ import Buy from './screens/Buy';
 import Profile from './components/setting/Profile';
 import Address from './components/Address';
 import Payouts from './components/setting/Payouts';
-import OrdersHistory from './components/OrdersHistory';
 
 
 const Stack = createNativeStackNavigator();
@@ -97,7 +96,6 @@ export default function App() {
           <Stack.Screen name="Profile" component={withMainLayout(Profile)} />
           <Stack.Screen name="Address" component={withMainLayout(Address)} />
           <Stack.Screen name="Payouts" component={withMainLayout(Payouts)} />
-          <Stack.Screen name="Orders History" component={withMainLayout(OrdersHistory)} />
 
 
           {/* Public screens without dock/navbar */}

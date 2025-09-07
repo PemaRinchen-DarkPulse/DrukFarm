@@ -62,7 +62,7 @@ export async function createCategory(dto){
 }
 
 export async function fetchOrders(){
-  // Orders endpoint is not implemented on the backend yet; avoid network calls to prevent 404s
+  // Generic orders endpoint - use fetchMyOrders() for user-specific orders instead
   return []
 }
 
@@ -294,12 +294,18 @@ export async function markDelivered({ orderId, cid }){
   return request(`/orders/${orderId}/delivered`, { method: 'PATCH', headers })
 }
 
+export async function markOrderShipped({ orderId, cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request(`/orders/${orderId}/shipped`, { method: 'PATCH', headers })
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
   fetchUserByCid, updateUser,
   addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, unifiedCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder,
-  searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered,
+  searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered, markOrderShipped,
   addToWishlist, getWishlist, removeFromWishlist,
   logoutUser,
 }

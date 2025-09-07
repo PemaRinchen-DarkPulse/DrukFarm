@@ -113,6 +113,16 @@ router.post('/buy', authCid, async (req, res) => {
 
 		let orderDoc
 		try {
+			// Extract base64 image data from the product
+			let productImageBase64 = '';
+			if (product.productImageData && product.productImageData.length) {
+				try {
+					productImageBase64 = Buffer.from(product.productImageData).toString('base64');
+				} catch (e) {
+					console.warn('Failed to extract base64 from product image:', e);
+				}
+			}
+
 			orderDoc = await Order.create({
 				userCid: userSnapshot.cid,
 				userSnapshot,
@@ -122,7 +132,7 @@ router.post('/buy', authCid, async (req, res) => {
 					price: product.price,
 					unit: product.unit,
 					sellerCid: product.createdBy,
-					productImageBase64: product.productImageBase64 || '',
+					productImageBase64: productImageBase64,
 				},
 				quantity: qty,
 				totalPrice: Number((product.price * qty).toFixed(2)),
@@ -196,6 +206,17 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 		for (const it of items) {
 			const p = it.product
 			const qty = Math.floor(Number(it.quantity || 1))
+			
+			// Extract base64 image data from the product
+			let productImageBase64 = '';
+			if (p.productImageData && p.productImageData.length) {
+				try {
+					productImageBase64 = Buffer.from(p.productImageData).toString('base64');
+				} catch (e) {
+					console.warn('Failed to extract base64 from product image:', e);
+				}
+			}
+			
 			const qrPayload = {
 				type: 'order',
 				mode: 'cart',
@@ -216,7 +237,7 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 					price: p.price,
 					unit: p.unit,
 					sellerCid: p.createdBy,
-					productImageBase64: p.productImageBase64 || '',
+					productImageBase64: productImageBase64,
 				},
 				quantity: qty,
 				totalPrice: Number((p.price * qty).toFixed(2)),
@@ -320,6 +341,17 @@ router.post('/checkout', authCid, async (req, res) => {
 		const ordersPayload = []
 		for (const n of normalized) {
 			const p = pMap.get(n.productId)
+			
+			// Extract base64 image data from the product
+			let productImageBase64 = '';
+			if (p.productImageData && p.productImageData.length) {
+				try {
+					productImageBase64 = Buffer.from(p.productImageData).toString('base64');
+				} catch (e) {
+					console.warn('Failed to extract base64 from product image:', e);
+				}
+			}
+			
 			const qrPayload = { type: 'order', mode: 'batch', buyerCid: userSnapshot.cid, productId: n.productId, productName: p.productName, qty: n.quantity, ts: Date.now() }
 			// eslint-disable-next-line no-await-in-loop
 			const qrCodeDataUrl = await generateQrDataUrl(qrPayload)
@@ -332,7 +364,7 @@ router.post('/checkout', authCid, async (req, res) => {
 					price: p.price,
 					unit: p.unit,
 					sellerCid: p.createdBy,
-					productImageBase64: p.productImageBase64 || '',
+					productImageBase64: productImageBase64,
 				},
 				quantity: n.quantity,
 				totalPrice: Number((p.price * n.quantity).toFixed(2)),
@@ -577,11 +609,13 @@ router.get('/seller', authCid, async (req, res) => {
 			createdAt: o.createdAt,
 			totalPrice: o.totalPrice,
 			quantity: o.quantity,
+			qrCodeDataUrl: o.qrCodeDataUrl, // Include QR code for downloading
 			product: {
 				productId: String(o.product.productId),
 				name: o.product.productName,
 				unit: o.product.unit,
 				price: o.product.price,
+				productImageBase64: o.product.productImageBase64 || '',
 			},
 			buyer: {
 				cid: o.userSnapshot?.cid,
@@ -617,6 +651,7 @@ router.get('/my', authCid, async (req, res) => {
 				name: o.product.productName,
 				unit: o.product.unit,
 				price: o.product.price,
+				productImageBase64: o.product.productImageBase64 || '',
 			},
 			seller: (() => {
 				const s = sMap.get(o.product?.sellerCid)
@@ -662,3 +697,43 @@ router.patch('/:orderId/cancel', authCid, async (req, res) => {
 	}
 })
 
+// PATCH /api/orders/:orderId/shipped -> mark order as shipped (seller only)
+router.patch('/:orderId/shipped', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params
+		if (!mongoose.Types.ObjectId.isValid(String(orderId))) return res.status(400).json({ error: 'Invalid order id' })
+		
+		const sellerCid = req.user.cid
+		const order = await Order.findById(orderId)
+		if (!order) return res.status(404).json({ error: 'Order not found' })
+		
+		// Verify this is the seller's product
+		if (String(order.product.sellerCid) !== String(sellerCid)) {
+			return res.status(403).json({ error: 'Not your product order' })
+		}
+		
+		// Only allow shipping pending orders
+		if (order.status !== 'pending') {
+			return res.status(409).json({ error: `Cannot ship order with status: ${order.status}` })
+		}
+		
+		// Update status to shipped
+		order.status = 'shipped'
+		await order.save()
+		
+		// Return the existing QR code from the database
+		res.json({ 
+			success: true, 
+			order: { 
+				orderId: String(order._id), 
+				status: order.status 
+			},
+			qrCode: order.qrCodeDataUrl // Use existing QR code from database
+		})
+	} catch (err) {
+		console.error('Mark shipped error:', err)
+		res.status(500).json({ error: 'Failed to mark as shipped' })
+	}
+})
+
+module.exports = router

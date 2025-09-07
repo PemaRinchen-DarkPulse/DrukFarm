@@ -73,18 +73,6 @@ export default function AccountSettings({ navigation }) {
           )}
         </View>
 
-        {/* My Activity */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>MY ACTIVITY</Text>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate("Orders History")}
-          >
-            <Text style={styles.rowText}>Order History</Text>
-            <Icon name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
-        </View>
-
         {/* Support */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SUPPORT</Text>

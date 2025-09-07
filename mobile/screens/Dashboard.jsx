@@ -17,9 +17,11 @@ import {
   Dimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { Picker } from '@react-native-picker/picker';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts, fetchCategories, createCategory } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped } from '../lib/api';
 import { resolveProductImage } from '../lib/image';
 import { useAuth } from '../lib/auth';
 
@@ -115,28 +117,36 @@ export default function Dashboard({ navigation }) {
   const unitOptions = ["Kg", "g", "L", "ml", "Dozen", "Pcs"];
 
   const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [orderSubTab, setOrderSubTab] = useState("Pending"); // New state for order sub-tabs
 
   const getProducts = async () => {
     try {
       setLoading(true);
       const fetched = await fetchProducts();
-      const normalized = Array.isArray(fetched) ? fetched.map(p => ({
-        id: String(p.productId || p._id || ''),
-        productId: String(p.productId || p._id || ''),
-        productName: p.productName,
-        name: p.productName,
-        description: p.description,
-        price: p.price,
-        unit: p.unit,
-        stockQuantity: p.stockQuantity,
-        stockUnit: p.unit,
-        rating: p.rating,
-        productImageUrl: p.productImageUrl,
-        productImageBase64: p.productImageBase64,
-        productImage: p.productImage,
-        image: p.image,
-      })) : [];
+      console.log('Fetched products:', JSON.stringify(fetched[0], null, 2)); // Debug log
+      const normalized = Array.isArray(fetched) ? fetched
+        .filter(p => p.createdBy === user?.cid) // Filter for current seller only
+        .map(p => ({
+          id: String(p.productId || p._id || ''),
+          productId: String(p.productId || p._id || ''),
+          productName: p.productName,
+          name: p.productName,
+          categoryName: p.categoryName,
+          description: p.description,
+          price: p.price,
+          unit: p.unit,
+          stockQuantity: p.stockQuantity,
+          stockUnit: p.unit,
+          rating: p.rating,
+          productImageUrl: p.productImageUrl,
+          productImageBase64: p.productImageBase64,
+          productImage: p.productImage,
+          image: p.image,
+        })) : [];
+      console.log('Normalized product:', JSON.stringify(normalized[0], null, 2)); // Debug log
       setProducts(normalized);
     } catch (error) {
       Alert.alert('Error', 'Failed to fetch products.');
@@ -145,9 +155,25 @@ export default function Dashboard({ navigation }) {
     }
   };
 
+  const getOrders = async () => {
+    try {
+      setOrdersLoading(true);
+      const response = await fetchSellerOrders({ cid: user?.cid });
+      const ordersList = response?.orders || [];
+      setOrders(ordersList);
+    } catch (error) {
+      console.log('Failed to fetch orders:', error);
+      Alert.alert('Error', 'Failed to fetch orders.');
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === "Products") {
       getProducts();
+    } else if (activeTab === "Orders") {
+      getOrders();
     }
   }, [activeTab]);
 
@@ -329,6 +355,170 @@ export default function Dashboard({ navigation }) {
     );
   };
 
+  const handleMarkShipped = async (orderId) => {
+    Alert.alert(
+      "Mark as Shipped",
+      "Are you sure you want to mark this order as shipped?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Ship Order",
+          onPress: async () => {
+            try {
+              const response = await markOrderShipped({ orderId, cid: user?.cid });
+              
+              if (response.success && response.qrCode) {
+                // Update the local orders state
+                setOrders(prevOrders => 
+                  prevOrders.map(order => 
+                    order.orderId === orderId 
+                      ? { ...order, status: 'shipped' }
+                      : order
+                  )
+                );
+
+                // Download and share the QR code
+                await downloadQRCode(response.qrCode, orderId);
+
+                // Switch to Shipped tab to show the updated order
+                setOrderSubTab("Shipped");
+
+                // Show success message for order status update
+                setTimeout(() => {
+                  Alert.alert(
+                    "Order Shipped!",
+                    "Order has been marked as shipped successfully.",
+                    [{ text: "OK" }]
+                  );
+                }, 1000); // Delay to avoid conflicting with download alerts
+              }
+            } catch (error) {
+              console.log('Ship order error:', error);
+              Alert.alert('Error', error.body?.error || 'Failed to ship order.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const downloadQRCode = async (qrDataUrl, orderId) => {
+    try {
+      console.log('Starting QR download for order:', orderId);
+      console.log('QR data URL length:', qrDataUrl ? qrDataUrl.length : 'null');
+      
+      // Check if QR code data exists
+      if (!qrDataUrl) {
+        Alert.alert('Error', 'QR code not available for this order.');
+        return;
+      }
+
+      // Request media library permissions
+      console.log('Requesting media library permissions...');
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      console.log('Permission status:', status);
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to save QR code to your device.');
+        return;
+      }
+
+      // Create a filename with the order ID and timestamp
+      const timestamp = Date.now();
+      const filename = `DrukFarm_Order_QR_${orderId.slice(-6)}_${timestamp}.png`;
+      const fileUri = FileSystem.documentDirectory + filename;
+      console.log('Saving to file URI:', fileUri);
+      
+      // Extract base64 data (remove data:image/png;base64, prefix if present)
+      const base64Data = qrDataUrl.includes(',') ? qrDataUrl.split(',')[1] : qrDataUrl;
+      console.log('Base64 data length:', base64Data.length);
+      
+      // Save the base64 image data to a temporary file
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      console.log('File written successfully');
+
+      // Save to device gallery/downloads
+      const asset = await MediaLibrary.createAssetAsync(fileUri);
+      console.log('Asset created:', asset.id);
+      
+      // Try to add to Downloads album (Android) or create QR Codes album
+      try {
+        let album = await MediaLibrary.getAlbumAsync('DrukFarm QR Codes');
+        if (!album) {
+          album = await MediaLibrary.createAlbumAsync('DrukFarm QR Codes', asset, false);
+          console.log('Created new album:', album.id);
+        } else {
+          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          console.log('Added to existing album');
+        }
+      } catch (albumError) {
+        console.log('Could not create/add to album:', albumError);
+        // Asset is still saved to gallery even if album creation fails
+      }
+
+      // Also try sharing if available
+      if (await Sharing.isAvailableAsync()) {
+        Alert.alert(
+          'QR Code Saved!',
+          'QR code has been saved to your device gallery. Would you like to share it?',
+          [
+            { text: 'Just Save', style: 'cancel' },
+            {
+              text: 'Share',
+              onPress: async () => {
+                try {
+                  await Sharing.shareAsync(fileUri, {
+                    mimeType: 'image/png',
+                    dialogTitle: `QR Code for Order #${orderId.slice(-6)}`,
+                  });
+                } catch (shareError) {
+                  console.log('Share error:', shareError);
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Success!', `QR code saved to your device gallery as "${filename}"`);
+      }
+
+      // Clean up temporary file
+      try {
+        await FileSystem.deleteAsync(fileUri, { idempotent: true });
+        console.log('Temporary file cleaned up');
+      } catch (cleanupError) {
+        console.log('Cleanup error:', cleanupError);
+      }
+      
+    } catch (error) {
+      console.log('QR download error:', error);
+      Alert.alert('Error', `Failed to save QR code: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleDownloadQR = async (orderId) => {
+    try {
+      // Find the order to get its QR code
+      const order = orders.find(o => o.orderId === orderId);
+      if (!order) {
+        Alert.alert('Error', 'Order not found.');
+        return;
+      }
+      
+      if (!order.qrCodeDataUrl) {
+        Alert.alert('Error', 'QR code not available for this order. This might be an older order.');
+        return;
+      }
+      
+      await downloadQRCode(order.qrCodeDataUrl, orderId);
+    } catch (error) {
+      console.log('Download QR error:', error);
+      Alert.alert('Error', 'Failed to download QR code.');
+    }
+  };
+
   const renderProduct = ({ item }) => {
     const img = resolveProductImage(item);
     const stockOk = (Number(item.stockQuantity) || 0) > 0;
@@ -338,6 +528,9 @@ export default function Dashboard({ navigation }) {
         <View style={styles.cardDetails}>
           <View>
             <Text style={styles.title}>{item.name || item.productName}</Text>
+            {item.categoryName && (
+              <Text style={styles.category}>{item.categoryName}</Text>
+            )}
             <Text style={[styles.stock, { color: stockOk ? '#16A34A' : '#DC2626' }]}>
               Stock: {item.stockQuantity} {item.stockUnit}
             </Text>
@@ -352,6 +545,70 @@ export default function Dashboard({ navigation }) {
           <TouchableOpacity onPress={() => handleDeleteProduct(item.id)} style={styles.actionIcon}>
             <Icon name="delete-outline" size={20} color="#DC2626" />
           </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderOrder = ({ item }) => {
+    const canShip = item.status?.toLowerCase() === 'pending';
+    const isShipped = item.status?.toLowerCase() === 'shipped';
+
+    // Get product image - check multiple possible fields
+    const getProductImage = () => {
+      if (item.product?.productImageBase64) {
+        return item.product.productImageBase64.startsWith('data:') 
+          ? item.product.productImageBase64
+          : `data:image/jpeg;base64,${item.product.productImageBase64}`;
+      }
+      // Fallback to a default product image or placeholder
+      return 'https://via.placeholder.com/110x110?text=Product';
+    };
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.orderLeftColumn}>
+          <Image source={{ uri: getProductImage() }} style={styles.orderImage} />
+          <View style={styles.orderActionSection}>
+            {canShip && (
+              <TouchableOpacity 
+                onPress={() => handleMarkShipped(item.orderId)} 
+                style={styles.shipButton}
+              >
+                <Icon name="truck-delivery-outline" size={16} color="#fff" />
+                <Text style={styles.shipButtonText}>Mark Shipped</Text>
+              </TouchableOpacity>
+            )}
+            
+            {isShipped && (
+              <TouchableOpacity 
+                onPress={() => handleDownloadQR(item.orderId)} 
+                style={styles.downloadButton}
+              >
+                <Icon name="qrcode" size={16} color="#059669" />
+                <Text style={styles.downloadButtonText}>Download QR</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        
+        <View style={styles.cardDetails}>
+          <View style={styles.orderContent}>
+            <View style={styles.productSection}>
+              <Text style={styles.productNameText}>{item.product?.name}</Text>
+              <Text style={styles.priceText}>Nu.{item.totalPrice}</Text>
+              <Text style={styles.orderDetailsText}>
+                Qty: {item.quantity} {item.product?.unit}
+              </Text>
+            </View>
+            
+            <View style={styles.buyerSection}>
+              <Text style={styles.buyerLabel}>Buyer:</Text>
+              <Text style={styles.buyerName}>{item.buyer?.name || 'Unknown'}</Text>
+              <Text style={styles.buyerContact}>{item.buyer?.phoneNumber || 'No contact'}</Text>
+              <Text style={styles.buyerLocation}>{item.buyer?.location || 'No location'}</Text>
+            </View>
+          </View>
         </View>
       </View>
     );
@@ -376,18 +633,83 @@ export default function Dashboard({ navigation }) {
               data={products}
               renderItem={renderProduct}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ paddingBottom: 20 }}
+              contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
               refreshing={loading}
               onRefresh={getProducts}
             />
           </>
         );
       case "Orders":
+        const filteredOrders = orders.filter(order => {
+          if (orderSubTab === "Pending") {
+            return order.status?.toLowerCase() === 'pending';
+          } else if (orderSubTab === "Shipped") {
+            return order.status?.toLowerCase() === 'shipped';
+          }
+          return false;
+        });
+
         return (
-          <View style={styles.placeholder}>
-            <Icon name="cart-outline" size={48} color="#6B7280" />
-            <Text style={styles.placeholderText}>No orders yet.</Text>
-          </View>
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>My Orders</Text>
+              <View style={styles.orderCount}>
+                <Text style={styles.orderCountText}>
+                  {orders.length} total
+                </Text>
+              </View>
+            </View>
+
+            {/* Order Sub-tabs */}
+            <View style={styles.orderSubTabs}>
+              <TouchableOpacity 
+                onPress={() => setOrderSubTab("Pending")}
+                style={[
+                  styles.orderSubTab,
+                  orderSubTab === "Pending" && styles.activeOrderSubTab
+                ]}
+              >
+                <Text style={[
+                  styles.orderSubTabText,
+                  orderSubTab === "Pending" && styles.activeOrderSubTabText
+                ]}>
+                  Pending ({orders.filter(o => o.status?.toLowerCase() === 'pending').length})
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => setOrderSubTab("Shipped")}
+                style={[
+                  styles.orderSubTab,
+                  orderSubTab === "Shipped" && styles.activeOrderSubTab
+                ]}
+              >
+                <Text style={[
+                  styles.orderSubTabText,
+                  orderSubTab === "Shipped" && styles.activeOrderSubTabText
+                ]}>
+                  Shipped ({orders.filter(o => o.status?.toLowerCase() === 'shipped').length})
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {filteredOrders.length === 0 && !ordersLoading ? (
+              <View style={styles.placeholder}>
+                <Icon name="cart-outline" size={48} color="#6B7280" />
+                <Text style={styles.placeholderText}>
+                  No {orderSubTab.toLowerCase()} orders yet.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredOrders}
+                renderItem={renderOrder}
+                keyExtractor={(item) => item.orderId}
+                contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
+                refreshing={ordersLoading}
+                onRefresh={getOrders}
+              />
+            )}
+          </>
         );
       case "Stats":
         return (
@@ -395,15 +717,6 @@ export default function Dashboard({ navigation }) {
             <Icon name="chart-line" size={48} color="#6B7280" />
             <Text style={styles.placeholderText}>
               Your sales stats will show here.
-            </Text>
-          </View>
-        );
-      case "Settings":
-        return (
-          <View style={styles.placeholder}>
-            <Icon name="cog-outline" size={48} color="#6B7280" />
-            <Text style={styles.placeholderText}>
-              Manage your settings here.
             </Text>
           </View>
         );
@@ -422,7 +735,7 @@ export default function Dashboard({ navigation }) {
       </View>
 
       <View style={styles.tabs}>
-        {["Stats", "Products", "Orders", "Settings"].map((tab) => (
+        {["Stats", "Products", "Orders"].map((tab) => (
           <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}>
             <Text
               style={[styles.tab, activeTab === tab && styles.activeTab]}
@@ -449,7 +762,7 @@ export default function Dashboard({ navigation }) {
            * normal container so the form height remains constant and the keyboard may cover
            * lower fields, but the internal ScrollView lets the user scroll them into view.
            * If you prefer the keyboard to pan instead of overlay, set in app.json:
-           *   "android": { "softwareKeyboardLayoutMode": "pan" }
+           * "android": { "softwareKeyboardLayoutMode": "pan" }
            */}
           <KeyboardAvoidingView
             enabled={Platform.OS === 'ios'}
@@ -720,7 +1033,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
-    marginHorizontal: 16,
     minHeight: 120,
     shadowColor: "#000",
     shadowOpacity: 0.05,
@@ -728,21 +1040,32 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  orderLeftColumn: {
+    alignItems: 'center',
+    marginRight: 12,
+  },
   image: {
     width: 110,
     height: 110,
     borderRadius: 8,
     alignSelf: "center",
+    marginRight: 12,
   },
   cardDetails: {
     flex: 1,
-    marginLeft: 12,
     justifyContent: "space-between",
   },
   title: {
     fontSize: 16,
     fontWeight: "700",
     color: "#111827",
+  },
+  category: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#6B7280",
+    marginTop: 2,
+    fontStyle: "italic",
   },
   stock: {
     fontSize: 13,
@@ -753,7 +1076,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#DC2626",
-    marginTop: 8,
+    marginTop: 4,
   },
   placeholder: {
     flex: 1,
@@ -790,6 +1113,148 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
+  },
+
+  // --- ORDER STYLES ---
+  orderSubTabs: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 4,
+  },
+  orderSubTab: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  activeOrderSubTab: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  orderSubTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  activeOrderSubTabText: {
+    color: '#DC2626',
+  },
+  orderContent: {
+    gap: 8,
+  },
+  orderImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+  orderActionSection: {
+    marginTop: 8,
+    width: 110, // Same width as image
+    alignItems: 'center',
+  },
+  productSection: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingBottom: 6,
+  },
+  productNameText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  orderDetailsText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  priceText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#DC2626",
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  buyerSection: {
+    paddingVertical: 4,
+  },
+  buyerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  buyerName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  buyerContact: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  buyerLocation: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 1,
+  },
+  shipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignSelf: 'stretch',
+  },
+  shipButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E6F3EF',
+    borderColor: '#059669',
+    borderWidth: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignSelf: 'stretch',
+  },
+  downloadButtonText: {
+    color: '#059669',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  orderCount: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  orderCountText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
   },
 
   // --- MODAL AND FORM STYLES ---
@@ -1002,5 +1467,13 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 14,
     color: '#111827'
+  },
+  inlineAddLink: {
+    marginTop: 8,
+  },
+  inlineAddLinkText: {
+    color: '#059669',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

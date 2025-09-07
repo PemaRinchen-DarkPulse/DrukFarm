@@ -252,13 +252,13 @@ export default function Buy(){
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB', paddingTop: 16, paddingLeft: 16, paddingRight: 16 },
+  container: { flex: 1, backgroundColor: '#F9FAFB', paddingTop: 16, paddingHorizontal: 16 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  itemCard: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, padding: 18, marginBottom: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: { width: 0, height: 1 }, shadowRadius: 3, elevation: 2, minHeight: 150, marginLeft: 4 },
-  leftColumn: { justifyContent: 'space-between', alignItems: 'center' },
+  itemCard: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, padding: 18, marginBottom: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: { width: 0, height: 1 }, shadowRadius: 3, elevation: 2, minHeight: 150, marginHorizontal: 4 },
+  leftColumn: { justifyContent: 'space-between', alignItems: 'center', paddingLeft: 0 },
   rightColumn: { flex: 1, marginLeft: 20, justifyContent: 'space-between' },
-  image: { width: 90, height: 90, borderRadius: 10, marginBottom: 10 },
+  image: { width: 90, height: 90, borderRadius: 10, marginBottom: 10, marginLeft: 0 },
   itemName: { fontSize: 17, fontWeight: '700', color: '#111' },
   itemPriceUnit: { fontSize: 15, fontWeight: 'bold', color: '#6B7280', marginTop: 2 },
   itemStock: { fontSize: 14, fontWeight: '500', color: 'green', marginTop: 2 },
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   qtyBtnText: { fontSize: 16, fontWeight: '600', color: '#111' },
   qtyText: { fontSize: 14, fontWeight: '600', marginHorizontal: 10 },
   qtyInput: { width: 56, textAlign: 'center', paddingVertical: 2, fontSize: 14, fontWeight: '600', color: '#111', marginHorizontal: 4 },
-  summaryBox: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginTop: 8 },
+  summaryBox: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginTop: 8, marginHorizontal: 4, borderWidth: 1, borderColor: '#E5E7EB' },
   summaryTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12, color: '#111' },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   label: { fontSize: 14, color: '#374151' },
