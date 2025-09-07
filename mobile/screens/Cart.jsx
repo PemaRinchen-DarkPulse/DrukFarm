@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
+  TextInput,
+  Alert,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import EmptyCart from "../components/EmptyCart";
@@ -16,6 +18,9 @@ import { resolveProductImage } from '../lib/image';
 export default function Cart({ navigation }) {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Track in-progress user edits (string form so users can type multi-digit before validation)
+  const [draftQty, setDraftQty] = useState({}); // { itemId: '12' | '' }
+  const [lastValidQty, setLastValidQty] = useState({}); // { itemId: number }
 
   // Map API cart shape to existing UI item shape without changing layout
   const mapApiCartToUiItems = (apiCart) => {
@@ -47,6 +52,10 @@ export default function Cart({ navigation }) {
       const resp = await getCart({ cid });
       const next = mapApiCartToUiItems(resp?.cart);
       setCartItems(next);
+  // Reset draft values based on authoritative server values
+  const lv = {};
+  next.forEach(i => { lv[i.id] = i.quantity; });
+  setLastValidQty(lv);
     } catch (e) {
       // On failure, keep layout intact and show empty
       setCartItems([]);
@@ -68,6 +77,8 @@ export default function Cart({ navigation }) {
   const incrementQty = async (id) => {
     const current = cartItems.find((i) => i.id === id);
     if (!current) return;
+    const stock = Number(current.stock) || 0;
+  if (stock > 0 && current.quantity >= stock) { Alert.alert('Quantity', `Cannot exceed available stock (${stock}).`); return; }
     const cid = getCurrentCid();
     // Update backend first to avoid desync
     try {
@@ -78,6 +89,7 @@ export default function Cart({ navigation }) {
       });
       const next = mapApiCartToUiItems(resp?.cart);
       setCartItems(next);
+      setDraftQty(d => { const cp = { ...d }; delete cp[id]; return cp; });
     } catch (e) {
       // no-op: preserve layout and existing values
     }
@@ -86,7 +98,7 @@ export default function Cart({ navigation }) {
   const decrementQty = async (id) => {
     const current = cartItems.find((i) => i.id === id);
     if (!current) return;
-    if (current.quantity <= 1) return;
+  if (current.quantity <= 1) { Alert.alert('Quantity', 'Quantity cannot be less than 1.'); return; }
     const cid = getCurrentCid();
     try {
       const resp = await updateCartItem({
@@ -96,10 +108,40 @@ export default function Cart({ navigation }) {
       });
       const next = mapApiCartToUiItems(resp?.cart);
       setCartItems(next);
+      setDraftQty(d => { const cp = { ...d }; delete cp[id]; return cp; });
     } catch (e) {
       // no-op
     }
   };
+
+  // Apply a direct (typed) quantity after validation
+  const applyDirectQty = useCallback(async (id, rawValue) => {
+    const item = cartItems.find(i => i.id === id);
+    if (!item) return;
+    const cid = getCurrentCid();
+    const stock = Number(item.stock) || 0;
+    let qty = Math.floor(Number(rawValue));
+    if (!Number.isFinite(qty)) { // revert
+      setDraftQty(d => ({ ...d, [id]: String(item.quantity) }));
+      return;
+    }
+    if (qty < 1) qty = 1;
+  if (stock > 0 && qty > stock) { Alert.alert('Quantity', `Requested quantity exceeds stock (${stock}). Clamped to ${stock}.`); qty = stock; }
+    // If unchanged just normalize UI
+    if (qty === item.quantity) {
+      setDraftQty(d => { const cp = { ...d }; delete cp[id]; return cp; });
+      return;
+    }
+    try {
+      const resp = await updateCartItem({ itemId: item.itemId || id, quantity: qty, cid });
+      const next = mapApiCartToUiItems(resp?.cart);
+      setCartItems(next);
+      setDraftQty(d => { const cp = { ...d }; delete cp[id]; return cp; });
+    } catch (e) {
+      // revert on error
+      setDraftQty(d => ({ ...d, [id]: String(item.quantity) }));
+    }
+  }, [cartItems]);
 
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -138,7 +180,31 @@ export default function Cart({ navigation }) {
             >
               <Text style={styles.qtyBtnText}>-</Text>
             </TouchableOpacity>
-            <Text style={styles.qtyText}>{item.quantity}</Text>
+            <TextInput
+              style={styles.qtyInput}
+              value={draftQty[item.id] !== undefined ? draftQty[item.id] : String(item.quantity)}
+              inputMode="numeric"
+              keyboardType="number-pad"
+              maxLength={3}
+              onChangeText={(text) => {
+                // Allow empty during edit
+                const onlyDigits = text.replace(/[^0-9]/g, '');
+                if (onlyDigits === '') { setDraftQty(d => ({ ...d, [item.id]: '' })); return; }
+                // Prevent leading zeros from growing (optional normalization later)
+                setDraftQty(d => ({ ...d, [item.id]: onlyDigits }));
+              }}
+              onEndEditing={() => {
+                const raw = draftQty[item.id];
+                if (raw === '' || raw === undefined) { setDraftQty(d => ({ ...d, [item.id]: String(item.quantity) })); return; }
+                applyDirectQty(item.id, raw);
+              }}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                const raw = draftQty[item.id];
+                if (raw === '' || raw === undefined) { setDraftQty(d => ({ ...d, [item.id]: String(item.quantity) })); return; }
+                applyDirectQty(item.id, raw);
+              }}
+            />
             <TouchableOpacity
               style={styles.qtyBtn}
               onPress={() => incrementQty(item.id)}
@@ -209,7 +275,21 @@ export default function Cart({ navigation }) {
       {/* Next Button */}
       <TouchableOpacity
         style={styles.nextBtn}
-        onPress={() => navigation.navigate("Checkout")}
+        onPress={async () => {
+          // Flush any draft qty edits still in inputs
+          const cid = getCurrentCid();
+          for (const it of cartItems) {
+            const draft = draftQty[it.id];
+            if (draft === '' || draft === undefined) continue;
+            const parsed = Number(draft);
+            if (Number.isFinite(parsed) && parsed >=1 && parsed !== it.quantity) {
+              try { await updateCartItem({ itemId: it.itemId || it.id, quantity: parsed, cid }); } catch(e) { /* ignore */ }
+            }
+          }
+          // Reload to ensure consistency then navigate
+          try { await loadCart(); } catch(e) {}
+          navigation.navigate("Checkout");
+        }}
       >
         <Text style={styles.nextBtnText}>Next</Text>
       </TouchableOpacity>
@@ -316,6 +396,15 @@ const styles = StyleSheet.create({
   qtyBtn: { paddingHorizontal: 6, paddingVertical: 2 },
   qtyBtnText: { fontSize: 16, fontWeight: "600", color: "#111" },
   qtyText: { fontSize: 14, fontWeight: "600", marginHorizontal: 10 },
+  qtyInput: {
+    width: 48,
+    textAlign: 'center',
+    paddingVertical: 2,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111',
+    marginHorizontal: 4,
+  },
 
   deleteBtn: {
     marginTop: 10,

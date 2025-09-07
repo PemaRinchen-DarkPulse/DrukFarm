@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,15 +8,161 @@ import {
   ScrollView,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { useRoute } from '@react-navigation/native';
+import { getCurrentCid } from '../lib/auth';
+import { getCart, cartCheckout, buyProduct, unifiedCheckout } from '../lib/api';
 
 export default function Checkout({ navigation }) {
+  const route = useRoute();
   // 1. Changed default payment method to 'cod'
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [journalNumber, setJournalNumber] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState([]); // each: { id (cart item id), productId, name, price, quantity, unit }
+  const [singleBuy, setSingleBuy] = useState(false);
+  const [placing, setPlacing] = useState(false);
+  const [error, setError] = useState('');
 
-  const subtotal = 970;
-  const deliveryFee = 50;
-  const total = subtotal + deliveryFee;
+  // Initialize from navigation params
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const sb = route?.params?.singleBuy;
+        if (sb && route?.params?.product) {
+          setSingleBuy(true);
+          const p = route.params.product;
+          // Add debugging to trace quantity values
+          console.log('[Checkout] Single buy product received:', {
+            id: p.id,
+            name: p.name,
+            quantity: p.quantity,
+            quantityType: typeof p.quantity,
+            parsedQuantity: Number(p.quantity || 1),
+          });
+          const parsedQuantity = Number(p.quantity || 1);
+          // Ensure quantity is valid (fallback to 1 if invalid)
+          const validQuantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 1 ? parsedQuantity : 1;
+          setItems([{ 
+            id: p.id, 
+            productId: p.id, 
+            name: p.name, 
+            price: Number(p.price||0), 
+            unit: p.unit, 
+            quantity: validQuantity 
+          }]);
+          setLoading(false);
+          return;
+        }
+        // fallback to cart content
+        const cid = getCurrentCid();
+        if (!cid) { setItems([]); setLoading(false); return; }
+        const resp = await getCart({ cid });
+        console.log('[Checkout] Cart response:', resp?.cart?.items?.length, 'items');
+        const mapped = (resp?.cart?.items || []).map(i => {
+          const parsedQuantity = Number(i.quantity || 1);
+          const validQuantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 1 ? parsedQuantity : 1;
+          console.log('[Checkout] Cart item mapping:', {
+            itemId: i.itemId,
+            productId: i.productId,
+            name: i.productName,
+            originalQuantity: i.quantity,
+            parsedQuantity,
+            validQuantity
+          });
+          return {
+            id: String(i.itemId||i.productId), 
+            productId: String(i.productId), 
+            name: i.productName, 
+            price: Number(i.price||0), 
+            unit: i.unit, 
+            quantity: validQuantity 
+          };
+        });
+        if (active) setItems(mapped);
+      } catch (e) { if (active) setError(e?.message || 'Failed to load summary'); }
+      finally { if (active) setLoading(false); }
+    })();
+    return () => { active = false };
+  }, [route]);
+
+  const { subtotal, deliveryFee, taxes, total, itemCount } = useMemo(() => {
+    const sub = items.reduce((s, it) => s + (it.price * it.quantity), 0);
+    const dlv = items.length ? 50 : 0;
+    const tx = sub * 0.05;
+    return { subtotal: sub, deliveryFee: dlv, taxes: tx, total: sub + dlv + tx, itemCount: items.reduce((s,i)=>s+i.quantity,0) };
+  }, [items]);
+
+  const handlePlaceOrder = async () => {
+    if (placing) return;
+    if (paymentMethod === 'mobile' && !journalNumber.trim()) { alert('Please enter your journal number.'); return; }
+    
+    console.log('[Checkout] Place order initiated with items:', items.map(it => ({
+      id: it.id,
+      productId: it.productId,
+      quantity: it.quantity,
+      quantityType: typeof it.quantity,
+      isFinite: Number.isFinite(it.quantity)
+    })));
+
+    try {
+      setPlacing(true);
+      const cid = getCurrentCid();
+      if (!cid) { navigation.navigate('Login'); return; }
+
+      if (singleBuy && items[0]) {
+        const prod = items[0];
+        // Validate quantity before sending
+        if (!Number.isFinite(prod.quantity) || prod.quantity < 1) {
+          alert('Invalid quantity. Please try again.');
+          return;
+        }
+        
+        console.log('[Checkout] Single buy API call:', {
+          productId: prod.productId || prod.id,
+          quantity: prod.quantity,
+          cid
+        });
+        
+        const resp = await buyProduct({ 
+          productId: prod.productId || prod.id, 
+          quantity: prod.quantity, 
+          cid 
+        });
+        console.log('[Checkout] Single buy response:', resp);
+        alert('Order placed successfully!');
+        navigation.navigate('Home');
+        return;
+      }
+
+      // Build products payload from items for unified checkout (use productId)
+      const products = items.map(it => {
+        // Validate each item's quantity
+        if (!Number.isFinite(it.quantity) || it.quantity < 1) {
+          throw new Error(`Invalid quantity for product ${it.name}: ${it.quantity}`);
+        }
+        return {
+          productId: it.productId || it.id, 
+          quantity: it.quantity 
+        };
+      });
+
+      console.log('[Checkout] Unified checkout API call:', {
+        cid,
+        products,
+        totalPrice: total
+      });
+
+      const resp = await unifiedCheckout({ cid, products, totalPrice: total });
+      console.log('[Checkout] Unified checkout response:', resp);
+      alert('Orders placed successfully!');
+      navigation.navigate('Home');
+    } catch (e) {
+      console.error('[Checkout] Order placement error:', e);
+      const msg = e?.body?.error || e?.message || 'Failed to place order';
+      alert(msg);
+    } finally { setPlacing(false); }
+  };
 
   return (
     <View style={styles.container}>
@@ -30,6 +176,8 @@ export default function Checkout({ navigation }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {loading && <Text style={{ marginBottom: 12, color: '#6B7280' }}>Loading summary...</Text>}
+        {!!error && !loading && <Text style={{ marginBottom: 12, color: '#DC2626' }}>{error}</Text>}
         {/* Shipping Address */}
         <Text style={styles.sectionTitle}>Shipping Address</Text>
         <View style={styles.card}>
@@ -115,12 +263,16 @@ export default function Checkout({ navigation }) {
         <Text style={styles.sectionTitle}>Order Summary</Text>
         <View style={styles.card}>
           <View style={styles.row}>
-            <Text style={styles.label}>Subtotal (3 items)</Text>
+            <Text style={styles.label}>Subtotal ({itemCount} {itemCount===1?'item':'items'})</Text>
             <Text style={styles.value}>Nu. {subtotal.toFixed(2)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Delivery Fee</Text>
             <Text style={styles.value}>Nu. {deliveryFee.toFixed(2)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Taxes (5%)</Text>
+            <Text style={styles.value}>Nu. {taxes.toFixed(2)}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
@@ -131,16 +283,11 @@ export default function Checkout({ navigation }) {
 
         {/* Place Order Button - MOVED INSIDE SCROLLVIEW */}
         <TouchableOpacity
-          style={styles.placeOrderBtn}
-          onPress={() => {
-            if (paymentMethod === "mobile" && !journalNumber) {
-              alert("Please enter your journal number.");
-              return;
-            }
-            alert("Order placed successfully!");
-          }}
+          style={[styles.placeOrderBtn, placing && { opacity: 0.6 }]}
+          disabled={placing || loading || !items.length}
+          onPress={handlePlaceOrder}
         >
-          <Text style={styles.placeOrderText}>Place Order</Text>
+          <Text style={styles.placeOrderText}>{placing ? 'Placing...' : 'Place Order'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

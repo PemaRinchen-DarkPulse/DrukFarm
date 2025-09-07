@@ -94,62 +94,148 @@ export async function updateUser(cid, dto){
 }
 
 export async function addToCart({ productId, quantity = 1, cid }){
+  const headers = { 'Content-Type': 'application/json' }
   const body = { productId, quantity }
   if (cid) body.cid = cid
-  const resp = await request('/cart', { method: 'POST', body: JSON.stringify(body) })
+  
+  // Add debugging
+  console.log('[API] addToCart called with:', { productId, quantity, quantityType: typeof quantity, cid });
+  
+  // Validate inputs
+  if (!productId) {
+    throw new Error('productId is required');
+  }
+  if (!Number.isFinite(quantity) || quantity < 1) {
+    throw new Error(`Invalid quantity: ${quantity}`);
+  }
+  
+  const resp = await request('/cart', { method: 'POST', headers, body: JSON.stringify(body) })
   try { window.dispatchEvent(new Event('cartChanged')) } catch(e) {}
   return resp
 }
 
 // Wishlist APIs
 export async function addToWishlist({ productId, cid }){
+  const headers = { 'Content-Type': 'application/json' }
   const body = { productId }
   if (cid) body.cid = cid
-  return request('/wishlist', { method: 'POST', body: JSON.stringify(body) })
+  return request('/wishlist', { method: 'POST', headers, body: JSON.stringify(body) })
 }
 
 export async function getWishlist({ cid } = {}){
-  const headers = {}
+  const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
   const resp = await request('/wishlist', { headers })
   return resp?.wishlist || { userCid: cid || null, items: [] }
 }
 
 export async function removeFromWishlist({ productId, cid }){
-  const headers = {}
+  const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
   return request(`/wishlist/${productId}`, { method: 'DELETE', headers })
 }
 
 export async function getCart({ cid } = {}){
-  const headers = {}
+  const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
+  console.log('[API] getCart called with cid:', cid);
   return request('/cart', { headers })
 }
 
 export async function updateCartItem({ itemId, quantity, cid }){
-  const headers = {}
+  const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
-  return request(`/cart/${itemId}`, { method: 'PATCH', headers, body: JSON.stringify({ quantity }) })
+  
+  // Add debugging
+  console.log('[API] updateCartItem called with:', { itemId, quantity, quantityType: typeof quantity, cid });
+  
+  // Validate inputs
+  if (!itemId) {
+    throw new Error('itemId is required');
+  }
+  if (!Number.isFinite(quantity) || quantity < 1) {
+    throw new Error(`Invalid quantity: ${quantity}`);
+  }
+  
+  const body = { quantity };
+  console.log('[API] updateCartItem request body:', body);
+  
+  return request(`/cart/${itemId}`, { method: 'PATCH', headers, body: JSON.stringify(body) })
 }
 
 export async function removeCartItem({ itemId, cid }){
-  const headers = {}
+  const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
+  console.log('[API] removeCartItem called with:', { itemId, cid });
   return request(`/cart/${itemId}`, { method: 'DELETE', headers })
 }
 
 export async function buyProduct({ productId, quantity = 1, cid }){
-  const headers = {}
+  const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
-  const path = `/orders/buy?pid=${encodeURIComponent(String(productId || ''))}&quantity=${encodeURIComponent(String(quantity))}`
-  return request(path, { method: 'POST', headers, body: JSON.stringify({ productId, quantity }) })
+  
+  // Add debugging
+  console.log('[API] buyProduct called with:', { productId, quantity, quantityType: typeof quantity, cid });
+  
+  // Validate inputs
+  if (!productId) {
+    throw new Error('productId is required');
+  }
+  if (!Number.isFinite(quantity) || quantity < 1) {
+    throw new Error(`Invalid quantity: ${quantity}`);
+  }
+  
+  const body = { productId, quantity };
+  console.log('[API] buyProduct request body:', body);
+  
+  return request(`/orders/buy?pid=${encodeURIComponent(String(productId || ''))}`, { 
+    method: 'POST', 
+    headers, 
+    body: JSON.stringify(body) 
+  })
 }
 
 export async function cartCheckout({ cid }){
-  const headers = {}
+  const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
+  console.log('[API] cartCheckout called with cid:', cid);
   return request('/orders/cart-checkout', { method: 'POST', headers })
+}
+
+export async function unifiedCheckout({ products = [], cid, totalPrice }){
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  
+  // Add debugging
+  console.log('[API] unifiedCheckout called with:', { 
+    products, 
+    cid, 
+    totalPrice,
+    productsCount: products.length 
+  });
+  
+  // Validate products array
+  if (!Array.isArray(products) || products.length === 0) {
+    throw new Error('Products array is required and cannot be empty');
+  }
+  
+  // Validate each product
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i];
+    if (!product.productId) {
+      throw new Error(`Product at index ${i} is missing productId`);
+    }
+    if (!Number.isFinite(product.quantity) || product.quantity < 1) {
+      throw new Error(`Product at index ${i} has invalid quantity: ${product.quantity}`);
+    }
+  }
+  
+  const body = { products }
+  if (totalPrice != null) body.totalPrice = totalPrice
+  
+  console.log('[API] unifiedCheckout request body:', body);
+  
+  return request('/orders/checkout', { method: 'POST', headers, body: JSON.stringify(body) })
 }
 
 export async function fetchSellerOrders({ cid } = {}){
@@ -212,7 +298,7 @@ export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
   fetchUserByCid, updateUser,
-  addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder,
+  addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, unifiedCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder,
   searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered,
   addToWishlist, getWishlist, removeFromWishlist,
   logoutUser,

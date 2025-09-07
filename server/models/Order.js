@@ -49,7 +49,7 @@ const OrderSchema = new mongoose.Schema(
 		qrCodeDataUrl: { type: String, required: true }, // Base64 data URL (downloadable)
 		source: { type: String, enum: ['buy', 'cart'], required: true },
 		// expand status values to include PAID and OUT_FOR_DELIVERY; keep legacy 'Out for Delivery' for backward-compat
-		status: { type: String, enum: ['pending', 'paid', 'OUT_FOR_DELIVERY', 'Out for Delivery', 'shipped', 'cancelled', 'delivered'], default: 'pending' },
+		status: { type: String, enum: ['pending', 'placed', 'paid', 'OUT_FOR_DELIVERY', 'Out for Delivery', 'shipped', 'cancelled', 'delivered'], default: 'pending' },
 		transporter: { type: TransporterSnapshotSchema, default: null },
 	},
 	{ timestamps: true, versionKey: false }
@@ -69,6 +69,10 @@ OrderSchema.pre('validate', function (next) {
 		const price = Number(this?.product?.price || 0)
 		const total = price * this.quantity
 		this.totalPrice = Number.isFinite(total) ? Number(total.toFixed(2)) : 0
+		// TEMP DEBUG
+		if (process.env.NODE_ENV !== 'production') {
+			console.log('[Order.preValidate] final quantity=', this.quantity, 'price=', price, 'totalPrice=', this.totalPrice)
+		}
 		next()
 	} catch (e) {
 		next(e)

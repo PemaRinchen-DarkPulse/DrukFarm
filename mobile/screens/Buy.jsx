@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { fetchProductById, buyProduct } from '../lib/api';
@@ -33,6 +33,8 @@ export default function Buy(){
     description: passedProduct.description || passedProduct.desc || '',
   }) : null);
   const [quantity, setQuantity] = useState(1);
+  const [draftQty, setDraftQty] = useState(''); // string for user typing
+  const [isInputFocused, setIsInputFocused] = useState(false); // <-- ADDED STATE
   const [submitting, setSubmitting] = useState(false);
 
   // Load product details if not fully provided
@@ -75,14 +77,55 @@ export default function Buy(){
 
   const increment = () => {
     if (!product) return;
-    if (quantity < product.stock) setQuantity(q => q + 1);
+    if (quantity < product.stock) setQuantity(q => q + 1); else if (product.stock > 0) Alert.alert('Quantity', `Cannot exceed available stock (${product.stock}).`);
   };
-  const decrement = () => setQuantity(q => (q > 1 ? q - 1 : q));
+  const decrement = () => { if (quantity > 1) setQuantity(q => q - 1); else Alert.alert('Quantity', 'Quantity cannot be less than 1.'); };
+
+  // Sync draft when authoritative quantity changes
+  useEffect(() => {
+    setDraftQty('');
+  }, [quantity]);
+
+  const applyDirect = (raw) => {
+    if (!product) return;
+    // If user left it empty, just keep previous quantity and clear draft (don't force 1 visually)
+    if (raw === '') { setDraftQty(''); return; }
+    let q = Math.floor(Number(raw));
+    if (!Number.isFinite(q)) { setDraftQty(''); return; }
+  if (q < 1) { Alert.alert('Quantity', 'Quantity cannot be less than 1.'); q = 1; }
+  if (product.stock > 0 && q > product.stock) { Alert.alert('Quantity', `Requested quantity exceeds stock (${product.stock}). Clamped to ${product.stock}.`); q = product.stock; }
+    setQuantity(q);
+    setDraftQty('');
+  };
 
   const handleNext = () => {
     if (!product) return;
     const cid = getCurrentCid();
     if (!cid) { navigation.navigate('Login', { redirectTo: 'Buy', productId }); return; }
+    
+    // Ensure any in-progress draft quantity (when input still focused) is applied
+    let effectiveQty = quantity;
+    const draftSource = isInputFocused ? draftQty : (draftQty !== '' ? draftQty : null);
+    if (draftSource !== null && draftSource !== undefined && draftSource !== '') {
+      let q = Math.floor(Number(draftSource));
+      if (!Number.isFinite(q) || q < 1) q = 1;
+      if (product.stock > 0 && q > product.stock) q = product.stock;
+      effectiveQty = q;
+      if (q !== quantity) setQuantity(q); // sync state for consistency
+    }
+
+    // Validate final quantity before navigation
+    if (!Number.isFinite(effectiveQty) || effectiveQty < 1) {
+      effectiveQty = 1;
+    }
+
+    console.log('[Buy] Navigation to Checkout with:', {
+      productId: product.id,
+      quantity: effectiveQty,
+      quantityType: typeof effectiveQty,
+      isFinite: Number.isFinite(effectiveQty)
+    });
+
     // Navigate to Checkout with a single-product context so Checkout can adapt
     navigation.navigate('Checkout', {
       singleBuy: true,
@@ -91,10 +134,10 @@ export default function Buy(){
         name: product.name,
         price: product.price,
         unit: product.unit,
-        quantity,
+        quantity: effectiveQty,
         stock: product.stock,
         image: product.image,
-        subtotal: subtotal,
+        subtotal: product.price * effectiveQty,
       },
     });
   };
@@ -137,7 +180,30 @@ export default function Buy(){
               <TouchableOpacity style={styles.qtyBtn} onPress={decrement}>
                 <Text style={styles.qtyBtnText}>-</Text>
               </TouchableOpacity>
-              <Text style={styles.qtyText}>{quantity}</Text>
+              {/* --- MODIFIED TEXTINPUT --- */}
+              <TextInput
+                style={styles.qtyInput}
+                value={isInputFocused ? draftQty : String(quantity)}
+                inputMode="numeric"
+                keyboardType="number-pad"
+                maxLength={3}
+                selectTextOnFocus
+                onFocus={() => {
+                  setIsInputFocused(true);
+                  setDraftQty(String(quantity));
+                }}
+                onBlur={() => {
+                  setIsInputFocused(false);
+                  applyDirect(draftQty);
+                }}
+                onChangeText={(t) => {
+                  const onlyDigits = t.replace(/[^0-9]/g, '');
+                  setDraftQty(onlyDigits);
+                }}
+                returnKeyType="done"
+                onSubmitEditing={() => applyDirect(draftQty)}
+              />
+              {/* --- END MODIFICATION --- */}
               <TouchableOpacity style={styles.qtyBtn} onPress={increment}>
                 <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>
@@ -200,6 +266,7 @@ const styles = StyleSheet.create({
   qtyBtn: { paddingHorizontal: 6, paddingVertical: 2 },
   qtyBtnText: { fontSize: 16, fontWeight: '600', color: '#111' },
   qtyText: { fontSize: 14, fontWeight: '600', marginHorizontal: 10 },
+  qtyInput: { width: 56, textAlign: 'center', paddingVertical: 2, fontSize: 14, fontWeight: '600', color: '#111', marginHorizontal: 4 },
   summaryBox: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginTop: 8 },
   summaryTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12, color: '#111' },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },

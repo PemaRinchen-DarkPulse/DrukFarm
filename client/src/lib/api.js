@@ -116,7 +116,7 @@ export async function removeCartItem({ itemId, cid }){
 export async function buyProduct({ productId, quantity = 1, cid }){
   const headers = {}
   if (cid) headers['x-cid'] = cid
-  const path = `/orders/buy?pid=${encodeURIComponent(String(productId || ''))}&quantity=${encodeURIComponent(String(quantity))}`
+  const path = `/orders/buy?pid=${encodeURIComponent(String(productId || ''))}`
   return request(path, { method: 'POST', headers, body: JSON.stringify({ productId, quantity }) })
 }
 
