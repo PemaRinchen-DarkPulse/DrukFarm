@@ -11,6 +11,7 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import { useRoute } from '@react-navigation/native';
 import { ChevronDown, Check } from 'lucide-react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { fetchDzongkhags, fetchTownsByDzongkhag, fetchUserAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress } from '../lib/api';
@@ -115,6 +116,7 @@ const getIconColor = (iconName) => {
 
 
 const Address = ({ navigation }) => {
+  const route = useRoute();
   const [addresses, setAddresses] = useState([]);
   const [isModalVisible, setModalVisible] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -288,7 +290,17 @@ const Address = ({ navigation }) => {
       
       await setDefaultAddress(addressId);
       await loadUserAddresses();
-      Alert.alert('Success', 'Default address updated');
+      
+      // Check if we came from Checkout and redirect back
+      const fromCheckout = route?.params?.from === 'Checkout';
+      if (fromCheckout) {
+        // Auto redirect immediately without showing alert
+        if (navigation?.canGoBack()) {
+          navigation.goBack();
+        }
+      } else {
+        Alert.alert('Success', 'Default address updated');
+      }
     } catch (error) {
       console.error('Error toggling default address:', error);
       Alert.alert('Error', 'Failed to update default address');
@@ -306,7 +318,9 @@ const Address = ({ navigation }) => {
           <TouchableOpacity onPress={() => { if (navigation?.canGoBack()) navigation.goBack(); }}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Delivery Addresses</Text>
+          <Text style={styles.headerTitle}>
+            {route?.params?.from === 'Checkout' ? 'Select Address for Checkout' : 'Delivery Addresses'}
+          </Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={[styles.addressListContainer, { alignItems: 'center', justifyContent: 'center' }]}>
@@ -416,9 +430,19 @@ const Address = ({ navigation }) => {
         <TouchableOpacity onPress={() => { if (navigation?.canGoBack()) navigation.goBack(); }}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Delivery Addresses</Text>
+        <Text style={styles.headerTitle}>
+          {route?.params?.from === 'Checkout' ? 'Select Address for Checkout' : 'Delivery Addresses'}
+        </Text>
         <View style={{ width: 24 }} />
       </View>
+
+      {route?.params?.from === 'Checkout' && (
+        <View style={styles.checkoutInfo}>
+          <Text style={styles.checkoutInfoText}>
+            Tap the toggle to set a new default address. You'll be returned to checkout automatically.
+          </Text>
+        </View>
+      )}
 
       <ScrollView style={styles.addressListContainer}>
         <View style={styles.addressList}>
@@ -588,6 +612,21 @@ const styles = StyleSheet.create({
   emptyStateSubtext: {
     fontSize: 14,
     color: '#9ca3af',
+  },
+  checkoutInfo: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  checkoutInfoText: {
+    fontSize: 13,
+    color: '#065F46',
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });
 

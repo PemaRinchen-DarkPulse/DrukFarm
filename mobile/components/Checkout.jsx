@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, memo } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,75 @@ import {
   ScrollView,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { useRoute } from '@react-navigation/native';
-import { getCurrentCid } from '../lib/auth';
-import { getCart, cartCheckout, buyProduct, unifiedCheckout } from '../lib/api';
+import { useRoute, useFocusEffect } from '@react-navigation/native';
+import { getCurrentCid, getCurrentUser } from '../lib/auth';
+import { getCart, cartCheckout, buyProduct, unifiedCheckout, fetchUserAddresses, fetchUserByCid } from '../lib/api';
+
+// Memoized AddressDisplay component to prevent unnecessary re-renders
+const AddressDisplay = memo(({ addressLoading, selectedAddress, userInfo, onChangeAddress, styles }) => {
+  if (addressLoading) {
+    return <Text style={{ color: '#6B7280' }}>Loading address...</Text>;
+  }
+  
+  if (selectedAddress && userInfo) {
+    return (
+      <>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.name}>{userInfo.name || 'N/A'}</Text>
+          <Text style={styles.address}>{selectedAddress.title}</Text>
+          <Text style={styles.address}>{selectedAddress.place}, {selectedAddress.dzongkhag}</Text>
+          <Text style={styles.address}>Bhutan</Text>
+          <Text style={styles.address}>+975 {userInfo.phoneNumber || 'N/A'}</Text>
+        </View>
+        <TouchableOpacity onPress={onChangeAddress}>
+          <Text style={styles.changeBtn}>Change</Text>
+        </TouchableOpacity>
+      </>
+    );
+  }
+  
+  if (!userInfo) {
+    return (
+      <>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.name, { color: '#DC2626' }]}>User info not loaded</Text>
+          <Text style={styles.address}>Please try refreshing</Text>
+        </View>
+        <TouchableOpacity onPress={onChangeAddress}>
+          <Text style={styles.changeBtn}>Change</Text>
+        </TouchableOpacity>
+      </>
+    );
+  }
+  
+  if (!selectedAddress) {
+    return (
+      <>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.name, { color: '#DC2626' }]}>No default address found</Text>
+          <Text style={styles.address}>Please add a delivery address</Text>
+        </View>
+        <TouchableOpacity onPress={onChangeAddress}>
+          <Text style={styles.changeBtn}>Change</Text>
+        </TouchableOpacity>
+      </>
+    );
+  }
+  
+  return (
+    <>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.name, { color: '#DC2626' }]}>Address loading failed</Text>
+        <Text style={styles.address}>Please try again</Text>
+      </View>
+      <TouchableOpacity onPress={onChangeAddress}>
+        <Text style={styles.changeBtn}>Change</Text>
+      </TouchableOpacity>
+    </>
+  );
+});
+
+AddressDisplay.displayName = 'AddressDisplay';
 
 export default function Checkout({ navigation }) {
   const route = useRoute();
@@ -22,6 +88,13 @@ export default function Checkout({ navigation }) {
   const [singleBuy, setSingleBuy] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
+  
+  // Address and user state
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
+  const [addressLoading, setAddressLoading] = useState(true);
+  const hasInitiallyLoaded = useRef(false);
+  const isLoadingRef = useRef(false);
 
   // Initialize from navigation params
   useEffect(() => {
@@ -85,6 +158,80 @@ export default function Checkout({ navigation }) {
     })();
     return () => { active = false };
   }, [route]);
+
+  // Function to load user info and default address
+  const loadUserInfoAndAddress = async (isInitialLoad = false) => {
+    // Prevent concurrent loads
+    if (isLoadingRef.current) return;
+    
+    try {
+      isLoadingRef.current = true;
+      
+      if (isInitialLoad || !hasInitiallyLoaded.current) {
+        setAddressLoading(true);
+      }
+      
+      const cid = getCurrentCid();
+      if (!cid) {
+        setUserInfo(null);
+        setSelectedAddress(null);
+        return;
+      }
+
+      // Load user info
+      const user = await fetchUserByCid(cid);
+      setUserInfo(user);
+
+      // Load addresses and find default
+      const addresses = await fetchUserAddresses(cid);
+      
+      // Handle different response formats
+      let addressList = [];
+      if (Array.isArray(addresses)) {
+        addressList = addresses;
+      } else if (addresses && Array.isArray(addresses.addresses)) {
+        addressList = addresses.addresses;
+      } else if (addresses && addresses.data && Array.isArray(addresses.data)) {
+        addressList = addresses.data;
+      }
+      
+      const defaultAddress = addressList.find(addr => addr && addr.isDefault);
+      setSelectedAddress(defaultAddress || addressList[0] || null);
+      
+      if (!hasInitiallyLoaded.current) {
+        hasInitiallyLoaded.current = true;
+      }
+    } catch (error) {
+      console.error('Error loading user info and address:', error);
+      setUserInfo(null);
+      setSelectedAddress(null);
+    } finally {
+      isLoadingRef.current = false;
+      if (isInitialLoad || !hasInitiallyLoaded.current) {
+        setAddressLoading(false);
+      }
+    }
+  };
+
+  // Load user info and default address on mount
+  useEffect(() => {
+    loadUserInfoAndAddress(true);
+  }, []);
+
+  // Refresh address when returning from Address page
+  useFocusEffect(
+    React.useCallback(() => {
+      // Only refresh if we already have loaded once (not on initial mount)
+      if (hasInitiallyLoaded.current) {
+        // Add a small delay to prevent rapid re-renders
+        const timer = setTimeout(() => {
+          loadUserInfoAndAddress(false);
+        }, 100);
+        
+        return () => clearTimeout(timer);
+      }
+    }, [])
+  );
 
   const { subtotal, deliveryFee, taxes, total, itemCount } = useMemo(() => {
     const sub = items.reduce((s, it) => s + (it.price * it.quantity), 0);
@@ -181,15 +328,13 @@ export default function Checkout({ navigation }) {
         {/* Shipping Address */}
         <Text style={styles.sectionTitle}>Shipping Address</Text>
         <View style={styles.card}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.name}>Pema Choden</Text>
-            <Text style={styles.address}>Changzamtog, Thimphu</Text>
-            <Text style={styles.address}>Bhutan, 11001</Text>
-            <Text style={styles.address}>+975 17XXXXXX</Text>
-          </View>
-          <TouchableOpacity>
-            <Text style={styles.changeBtn}>Change</Text>
-          </TouchableOpacity>
+          <AddressDisplay
+            addressLoading={addressLoading}
+            selectedAddress={selectedAddress}
+            userInfo={userInfo}
+            onChangeAddress={() => navigation.navigate('Address', { from: 'Checkout' })}
+            styles={styles}
+          />
         </View>
 
         {/* Payment Method */}
