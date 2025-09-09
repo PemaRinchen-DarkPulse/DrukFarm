@@ -300,6 +300,18 @@ export async function markOrderShipped({ orderId, cid }){
   return request(`/orders/${orderId}/shipped`, { method: 'PATCH', headers })
 }
 
+// Drop-off locations APIs
+export async function fetchDzongkhags(){
+  const resp = await request('/drop-off-locations')
+  return resp?.data || []
+}
+
+export async function fetchTownsByDzongkhag(dzongkhag){
+  if (!dzongkhag) throw new Error('dzongkhag is required')
+  const resp = await request(`/drop-off-locations/dzongkhag/${encodeURIComponent(dzongkhag)}`)
+  return resp?.towns || []
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
@@ -308,4 +320,5 @@ export default {
   searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered, markOrderShipped,
   addToWishlist, getWishlist, removeFromWishlist,
   logoutUser,
+  fetchDzongkhags, fetchTownsByDzongkhag,
 }
