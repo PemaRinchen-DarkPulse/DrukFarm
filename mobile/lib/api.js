@@ -303,13 +303,40 @@ export async function markOrderShipped({ orderId, cid }){
 // Drop-off locations APIs
 export async function fetchDzongkhags(){
   const resp = await request('/drop-off-locations')
-  return resp?.data || []
+  const locations = resp?.data || []
+  // Extract unique dzongkhag names as strings
+  const dzongkhags = [...new Set(locations.map(location => location.dzongkhag))].filter(Boolean)
+  return dzongkhags
 }
 
 export async function fetchTownsByDzongkhag(dzongkhag){
   if (!dzongkhag) throw new Error('dzongkhag is required')
   const resp = await request(`/drop-off-locations/dzongkhag/${encodeURIComponent(dzongkhag)}`)
-  return resp?.towns || []
+  const towns = resp?.towns || []
+  // Ensure towns are strings, not objects
+  return towns.filter(town => typeof town === 'string')
+}
+
+// Address APIs
+export async function fetchUserAddresses(userCid){
+  if (!userCid) throw new Error('userCid is required')
+  return request(`/addresses/${userCid}`)
+}
+
+export async function createAddress(addressData){
+  return request('/addresses', { method: 'POST', body: JSON.stringify(addressData) })
+}
+
+export async function updateAddress(id, addressData){
+  return request(`/addresses/${id}`, { method: 'PUT', body: JSON.stringify(addressData) })
+}
+
+export async function deleteAddress(id){
+  return request(`/addresses/${id}`, { method: 'DELETE' })
+}
+
+export async function setDefaultAddress(id){
+  return request(`/addresses/${id}/default`, { method: 'PUT' })
 }
 
 export default {
@@ -321,4 +348,5 @@ export default {
   addToWishlist, getWishlist, removeFromWishlist,
   logoutUser,
   fetchDzongkhags, fetchTownsByDzongkhag,
+  fetchUserAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress,
 }
