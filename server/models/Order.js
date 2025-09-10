@@ -11,6 +11,16 @@ const UserSnapshotSchema = new mongoose.Schema(
 	{ _id: false }
 )
 
+// Snapshot of the delivery address at time of order
+const DeliveryAddressSnapshotSchema = new mongoose.Schema(
+	{
+		title: { type: String, required: true },
+		place: { type: String, required: true },
+		dzongkhag: { type: String, required: true },
+	},
+	{ _id: false }
+)
+
 // Snapshot of the product at time of order
 const ProductSnapshotSchema = new mongoose.Schema(
 	{
@@ -43,6 +53,7 @@ const OrderSchema = new mongoose.Schema(
 			validate: { validator: v => /^\d{11}$/.test(v), message: 'CID must be exactly 11 digits' },
 		},
 		userSnapshot: { type: UserSnapshotSchema, required: true },
+		deliveryAddress: { type: DeliveryAddressSnapshotSchema, required: false, default: null },
 		product: { type: ProductSnapshotSchema, required: true },
 		quantity: { type: Number, required: true, min: 1, default: 1 },
 		totalPrice: { type: Number, required: true, min: 0 },

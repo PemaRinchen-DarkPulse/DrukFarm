@@ -202,7 +202,7 @@ export async function cartCheckout({ cid }){
   return request('/orders/cart-checkout', { method: 'POST', headers })
 }
 
-export async function unifiedCheckout({ products = [], cid, totalPrice }){
+export async function unifiedCheckout({ products = [], cid, totalPrice, deliveryAddress }){
   const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
   
@@ -211,6 +211,7 @@ export async function unifiedCheckout({ products = [], cid, totalPrice }){
     products, 
     cid, 
     totalPrice,
+    deliveryAddress,
     productsCount: products.length 
   });
   
@@ -232,6 +233,7 @@ export async function unifiedCheckout({ products = [], cid, totalPrice }){
   
   const body = { products }
   if (totalPrice != null) body.totalPrice = totalPrice
+  if (deliveryAddress != null) body.deliveryAddress = deliveryAddress
   
   console.log('[API] unifiedCheckout request body:', body);
   
@@ -339,6 +341,33 @@ export async function setDefaultAddress(id){
   return request(`/addresses/${id}/default`, { method: 'PUT' })
 }
 
+export async function downloadOrderImage(orderId, cid){
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  
+  console.log('[API] downloadOrderImage called with:', { orderId, cid });
+  console.log('[API] Request headers:', headers);
+  
+  try {
+    const response = await request(`/orders/${orderId}/download-image?format=base64`, { 
+      method: 'GET',
+      headers 
+    });
+    
+    console.log('[API] downloadOrderImage response:', {
+      success: response?.success,
+      hasData: !!response?.data,
+      dataLength: response?.data?.length,
+      filename: response?.filename
+    });
+    
+    return response;
+  } catch (error) {
+    console.log('[API] downloadOrderImage error:', error);
+    throw error;
+  }
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
@@ -348,5 +377,5 @@ export default {
   addToWishlist, getWishlist, removeFromWishlist,
   logoutUser,
   fetchDzongkhags, fetchTownsByDzongkhag,
-  fetchUserAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress,
+  fetchUserAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress, downloadOrderImage,
 }

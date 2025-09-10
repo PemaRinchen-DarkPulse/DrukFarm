@@ -294,13 +294,26 @@ export default function Checkout({ navigation }) {
         };
       });
 
+      // Prepare delivery address data
+      const deliveryAddress = selectedAddress ? {
+        title: selectedAddress.title,
+        place: selectedAddress.place,
+        dzongkhag: selectedAddress.dzongkhag
+      } : null;
+
       console.log('[Checkout] Unified checkout API call:', {
         cid,
         products,
-        totalPrice: total
+        totalPrice: total,
+        deliveryAddress
       });
 
-      const resp = await unifiedCheckout({ cid, products, totalPrice: total });
+      const resp = await unifiedCheckout({ 
+        cid, 
+        products, 
+        totalPrice: total, 
+        deliveryAddress 
+      });
       console.log('[Checkout] Unified checkout response:', resp);
       alert('Orders placed successfully!');
       navigation.navigate('Home');

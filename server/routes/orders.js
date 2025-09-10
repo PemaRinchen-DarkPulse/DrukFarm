@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 const Cart = require('../models/Cart');
 const { generateQrDataUrl } = require('../utils/qr');
+const { generateOrderImage } = require('../utils/image');
 
 const router = express.Router()
 
@@ -31,6 +32,36 @@ async function buildUserSnapshot(cid) {
 		name: user?.name || '',
 		phoneNumber: user?.phoneNumber || '',
 		location: user?.location || '',
+	}
+}
+
+async function buildDeliveryAddressSnapshot(userCid, addressData) {
+	if (addressData && addressData.title && addressData.place && addressData.dzongkhag) {
+		return {
+			title: addressData.title,
+			place: addressData.place,
+			dzongkhag: addressData.dzongkhag
+		}
+	}
+	
+	// Fallback to user's default address from Address model
+	const Address = require('../models/Address')
+	const addresses = await Address.find({ userCid }).sort({ isDefault: -1, createdAt: -1 })
+	const defaultAddress = addresses[0]
+	
+	if (defaultAddress) {
+		return {
+			title: defaultAddress.title,
+			place: defaultAddress.place,
+			dzongkhag: defaultAddress.dzongkhag
+		}
+	}
+	
+	// Ultimate fallback
+	return {
+		title: 'Default Address',
+		place: 'N/A',
+		dzongkhag: 'N/A'
 	}
 }
 
@@ -99,6 +130,7 @@ router.post('/buy', authCid, async (req, res) => {
 			return res.status(409).json({ error: 'Insufficient stock (race)', available: product.stockQuantity })
 		}
 		const userSnapshot = await buildUserSnapshot(req.user.cid)
+		const deliveryAddress = await buildDeliveryAddressSnapshot(req.user.cid, req.body.deliveryAddress)
 
 		const qrPayload = {
 			type: 'order',
@@ -126,6 +158,7 @@ router.post('/buy', authCid, async (req, res) => {
 			orderDoc = await Order.create({
 				userCid: userSnapshot.cid,
 				userSnapshot,
+				deliveryAddress,
 				product: {
 					productId: product._id,
 					productName: product.productName,
@@ -171,6 +204,7 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 		const productMap = new Map(products.map(p => [String(p._id), p]))
 
 		const userSnapshot = await buildUserSnapshot(userCid)
+		const deliveryAddress = await buildDeliveryAddressSnapshot(userCid, req.body.deliveryAddress)
 
 		// Filter valid items and pre-check stock locally
 		const items = cart.items
@@ -231,6 +265,7 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 			ordersToCreate.push({
 				userCid,
 				userSnapshot,
+				deliveryAddress,
 				product: {
 					productId: p._id,
 					productName: p.productName,
@@ -338,6 +373,7 @@ router.post('/checkout', authCid, async (req, res) => {
 		}
 
 		const userSnapshot = await buildUserSnapshot(userCid)
+		const deliveryAddress = await buildDeliveryAddressSnapshot(userCid, body.deliveryAddress)
 		const ordersPayload = []
 		for (const n of normalized) {
 			const p = pMap.get(n.productId)
@@ -358,6 +394,7 @@ router.post('/checkout', authCid, async (req, res) => {
 			ordersPayload.push({
 				userCid,
 				userSnapshot,
+				deliveryAddress,
 				product: {
 					productId: p._id,
 					productName: p.productName,
@@ -733,6 +770,94 @@ router.patch('/:orderId/shipped', authCid, async (req, res) => {
 	} catch (err) {
 		console.error('Mark shipped error:', err)
 		res.status(500).json({ error: 'Failed to mark as shipped' })
+	}
+})
+
+// GET /api/orders/:orderId/download-image -> Download order details as PNG image (seller only)
+router.get('/:orderId/download-image', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params
+		const { format } = req.query // ?format=base64 for mobile app
+		
+		console.log('[Image Download] Request received:', { 
+			orderId, 
+			format, 
+			sellerCid: req.user.cid 
+		});
+		
+		if (!mongoose.Types.ObjectId.isValid(String(orderId))) {
+			console.log('[Image Download] Invalid order ID:', orderId);
+			return res.status(400).json({ error: 'Invalid order id' })
+		}
+		
+		const sellerCid = req.user.cid
+		const order = await Order.findById(orderId)
+		
+		console.log('[Image Download] Order found:', !!order);
+		if (!order) {
+			console.log('[Image Download] Order not found for ID:', orderId);
+			return res.status(404).json({ error: 'Order not found' })
+		}
+		
+		// Verify this is the seller's product
+		if (String(order.product.sellerCid) !== String(sellerCid)) {
+			console.log('[Image Download] Access denied. Order seller:', order.product.sellerCid, 'Request from:', sellerCid);
+			return res.status(403).json({ error: 'Not your product order' })
+		}
+		
+		console.log('[Image Download] Access verified. Preparing order data...');
+		
+		// Prepare order data for image generation
+		const orderData = {
+			orderId: String(order._id),
+			buyerName: order.userSnapshot?.name || 'N/A',
+			buyerPhone: order.userSnapshot?.phoneNumber || 'N/A',
+			deliveryAddress: {
+				place: order.deliveryAddress?.place || 'Not specified',
+				dzongkhag: order.deliveryAddress?.dzongkhag || 'Not specified'
+			},
+			qrCode: order.qrCodeDataUrl
+		}
+		
+		console.log('[Image Download] Order data prepared:', {
+			orderId: orderData.orderId,
+			buyerName: orderData.buyerName,
+			hasDeliveryAddress: !!order.deliveryAddress,
+			hasQrCode: !!orderData.qrCode
+		});
+		
+		// Generate PNG image
+		console.log('[Image Download] Starting image generation...');
+		const imageBuffer = await generateOrderImage(orderData)
+		console.log('[Image Download] Image generated successfully. Size:', imageBuffer.length, 'bytes');
+		
+		if (format === 'base64') {
+			// Return base64 encoded PNG for mobile app
+			const base64Image = imageBuffer.toString('base64')
+			console.log('[Image Download] Returning base64 PNG. Length:', base64Image.length);
+			return res.json({
+				success: true,
+				data: base64Image,
+				filename: `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`
+			})
+		} else {
+			// Return PNG file directly for web browsers
+			const filename = `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`
+			console.log('[Image Download] Returning binary PNG:', filename);
+			res.setHeader('Content-Type', 'image/png')
+			res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+			res.setHeader('Content-Length', imageBuffer.length)
+			res.send(imageBuffer)
+		}
+		
+	} catch (err) {
+		console.error('[Image Download] Error:', err);
+		console.error('[Image Download] Error details:', {
+			name: err.name,
+			message: err.message,
+			stack: err.stack
+		});
+		res.status(500).json({ error: 'Failed to generate order image' })
 	}
 })
 

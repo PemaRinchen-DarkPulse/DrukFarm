@@ -21,9 +21,9 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, downloadOrderImage } from '../lib/api';
 import { resolveProductImage } from '../lib/image';
-import { useAuth } from '../lib/auth';
+import { useAuth, getCurrentCid } from '../lib/auth';
 
 // CustomDropdown component
 const LIST_MAX = 160;
@@ -93,6 +93,22 @@ export default function Dashboard({ navigation }) {
   const [activeTab, setActiveTab] = useState("Products");
   const [showAddProductModal, setShowAddProductModal] = useState(false);
 
+  // Helper function to request storage permissions on Android
+  const requestStoragePermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        // For Expo Go, we'll skip native storage permissions and rely on MediaLibrary only
+        // This prevents the app from getting stuck on permission requests
+        console.log('Running in Expo Go - skipping native storage permission');
+        return false; // Always return false to use MediaLibrary-only approach
+      } catch (err) {
+        console.warn('Permission request error:', err);
+        return false;
+      }
+    }
+    return true; // iOS doesn't need explicit storage permission for MediaLibrary
+  };
+
   // State for new product form fields
   const [productName, setProductName] = useState("");
   const [productCategory, setProductCategory] = useState("");
@@ -121,6 +137,7 @@ export default function Dashboard({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [orderSubTab, setOrderSubTab] = useState("Pending"); // New state for order sub-tabs
+  const [downloadingImage, setDownloadingImage] = useState(null); // Track which image is being downloaded
 
   const getProducts = async () => {
     try {
@@ -367,7 +384,7 @@ export default function Dashboard({ navigation }) {
             try {
               const response = await markOrderShipped({ orderId, cid: user?.cid });
               
-              if (response.success && response.qrCode) {
+              if (response.success) {
                 // Update the local orders state
                 setOrders(prevOrders => 
                   prevOrders.map(order => 
@@ -377,8 +394,8 @@ export default function Dashboard({ navigation }) {
                   )
                 );
 
-                // Download and share the QR code
-                await downloadQRCode(response.qrCode, orderId);
+                // Download and share the image
+                await handleDownloadImage(orderId);
 
                 // Switch to Shipped tab to show the updated order
                 setOrderSubTab("Shipped");
@@ -498,6 +515,290 @@ export default function Dashboard({ navigation }) {
     }
   };
 
+  const handleDownloadImage = async (orderId) => {
+    // Prevent multiple simultaneous downloads for the same order
+    if (downloadingImage === orderId) {
+      console.log('Image download already in progress for order:', orderId);
+      return;
+    }
+    
+    // Helper function for full permissions flow
+    const proceedWithFullPermissions = async () => {
+      await downloadAndSaveImage(orderId, true);
+    };
+    
+    // Helper function for limited permissions flow
+    const proceedWithLimitedPermissions = async () => {
+      await downloadAndSaveImage(orderId, false);
+    };
+    
+    try {
+      setDownloadingImage(orderId);
+      
+      const cid = getCurrentCid();
+      if (!cid) {
+        console.log('Image Download Error: No CID found');
+        Alert.alert('Error', 'User authentication required.');
+        return;
+      }
+
+      console.log('Starting image download for order:', orderId);
+      console.log('User CID:', cid);
+      
+      // Request MediaLibrary permission (this works in Expo Go)
+      console.log('Requesting MediaLibrary permission...');
+      const mediaPermission = await MediaLibrary.requestPermissionsAsync();
+      console.log('Media permission status:', mediaPermission.status);
+      
+      // Skip native storage permission in Expo Go to avoid getting stuck
+      const storagePermission = await requestStoragePermission();
+      console.log('Storage permission granted:', storagePermission);
+      
+      // If MediaLibrary permission is denied, offer share-only option
+      if (mediaPermission.status !== 'granted') {
+        console.log('MediaLibrary permission denied, offering share-only option');
+        Alert.alert(
+          'Permission Required', 
+          'Need media access to save image. Share instead?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Share Image',
+              onPress: () => handleDownloadImageWithoutSaving(orderId)
+            }
+          ]
+        );
+        return;
+      }
+      
+      // Since we're in Expo Go, always use limited permissions (MediaLibrary only)
+      console.log('Using MediaLibrary-only approach for Expo Go compatibility');
+      await proceedWithLimitedPermissions();
+
+    } catch (error) {
+      console.log('Download Image error:', error);
+      console.log('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        body: error.body
+      });
+      
+      let message = 'Failed to download order image';
+      
+      if (error?.body?.error) {
+        message = error.body.error;
+        console.log('Server error message:', error.body.error);
+      } else if (error?.message) {
+        message = error.message;
+        console.log('Error message:', error.message);
+      }
+      
+      // Don't show error for asset creation since we've handled that
+      if (message.includes('Could not create asset')) {
+        message = 'Image saved successfully but could not be added to gallery. You can still share the file.';
+      }
+      
+      Alert.alert('Error', message);
+    } finally {
+      setDownloadingImage(null);
+    }
+  };
+
+  // Helper function to handle the image download and saving process
+  const downloadAndSaveImage = async (orderId, hasStoragePermission) => {
+    const cid = getCurrentCid();
+    
+    // Download image from server
+    console.log('Downloading image from server...');
+    const response = await downloadOrderImage(orderId, cid);
+    console.log('Server response:', {
+      success: response?.success,
+      hasData: !!response?.data,
+      dataLength: response?.data?.length,
+      filename: response?.filename
+    });
+    
+    if (!response.success || !response.data) {
+      console.log('Image Download Error: Invalid server response');
+      Alert.alert('Error', 'No image data received from server.');
+      return;
+    }
+    
+    console.log('Received image data, filename:', response.filename);
+    
+    const filename = response.filename || `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`;
+    
+    // Save to accessible location - use app's document directory (always writable in Expo Go)
+    const savedFileUri = FileSystem.documentDirectory + filename;
+    let displayPath = `App Documents/${filename}`;
+    
+    console.log('Saving image to accessible location:', savedFileUri);
+    
+    // Save image file from base64 directly to accessible location
+    await FileSystem.writeAsStringAsync(savedFileUri, response.data, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    
+    console.log('Image saved successfully to device storage');
+    
+    // Try to save to MediaLibrary for easy access
+    try {
+      const asset = await MediaLibrary.createAssetAsync(savedFileUri);
+      console.log('Saved to device storage:', asset.id);
+      
+      // Try to organize in DrukFarm Orders album for easy finding
+      try {
+        let album = await MediaLibrary.getAlbumAsync('DrukFarm Orders');
+        if (!album) {
+          album = await MediaLibrary.createAlbumAsync('DrukFarm Orders', asset, false);
+          console.log('Created DrukFarm Orders album:', album.id);
+        } else {
+          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          console.log('Added to DrukFarm Orders album');
+        }
+        // Update display path to show accessible location
+        displayPath = 'Device Storage > DrukFarm Orders';
+      } catch (albumError) {
+        console.log('Could not create album, but file is saved:', albumError);
+        displayPath = 'Device Storage > Photos';
+      }
+    } catch (mediaError) {
+      console.log('MediaLibrary save failed, file saved to app documents:', savedFileUri);
+      // Keep original display path if MediaLibrary fails
+    }
+    
+    // Success message with clear access instructions
+    Alert.alert(
+      'Order Image Saved!',
+      `Your order image has been saved to your device!\n\nLocation: ${displayPath}\n\nTo view:\n• Open your gallery/photos app\n• Or share it to view elsewhere\n• Image is permanently saved`,
+      [
+        { text: 'Great!', style: 'default' },
+        {
+          text: 'Share Image',
+          onPress: async () => {
+            if (await Sharing.isAvailableAsync()) {
+              try {
+                await Sharing.shareAsync(savedFileUri, {
+                  mimeType: 'image/png',
+                  dialogTitle: `Order #${orderId.slice(-6)}`,
+                });
+              } catch (shareError) {
+                console.log('Share error:', shareError);
+              }
+            }
+          },
+        },
+      ]
+    );
+    
+    // Keep file permanently saved for easy access
+    console.log('Order image permanently saved to accessible location:', savedFileUri);
+  };
+
+  // Fallback function for image download when storage permissions are not available
+  const handleDownloadImageWithoutSaving = async (orderId) => {
+    // Prevent multiple simultaneous downloads for the same order
+    if (downloadingImage === orderId) {
+      console.log('Image download already in progress for order:', orderId);
+      return;
+    }
+    
+    try {
+      setDownloadingImage(orderId);
+      
+      const cid = getCurrentCid();
+      if (!cid) {
+        Alert.alert('Error', 'User authentication required.');
+        return;
+      }
+
+      console.log('Starting image download and save for order:', orderId);
+      
+      // Download image from server
+      const response = await downloadOrderImage(orderId, cid);
+      if (!response.success || !response.data) {
+        Alert.alert('Error', 'No image data received from server.');
+        return;
+      }
+      
+      // Save as PNG file
+      const filename = response.filename || `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`;
+      
+      // Save to app documents (most accessible location in Expo Go)
+      const savedFileUri = FileSystem.documentDirectory + filename;
+      let displayPath = `App Documents/${filename}`;
+      
+      // Save image file permanently to easily accessible location
+      await FileSystem.writeAsStringAsync(savedFileUri, response.data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      console.log('Image saved to accessible location:', savedFileUri);
+      
+      // Always try to save to device storage for maximum accessibility
+      try {
+        const asset = await MediaLibrary.createAssetAsync(savedFileUri);
+        
+        // Create/use DrukFarm Orders album
+        try {
+          let album = await MediaLibrary.getAlbumAsync('DrukFarm Orders');
+          if (!album) {
+            album = await MediaLibrary.createAlbumAsync('DrukFarm Orders', asset, false);
+          } else {
+            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          }
+          displayPath = 'Device Storage > DrukFarm Orders';
+        } catch (albumError) {
+          displayPath = 'Device Storage > Photos';
+        }
+      } catch (mediaError) {
+        console.log('Device storage save failed, but file saved to:', savedFileUri);
+      }
+      
+      // Show success message with clear access instructions
+      if (await Sharing.isAvailableAsync()) {
+        Alert.alert(
+          'Image Downloaded!',
+          `Your order image has been saved!\n\nLocation: ${displayPath}\n\nTo view:\n• Open your gallery/photos app\n• Or share to view elsewhere`,
+          [
+            { text: 'Perfect!', style: 'default' },
+            {
+              text: 'Share Image',
+              onPress: async () => {
+                try {
+                  await Sharing.shareAsync(savedFileUri, {
+                    mimeType: 'image/png',
+                    dialogTitle: `Order #${orderId.slice(-6)}`,
+                  });
+                } catch (shareError) {
+                  console.log('Share error:', shareError);
+                  Alert.alert('Error', 'Failed to share image.');
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Image Saved!', `Image is accessible at:\n${displayPath}\n\nOpen your gallery to view.`);
+      }
+      
+      // Keep file permanently saved for easy access
+      
+    } catch (error) {
+      console.log('Download Image error:', error);
+      let message = 'Failed to download order image';
+      if (error?.body?.error) {
+        message = error.body.error;
+      } else if (error?.message) {
+        message = error.message;
+      }
+      Alert.alert('Error', message);
+    } finally {
+      setDownloadingImage(null);
+    }
+  };
+
   const handleDownloadQR = async (orderId) => {
     try {
       // Find the order to get its QR code
@@ -582,11 +883,21 @@ export default function Dashboard({ navigation }) {
             
             {isShipped && (
               <TouchableOpacity 
-                onPress={() => handleDownloadQR(item.orderId)} 
-                style={styles.downloadButton}
+                onPress={() => handleDownloadImage(item.orderId)} 
+                style={[styles.downloadButton, downloadingImage === item.orderId && styles.downloadingButton]}
+                disabled={downloadingImage === item.orderId}
               >
-                <Icon name="qrcode" size={16} color="#059669" />
-                <Text style={styles.downloadButtonText}>Download QR</Text>
+                <Icon 
+                  name={downloadingImage === item.orderId ? "loading" : "image-outline"} 
+                  size={16} 
+                  color={downloadingImage === item.orderId ? "#6B7280" : "#059669"} 
+                />
+                <Text style={[
+                  styles.downloadButtonText, 
+                  downloadingImage === item.orderId && styles.downloadingButtonText
+                ]}>
+                  {downloadingImage === item.orderId ? 'Downloading...' : 'Download Image'}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1244,6 +1555,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
+  },
+  downloadingButton: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
+    opacity: 0.7,
+  },
+  downloadingButtonText: {
+    color: '#6B7280',
   },
   orderCount: {
     backgroundColor: '#F3F4F6',
