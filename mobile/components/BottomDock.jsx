@@ -59,7 +59,11 @@ export default function BottomDock() {
             style={styles.navItem}
             onPress={() => navigation.navigate('My Orders')}
           >
-            <MaterialCommunityIcons name="clipboard-list-outline" size={28} color="#1B4332" />
+            <MaterialCommunityIcons 
+              name="clipboard-list-outline" 
+              size={28} 
+              color="#1B4332" 
+            />
             <Text style={styles.navText}>My Orders</Text>
           </TouchableOpacity>
 

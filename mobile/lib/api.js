@@ -368,6 +368,27 @@ export async function downloadOrderImage(orderId, cid){
   }
 }
 
+// Transporter specific APIs
+export async function fetchTransporterOrders({ cid, transporterId } = {}){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  if (transporterId) headers['x-transporter-id'] = transporterId
+  return request('/orders/transporter', { headers })
+}
+
+export async function fetchShippedOrders({ cid } = {}){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request('/orders/shipped', { headers })
+}
+
+export async function updateOrderStatus({ orderId, status, cid }){
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  const body = { status }
+  return request(`/orders/${orderId}/status`, { method: 'PATCH', headers, body: JSON.stringify(body) })
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
@@ -378,4 +399,5 @@ export default {
   logoutUser,
   fetchDzongkhags, fetchTownsByDzongkhag,
   fetchUserAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress, downloadOrderImage,
+  fetchTransporterOrders, fetchShippedOrders, updateOrderStatus,
 }

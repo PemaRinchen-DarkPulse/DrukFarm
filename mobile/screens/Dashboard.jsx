@@ -25,6 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, downloadOrderImage } from '../lib/api';
 import { resolveProductImage } from '../lib/image';
 import { useAuth, getCurrentCid } from '../lib/auth';
+import TransporterDashboard from '../components/TransporterDashboard';
 
 // CustomDropdown component
 const LIST_MAX = 160;
@@ -91,6 +92,12 @@ function CustomDropdown({ options, value, onChange, placeholder = "Select…" })
 
 export default function Dashboard({ navigation }) {
   const { user } = useAuth();
+  
+  // Check user role and render appropriate dashboard
+  if (user?.role?.toLowerCase() === 'transporter') {
+    return <TransporterDashboard navigation={navigation} />;
+  }
+  
   const [activeTab, setActiveTab] = useState("Products");
   const [showAddProductModal, setShowAddProductModal] = useState(false);
 

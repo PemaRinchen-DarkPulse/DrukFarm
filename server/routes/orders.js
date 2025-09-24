@@ -861,4 +861,240 @@ router.get('/:orderId/download-image', authCid, async (req, res) => {
 	}
 })
 
+// GET /api/orders/shipped -> All orders with status 'shipped' (for transporter dashboard)
+router.get('/shipped', authCid, async (req, res) => {
+	try {
+		// Fetch ONLY orders with status 'shipped' from MongoDB
+		const shippedOrders = await Order.find({ 
+			status: 'shipped' 
+		}).sort({ createdAt: -1 })
+		
+		// Get user details for sellers and buyers
+		const sellerCids = [...new Set(shippedOrders.map(o => o?.product?.sellerCid).filter(Boolean))]
+		const buyerCids = [...new Set(shippedOrders.map(o => o?.userSnapshot?.cid).filter(Boolean))]
+		const allCids = [...new Set([...sellerCids, ...buyerCids])]
+		
+		const users = await User.find({ cid: { $in: allCids } }).select('cid name phoneNumber location dzongkhag')
+		const userMap = new Map(users.map(u => [u.cid, u]))
+		
+		const orders = shippedOrders.map(order => {
+			const seller = userMap.get(order?.product?.sellerCid)
+			const buyer = userMap.get(order?.userSnapshot?.cid)
+			
+			return {
+				orderId: String(order._id),
+				orderNumber: String(order._id).slice(-6),
+				status: order.status,
+				customerName: order.userSnapshot?.name || buyer?.name || 'Unknown',
+				customerPhone: order.userSnapshot?.phoneNumber || buyer?.phoneNumber || '',
+				customerCid: order.userSnapshot?.cid || '',
+				pickupLocation: seller?.location || 'Unknown',
+				deliveryLocation: order.deliveryAddress?.place || buyer?.location || 'Unknown',
+				deliveryAddress: {
+					title: order.deliveryAddress?.title || 'Default Address',
+					place: order.deliveryAddress?.place || buyer?.location || 'Unknown',
+					dzongkhag: order.deliveryAddress?.dzongkhag || buyer?.dzongkhag || 'Unknown'
+				},
+				totalAmount: order.totalPrice || 0,
+				quantity: order.quantity || 0,
+				transportFee: calculateTransportFee(order.totalPrice),
+				createdAt: order.createdAt,
+				updatedAt: order.updatedAt,
+				product: {
+					productId: String(order.product?.productId || ''),
+					name: order.product?.productName || 'Unknown Product',
+					price: order.product?.price || 0,
+					unit: order.product?.unit || 'piece',
+					sellerCid: order.product?.sellerCid || '',
+					image: order.product?.productImageBase64 || ''
+				},
+				seller: {
+					cid: order.product?.sellerCid || '',
+					name: seller?.name || '',
+					phoneNumber: seller?.phoneNumber || '',
+					location: seller?.location || ''
+				},
+				qrCode: order.qrCodeDataUrl || '',
+				source: order.source || 'buy'
+			}
+		})
+		
+		res.json({ 
+			success: true, 
+			orders,
+			count: orders.length,
+			message: `Found ${orders.length} shipped orders`
+		})
+	} catch (err) {
+		console.error('Fetch shipped orders error:', err)
+		res.status(500).json({ error: 'Failed to fetch shipped orders' })
+	}
+})
+
+// GET /api/orders/transporter -> Orders available/assigned to transporters
+router.get('/transporter', authCid, async (req, res) => {
+	try {
+		const transporterId = req.headers['x-transporter-id'] || req.user.cid
+		
+		// Fetch orders that are available for transport or assigned to this transporter
+		const availableOrders = await Order.find({ 
+			status: { $in: ['pending', 'placed', 'paid', 'shipped', 'OUT_FOR_DELIVERY', 'Out for Delivery', 'delivered'] }, 
+			$or: [
+				{ transporter: { $exists: false } }, // Available orders
+				{ 'transporter.cid': transporterId } // Orders assigned to this transporter
+			]
+		}).sort({ createdAt: -1 })
+		
+		// Get user details for sellers and buyers
+		const sellerCids = [...new Set(availableOrders.map(o => o?.product?.sellerCid).filter(Boolean))]
+		const buyerCids = [...new Set(availableOrders.map(o => o?.userSnapshot?.cid).filter(Boolean))]
+		const allCids = [...new Set([...sellerCids, ...buyerCids])]
+		
+		const users = await User.find({ cid: { $in: allCids } }).select('cid name phoneNumber location dzongkhag')
+		const userMap = new Map(users.map(u => [u.cid, u]))
+		
+		const orders = availableOrders.map(order => {
+			const seller = userMap.get(order?.product?.sellerCid)
+			const buyer = userMap.get(order?.userSnapshot?.cid)
+			
+			return {
+				id: String(order._id),
+				orderNumber: String(order._id).slice(-6),
+				status: getTransporterStatus(order.status, order.transporter, transporterId),
+				customerName: order.userSnapshot?.name || buyer?.name || 'Unknown',
+				pickupLocation: seller?.location || 'Unknown',
+				deliveryLocation: order.deliveryAddress?.place || buyer?.location || 'Unknown',
+				totalAmount: order.totalPrice || 0,
+				transportFee: calculateTransportFee(order.totalPrice), // Helper function to calculate transport fee
+				transporterId: order.transporter?.cid || null,
+				createdAt: order.createdAt,
+				product: {
+					name: order.product?.productName || 'Unknown Product',
+					quantity: order.quantity || 0,
+					unit: order.product?.unit || 'piece'
+				}
+			}
+		})
+		
+		res.json({ success: true, orders })
+	} catch (err) {
+		console.error('Fetch transporter orders error:', err)
+		res.status(500).json({ error: 'Failed to fetch transporter orders' })
+	}
+})
+
+// PATCH /api/orders/:orderId/status -> Update order status (transporter actions)
+router.patch('/:orderId/status', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params
+		const { status } = req.body
+		
+		if (!mongoose.Types.ObjectId.isValid(String(orderId))) {
+			return res.status(400).json({ error: 'Invalid order id' })
+		}
+		
+		const transporterCid = req.user.cid
+		const order = await Order.findById(orderId)
+		
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' })
+		}
+		
+		// Verify user is a transporter
+		const transporter = await User.findOne({ cid: transporterCid }).select('role name phoneNumber')
+		if (!transporter || transporter.role?.toLowerCase() !== 'transporter') {
+			return res.status(403).json({ error: 'Only transporters can update order status' })
+		}
+		
+		// Handle different status updates
+		switch (status) {
+			case 'accept':
+				if (order.status !== 'pending' && order.status !== 'shipped') {
+					return res.status(409).json({ error: 'Order cannot be accepted in current status' })
+				}
+				order.status = 'OUT_FOR_DELIVERY'
+				order.transporter = {
+					cid: transporterCid,
+					name: transporter.name || '',
+					phoneNumber: transporter.phoneNumber || ''
+				}
+				break
+				
+			case 'pickup':
+				if (order.status !== 'OUT_FOR_DELIVERY' || order.transporter?.cid !== transporterCid) {
+					return res.status(409).json({ error: 'Cannot mark as picked up' })
+				}
+				order.status = 'PICKED_UP'
+				break
+				
+			case 'deliver':
+				if (order.status !== 'PICKED_UP' || order.transporter?.cid !== transporterCid) {
+					return res.status(409).json({ error: 'Cannot mark as delivered' })
+				}
+				order.status = 'delivered'
+				break
+				
+			default:
+				return res.status(400).json({ error: 'Invalid status action' })
+		}
+		
+		await order.save()
+		
+		res.json({ 
+			success: true, 
+			order: { 
+				orderId: String(order._id), 
+				status: order.status,
+				transporter: order.transporter 
+			} 
+		})
+	} catch (err) {
+		console.error('Update order status error:', err)
+		res.status(500).json({ error: 'Failed to update order status' })
+	}
+})
+
+// Helper function to determine transporter-specific status
+function getTransporterStatus(orderStatus, transporter, transporterId) {
+	if (!transporter) {
+		// Orders without transporter assignment - available for pickup
+		switch (orderStatus) {
+			case 'shipped':
+				return 'Shipped' // Ready for transport
+			case 'paid':
+				return 'Paid' // Ready for transport
+			case 'placed':
+				return 'Placed' // Ready for transport
+			case 'pending':
+				return 'Pending' // Available for pickup
+			default:
+				return 'Available'
+		}
+	}
+	
+	if (transporter.cid === transporterId) {
+		switch (orderStatus) {
+			case 'shipped':
+				return 'Shipped' // Show as shipped for assigned transporter too
+			case 'OUT_FOR_DELIVERY':
+				return 'Accepted'
+			case 'PICKED_UP':
+				return 'PickedUp'
+			case 'delivered':
+				return 'Delivered'
+			default:
+				return orderStatus
+		}
+	}
+	
+	return 'Assigned' // Assigned to another transporter
+}
+
+// Helper function to calculate transport fee
+function calculateTransportFee(totalAmount) {
+	// Simple calculation: 10% of order value with minimum 20 and maximum 200
+	const fee = Math.max(20, Math.min(200, totalAmount * 0.1))
+	return Math.round(fee * 100) / 100 // Round to 2 decimal places
+}
+
 module.exports = router

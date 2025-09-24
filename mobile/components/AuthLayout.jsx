@@ -295,7 +295,12 @@ export default function AuthLayout({ mode = 'login' }) {
 
         // Redirect based on role
         const role = String(res?.user?.role || '').toLowerCase()
-        const routeName = (role === 'farmer' || role === 'transporter') ? 'Dashboard' : 'Products'
+        let routeName = 'Products' // Default for consumers
+        if (role === 'farmer') {
+          routeName = 'Dashboard'
+        } else if (role === 'transporter') {
+          routeName = 'TransporterDashboard'
+        }
         navigation.reset({ index: 0, routes: [{ name: routeName }] })
       } else {
         if (formData.password !== formData.confirm) { setError('Passwords do not match.'); return }
@@ -305,7 +310,12 @@ export default function AuthLayout({ mode = 'login' }) {
 
         // Redirect based on role
         const role = String(res?.user?.role || '').toLowerCase()
-        const routeName = (role === 'farmer' || role === 'transporter') ? 'Dashboard' : 'Products'
+        let routeName = 'Products' // Default for consumers
+        if (role === 'farmer') {
+          routeName = 'Dashboard'
+        } else if (role === 'transporter') {
+          routeName = 'TransporterDashboard'
+        }
         navigation.reset({ index: 0, routes: [{ name: routeName }] })
       }
     } catch (err) {
