@@ -1,38 +1,27 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# Mobile-specific overrides
+# (Most rules are handled by root .gitignore)
 
-# dependencies
-node_modules/
-
-# Expo
+# Expo development
 .expo/
-dist/
-web-build/
+.expo-shared/
 expo-env.d.ts
 
-# Native
-.kotlin/
+# React Native Metro
+.metro-health-check*
+
+# Platform-specific builds
+ios/build/
+android/app/build/
+android/.gradle/
+
+# Native certificates and keys
 *.orig.*
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
 *.pem
 
-# local env files
+# Mobile environment files
 .env*.local
-
-# typescript
-*.tsbuildinfo
-node_modules/

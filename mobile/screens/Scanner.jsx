@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useIsFocused, useNavigation } from '@react-navigation/native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 
 export default function Scanner() {
   const navigation = useNavigation()
@@ -54,7 +54,7 @@ export default function Scanner() {
       {/* Top bar with close */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
-          <Icon name="close" size={26} color="#fff" />
+          <MaterialCommunityIcons name="close" size={26} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.title}>Scan QR or Barcode</Text>
         <View style={{ width: 40 }} />

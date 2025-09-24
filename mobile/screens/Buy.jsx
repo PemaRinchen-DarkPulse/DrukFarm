@@ -176,44 +176,46 @@ export default function Buy(){
               source={product.image ? { uri: product.image } : require('../assets/heroimage.jpg')}
               style={styles.image}
             />
-            <View style={styles.qtyBox}>
-              <TouchableOpacity style={styles.qtyBtn} onPress={decrement}>
-                <Text style={styles.qtyBtnText}>-</Text>
-              </TouchableOpacity>
-              {/* --- MODIFIED TEXTINPUT --- */}
-              <TextInput
-                style={styles.qtyInput}
-                value={isInputFocused ? draftQty : String(quantity)}
-                inputMode="numeric"
-                keyboardType="number-pad"
-                maxLength={3}
-                selectTextOnFocus
-                onFocus={() => {
-                  setIsInputFocused(true);
-                  setDraftQty(String(quantity));
-                }}
-                onBlur={() => {
-                  setIsInputFocused(false);
-                  applyDirect(draftQty);
-                }}
-                onChangeText={(t) => {
-                  const onlyDigits = t.replace(/[^0-9]/g, '');
-                  setDraftQty(onlyDigits);
-                }}
-                returnKeyType="done"
-                onSubmitEditing={() => applyDirect(draftQty)}
-              />
-              {/* --- END MODIFICATION --- */}
-              <TouchableOpacity style={styles.qtyBtn} onPress={increment}>
-                <Text style={styles.qtyBtnText}>+</Text>
-              </TouchableOpacity>
-            </View>
           </View>
           <View style={styles.rightColumn}>
             <View>
               <Text style={styles.itemName}>{product.name}</Text>
               <Text style={styles.itemPriceUnit}>Nu. {displayPrice.toFixed(0)}/{displayUnit || product.unit}</Text>
               <Text style={styles.itemStock}>Stock: {product.stock} {product.unit}</Text>
+              
+              {/* Quantity Controls */}
+              <View style={styles.qtyBox}>
+                <TouchableOpacity style={styles.qtyBtn} onPress={decrement}>
+                  <Text style={styles.qtyBtnText}>-</Text>
+                </TouchableOpacity>
+                {/* --- MODIFIED TEXTINPUT --- */}
+                <TextInput
+                  style={styles.qtyInput}
+                  value={isInputFocused ? draftQty : String(quantity)}
+                  inputMode="numeric"
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  selectTextOnFocus
+                  onFocus={() => {
+                    setIsInputFocused(true);
+                    setDraftQty(String(quantity));
+                  }}
+                  onBlur={() => {
+                    setIsInputFocused(false);
+                    applyDirect(draftQty);
+                  }}
+                  onChangeText={(t) => {
+                    const onlyDigits = t.replace(/[^0-9]/g, '');
+                    setDraftQty(onlyDigits);
+                  }}
+                  returnKeyType="done"
+                  onSubmitEditing={() => applyDirect(draftQty)}
+                />
+                {/* --- END MODIFICATION --- */}
+                <TouchableOpacity style={styles.qtyBtn} onPress={increment}>
+                  <Text style={styles.qtyBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -256,13 +258,13 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
   itemCard: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, padding: 18, marginBottom: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: { width: 0, height: 1 }, shadowRadius: 3, elevation: 2, minHeight: 150, marginHorizontal: 4 },
-  leftColumn: { justifyContent: 'space-between', alignItems: 'center', paddingLeft: 0 },
-  rightColumn: { flex: 1, marginLeft: 20, justifyContent: 'space-between' },
-  image: { width: 90, height: 90, borderRadius: 10, marginBottom: 10, marginLeft: 0 },
+  leftColumn: { justifyContent: 'center', alignItems: 'center', paddingLeft: 0, paddingTop: 1, paddingBottom: 1 },
+  rightColumn: { flex: 1, marginLeft: 16, justifyContent: 'flex-start' },
+  image: { width: 110, height: 110, borderRadius: 12, marginHorizontal: 1 },
   itemName: { fontSize: 17, fontWeight: '700', color: '#111' },
   itemPriceUnit: { fontSize: 15, fontWeight: 'bold', color: '#6B7280', marginTop: 2 },
   itemStock: { fontSize: 14, fontWeight: '500', color: 'green', marginTop: 2 },
-  qtyBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
+  qtyBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 8 },
   qtyBtn: { paddingHorizontal: 6, paddingVertical: 2 },
   qtyBtnText: { fontSize: 16, fontWeight: '600', color: '#111' },
   qtyText: { fontSize: 14, fontWeight: '600', marginHorizontal: 10 },

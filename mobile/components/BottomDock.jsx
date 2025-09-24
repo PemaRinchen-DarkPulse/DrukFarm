@@ -2,8 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import Feather from 'react-native-vector-icons/Feather'; // 👈 modern icon set
+import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { getCurrentUser, onAuthChange } from '../lib/auth';
 
@@ -33,7 +32,7 @@ export default function BottomDock() {
             style={styles.navItem} 
             onPress={() => navigation.navigate('Home')}
           >
-            <Icon name="home-outline" size={28} color="#1B4332" />
+            <MaterialCommunityIcons name="home-outline" size={28} color="#1B4332" />
             <Text style={styles.navText}>Home</Text>
           </TouchableOpacity>
 
@@ -41,7 +40,7 @@ export default function BottomDock() {
             style={styles.navItem}
             onPress={() => navigation.navigate('Cart')}
           >
-            <Icon name="cart-outline" size={28} color="#1B4332" />
+            <MaterialCommunityIcons name="cart-outline" size={28} color="#1B4332" />
             <Text style={styles.navText}>Cart</Text>
           </TouchableOpacity>
         </View>
@@ -51,7 +50,7 @@ export default function BottomDock() {
           style={styles.centerButton}
           onPress={() => navigation.navigate('Scanner')}
         >
-          <Icon name="qrcode-scan" size={36} color="#fff" />
+          <MaterialCommunityIcons name="qrcode-scan" size={36} color="#fff" />
         </TouchableOpacity>
 
         {/* Right side */}
@@ -60,7 +59,7 @@ export default function BottomDock() {
             style={styles.navItem}
             onPress={() => navigation.navigate('My Orders')}
           >
-            <Icon name="clipboard-list-outline" size={28} color="#1B4332" />
+            <MaterialCommunityIcons name="clipboard-list-outline" size={28} color="#1B4332" />
             <Text style={styles.navText}>My Orders</Text>
           </TouchableOpacity>
 

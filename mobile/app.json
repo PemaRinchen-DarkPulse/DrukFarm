@@ -3,6 +3,7 @@
     "name": "mobile",
     "slug": "mobile",
     "version": "1.0.0",
+    "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,17 +12,22 @@
       "API_BASE": "http://10.24.76.123:5000/api"
     },
     "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourname.mobile"
     },
     "android": {
+      "package": "com.yourname.mobile",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
-  },
-  "edgeToEdgeEnabled": true,
-  "softwareKeyboardLayoutMode": "pan"
+      },
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "bundler": "metro"
@@ -34,6 +40,9 @@
           "photosPermission": "The app needs access to your photos to let you select a product image."
         }
       ]
-    ]
+    ],
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

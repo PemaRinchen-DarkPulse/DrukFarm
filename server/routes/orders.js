@@ -407,7 +407,7 @@ router.post('/checkout', authCid, async (req, res) => {
 				totalPrice: Number((p.price * n.quantity).toFixed(2)),
 				qrCodeDataUrl,
 				source: 'cart', // treat as cart-style batch
-				status: 'placed',
+				status: 'pending',
 			})
 		}
 

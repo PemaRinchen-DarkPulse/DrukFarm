@@ -12,9 +12,10 @@ import {
   ScrollView,
   PermissionsAndroid,
   Platform,
-  KeyboardAvoidingView, // <-- Import KeyboardAvoidingView
+  KeyboardAvoidingView,
   Keyboard,
   Dimensions,
+  ActivityIndicator, // <-- Import added
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import * as FileSystem from 'expo-file-system';
@@ -835,12 +836,14 @@ export default function Dashboard({ navigation }) {
             <Text style={[styles.stock, { color: stockOk ? '#16A34A' : '#DC2626' }]}>
               Stock: {item.stockQuantity} {item.stockUnit}
             </Text>
+            <Text style={styles.price}>Nu.{item.price} / {item.unit}</Text>
+            <View style={styles.editButtonContainer}>
+              <TouchableOpacity onPress={() => handleEditProduct(item.id)} style={styles.editButton}>
+                <Icon name="pencil-outline" size={16} color="#059669" />
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text style={styles.price}>Nu.{item.price} / {item.unit}</Text>
-          <TouchableOpacity onPress={() => handleEditProduct(item.id)} style={styles.editButton}>
-            <Icon name="pencil-outline" size={16} color="#059669" />
-            <Text style={styles.editButtonText}>Edit</Text>
-          </TouchableOpacity>
         </View>
         <View style={styles.cardActions}>
           <TouchableOpacity onPress={() => handleDeleteProduct(item.id)} style={styles.actionIcon}>
@@ -877,7 +880,7 @@ export default function Dashboard({ navigation }) {
                 style={styles.shipButton}
               >
                 <Icon name="truck-delivery-outline" size={16} color="#fff" />
-                <Text style={styles.shipButtonText}>Mark Shipped</Text>
+                <Text style={styles.shipButtonText}>Ship</Text>
               </TouchableOpacity>
             )}
             
@@ -887,17 +890,13 @@ export default function Dashboard({ navigation }) {
                 style={[styles.downloadButton, downloadingImage === item.orderId && styles.downloadingButton]}
                 disabled={downloadingImage === item.orderId}
               >
-                <Icon 
-                  name={downloadingImage === item.orderId ? "loading" : "image-outline"} 
-                  size={16} 
-                  color={downloadingImage === item.orderId ? "#6B7280" : "#059669"} 
-                />
-                <Text style={[
-                  styles.downloadButtonText, 
-                  downloadingImage === item.orderId && styles.downloadingButtonText
-                ]}>
-                  {downloadingImage === item.orderId ? 'Downloading...' : 'Download Image'}
-                </Text>
+                {downloadingImage === item.orderId ? (
+                  <ActivityIndicator size="small" color="#6B7280" />
+                ) : (
+                  <Text style={styles.downloadButtonText}>
+                    Download
+                  </Text>
+                )}
               </TouchableOpacity>
             )}
           </View>
@@ -917,7 +916,6 @@ export default function Dashboard({ navigation }) {
               <Text style={styles.buyerLabel}>Buyer:</Text>
               <Text style={styles.buyerName}>{item.buyer?.name || 'Unknown'}</Text>
               <Text style={styles.buyerContact}>{item.buyer?.phoneNumber || 'No contact'}</Text>
-              <Text style={styles.buyerLocation}>{item.buyer?.location || 'No location'}</Text>
             </View>
           </View>
         </View>
@@ -1342,7 +1340,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 12,
+    padding: 4,
     marginBottom: 12,
     minHeight: 120,
     shadowColor: "#000",
@@ -1360,7 +1358,7 @@ const styles = StyleSheet.create({
     height: 110,
     borderRadius: 8,
     alignSelf: "center",
-    marginRight: 12,
+    margin: 16,
   },
   cardDetails: {
     flex: 1,
@@ -1370,6 +1368,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#111827",
+    marginTop: 8,
   },
   category: {
     fontSize: 12,
@@ -1388,6 +1387,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#DC2626",
     marginTop: 4,
+  },
+  editButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 6,
   },
   placeholder: {
     flex: 1,
@@ -1416,8 +1420,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 15,
-    marginTop: 8,
     alignSelf: 'flex-start',
+    marginRight: 8,
   },
   editButtonText: {
     color: '#059669',
@@ -1466,10 +1470,10 @@ const styles = StyleSheet.create({
     height: 110,
     borderRadius: 8,
     alignSelf: "flex-start",
-    marginTop: 8,
+    margin: 16,
   },
   orderActionSection: {
-    marginTop: 8,
+    marginTop: 0,
     width: 110, // Same width as image
     alignItems: 'center',
   },
@@ -1482,6 +1486,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
+    marginTop: 8,
     marginBottom: 4,
   },
   orderDetailsText: {
@@ -1514,23 +1519,21 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
-  buyerLocation: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 1,
-  },
   shipButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#059669',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 6,
     alignSelf: 'stretch',
+    minHeight: 34,
+    marginBottom: 8,
   },
   shipButtonText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     marginLeft: 4,
   },
@@ -1542,26 +1545,28 @@ const styles = StyleSheet.create({
   downloadButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center', // Center the content
     backgroundColor: '#E6F3EF',
     borderColor: '#059669',
     borderWidth: 1,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 6,
     alignSelf: 'stretch',
+    minHeight: 34, // Set a min height to prevent size change
+    marginBottom: 8,
   },
   downloadButtonText: {
     color: '#059669',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    marginLeft: 4,
   },
   downloadingButton: {
     backgroundColor: '#F3F4F6',
     borderColor: '#D1D5DB',
     opacity: 0.7,
   },
-  downloadingButtonText: {
+  downloadingButtonText: { // This style is no longer used by Text, but kept for reference
     color: '#6B7280',
   },
   orderCount: {

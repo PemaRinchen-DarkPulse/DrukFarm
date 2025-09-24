@@ -9,7 +9,7 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import EmptyCart from "../components/EmptyCart";
 import { getCurrentCid } from "../lib/auth";
 import { getCart, updateCartItem, removeCartItem } from "../lib/api";
@@ -162,8 +162,28 @@ export default function Cart({ navigation }) {
     }
 
     return (
-      <View style={styles.itemCard}>
-        {/* Left Column for Image and Quantity Controls */}
+      <View style={styles.itemContainer}>
+        {/* Delete Button - Top Right */}
+        <TouchableOpacity
+          style={styles.deleteBtn}
+          onPress={async () => {
+            const cid = getCurrentCid();
+            try {
+              const resp = await removeCartItem({
+                itemId: item.itemId || item.id,
+                cid,
+              });
+              const next = mapApiCartToUiItems(resp?.cart);
+              setCartItems(next);
+            } catch (e) {
+              // no-op
+            }
+          }}
+        >
+          <Text style={styles.deleteText}>Delete</Text>
+        </TouchableOpacity>
+
+        {/* Left Column for Image */}
         <View style={styles.leftColumn}>
           <Image
             source={
@@ -173,48 +193,9 @@ export default function Cart({ navigation }) {
             }
             style={styles.image}
           />
-          <View style={styles.qtyBox}>
-            <TouchableOpacity
-              style={styles.qtyBtn}
-              onPress={() => decrementQty(item.id)}
-            >
-              <Text style={styles.qtyBtnText}>-</Text>
-            </TouchableOpacity>
-            <TextInput
-              style={styles.qtyInput}
-              value={draftQty[item.id] !== undefined ? draftQty[item.id] : String(item.quantity)}
-              inputMode="numeric"
-              keyboardType="number-pad"
-              maxLength={3}
-              onChangeText={(text) => {
-                // Allow empty during edit
-                const onlyDigits = text.replace(/[^0-9]/g, '');
-                if (onlyDigits === '') { setDraftQty(d => ({ ...d, [item.id]: '' })); return; }
-                // Prevent leading zeros from growing (optional normalization later)
-                setDraftQty(d => ({ ...d, [item.id]: onlyDigits }));
-              }}
-              onEndEditing={() => {
-                const raw = draftQty[item.id];
-                if (raw === '' || raw === undefined) { setDraftQty(d => ({ ...d, [item.id]: String(item.quantity) })); return; }
-                applyDirectQty(item.id, raw);
-              }}
-              returnKeyType="done"
-              onSubmitEditing={() => {
-                const raw = draftQty[item.id];
-                if (raw === '' || raw === undefined) { setDraftQty(d => ({ ...d, [item.id]: String(item.quantity) })); return; }
-                applyDirectQty(item.id, raw);
-              }}
-            />
-            <TouchableOpacity
-              style={styles.qtyBtn}
-              onPress={() => incrementQty(item.id)}
-            >
-              <Text style={styles.qtyBtnText}>+</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
-        {/* Right Column for Details and Delete Button */}
+        {/* Right Column for Details and Quantity Controls */}
         <View style={styles.rightColumn}>
           <View>
             <Text style={styles.itemName}>{item.name}</Text>
@@ -225,25 +206,48 @@ export default function Cart({ navigation }) {
               Stock: {item.stock}{" "}
               {displayUnit === "bunch" ? item.unit : "Kg"}
             </Text>
+            
+            {/* Quantity Controls */}
+            <View style={styles.qtyBox}>
+              <TouchableOpacity
+                style={styles.qtyBtn}
+                onPress={() => decrementQty(item.id)}
+              >
+                <Text style={styles.qtyBtnText}>-</Text>
+              </TouchableOpacity>
+              <TextInput
+                style={styles.qtyInput}
+                value={draftQty[item.id] !== undefined ? draftQty[item.id] : String(item.quantity)}
+                inputMode="numeric"
+                keyboardType="number-pad"
+                maxLength={3}
+                onChangeText={(text) => {
+                  // Allow empty during edit
+                  const onlyDigits = text.replace(/[^0-9]/g, '');
+                  if (onlyDigits === '') { setDraftQty(d => ({ ...d, [item.id]: '' })); return; }
+                  // Prevent leading zeros from growing (optional normalization later)
+                  setDraftQty(d => ({ ...d, [item.id]: onlyDigits }));
+                }}
+                onEndEditing={() => {
+                  const raw = draftQty[item.id];
+                  if (raw === '' || raw === undefined) { setDraftQty(d => ({ ...d, [item.id]: String(item.quantity) })); return; }
+                  applyDirectQty(item.id, raw);
+                }}
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  const raw = draftQty[item.id];
+                  if (raw === '' || raw === undefined) { setDraftQty(d => ({ ...d, [item.id]: String(item.quantity) })); return; }
+                  applyDirectQty(item.id, raw);
+                }}
+              />
+              <TouchableOpacity
+                style={styles.qtyBtn}
+                onPress={() => incrementQty(item.id)}
+              >
+                <Text style={styles.qtyBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={async () => {
-              const cid = getCurrentCid();
-              try {
-                const resp = await removeCartItem({
-                  itemId: item.itemId || item.id,
-                  cid,
-                });
-                const next = mapApiCartToUiItems(resp?.cart);
-                setCartItems(next);
-              } catch (e) {
-                // no-op
-              }
-            }}
-          >
-            <Text style={styles.deleteText}>Delete</Text>
-          </TouchableOpacity>
         </View>
       </View>
     );
@@ -301,10 +305,10 @@ export default function Cart({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="arrow-left" size={22} color="#111" />
+          <MaterialCommunityIcons name="arrow-left" size={22} color="#111" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Your Cart</Text>
-        <Icon name="delete-outline" size={22} color="#111" />
+        <MaterialCommunityIcons name="delete-outline" size={22} color="#111" />
       </View>
 
       {/* Cart Items + Summary */}
@@ -341,7 +345,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#111827" },
 
-  itemCard: {
+  itemContainer: {
     flexDirection: "row",
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -353,22 +357,25 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
     minHeight: 150,
-    marginLeft: 4, // Added a small left margin
+    marginHorizontal: 4,
   },
   leftColumn: {
-    justifyContent: "space-between",
+    justifyContent: "center",
     alignItems: "center",
+    paddingLeft: 0,
+    paddingTop: 1,
+    paddingBottom: 1,
   },
   rightColumn: {
     flex: 1,
-    marginLeft: 20, // Increased space from 16 to 20
-    justifyContent: "space-between",
+    marginLeft: 16,
+    justifyContent: "flex-start",
   },
   image: {
-    width: 90,
-    height: 90,
-    borderRadius: 10,
-    marginBottom: 10,
+    width: 110,
+    height: 110,
+    borderRadius: 12,
+    marginHorizontal: 1,
   },
   itemName: { fontSize: 17, fontWeight: "700", color: "#111" },
   itemPriceUnit: {
@@ -392,12 +399,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 8,
     paddingVertical: 2,
+    alignSelf: "flex-start",
+    marginTop: 8,
   },
   qtyBtn: { paddingHorizontal: 6, paddingVertical: 2 },
   qtyBtnText: { fontSize: 16, fontWeight: "600", color: "#111" },
   qtyText: { fontSize: 14, fontWeight: "600", marginHorizontal: 10 },
   qtyInput: {
-    width: 48,
+    width: 56,
     textAlign: 'center',
     paddingVertical: 2,
     fontSize: 14,
@@ -407,12 +416,14 @@ const styles = StyleSheet.create({
   },
 
   deleteBtn: {
-    marginTop: 10,
+    position: "absolute",
+    top: 8,
+    right: 8,
     backgroundColor: "#F3F4F6",
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    alignSelf: "flex-start",
+    zIndex: 1,
   },
   deleteText: { fontSize: 13, color: "#DC2626", fontWeight: "600" },
 
@@ -421,6 +432,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginTop: 8,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   summaryTitle: {
     fontSize: 16,

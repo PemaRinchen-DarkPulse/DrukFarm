@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 export default function EmptyCart() {
   const navigation = useNavigation();
@@ -9,7 +9,7 @@ export default function EmptyCart() {
   return (
     <View style={styles.container}>
       {/* Empty Cart Icon */}
-      <Icon name="cart-off" size={70} color="#D1D5DB" style={styles.icon} />
+      <MaterialCommunityIcons name="cart-off" size={70} color="#D1D5DB" style={styles.icon} />
 
       {/* Title */}
       <Text style={styles.title}>Your cart is empty</Text>
