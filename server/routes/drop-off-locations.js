@@ -36,6 +36,57 @@ router.get('/', async (req, res) => {
   }
 })
 
+// GET /api/drop-off-locations/dzongkhags - Get all available dzongkhags
+router.get('/dzongkhags', async (req, res) => {
+  try {
+    const dzongkhags = await DropOffLocation.distinct('dzongkhag', { isActive: true })
+    
+    res.json({
+      success: true,
+      count: dzongkhags.length,
+      data: dzongkhags.sort()
+    })
+  } catch (err) {
+    console.error('Get dzongkhags error:', err)
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to retrieve dzongkhags' 
+    })
+  }
+})
+
+// GET /api/drop-off-locations/dzongkhag/:dzongkhag - Get towns for a specific dzongkhag
+router.get('/dzongkhag/:dzongkhag', async (req, res) => {
+  try {
+    const { dzongkhag } = req.params
+
+    const location = await DropOffLocation.findOne({ 
+      dzongkhag: dzongkhag.trim(),
+      isActive: true 
+    })
+
+    if (!location) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'No active drop-off location found for this dzongkhag' 
+      })
+    }
+
+    res.json({
+      success: true,
+      dzongkhag: location.dzongkhag,
+      towns: location.towns,
+      data: location
+    })
+  } catch (err) {
+    console.error('Get dzongkhag towns error:', err)
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to retrieve towns for dzongkhag' 
+    })
+  }
+})
+
 // GET /api/drop-off-locations/:id - Get a specific drop-off location
 router.get('/:id', async (req, res) => {
   try {
@@ -340,38 +391,6 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to delete drop-off location' 
-    })
-  }
-})
-
-// GET /api/drop-off-locations/dzongkhag/:dzongkhag - Get towns for a specific dzongkhag
-router.get('/dzongkhag/:dzongkhag', async (req, res) => {
-  try {
-    const { dzongkhag } = req.params
-
-    const location = await DropOffLocation.findOne({ 
-      dzongkhag: dzongkhag.trim(),
-      isActive: true 
-    })
-
-    if (!location) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'No active drop-off location found for this dzongkhag' 
-      })
-    }
-
-    res.json({
-      success: true,
-      dzongkhag: location.dzongkhag,
-      towns: location.towns,
-      data: location
-    })
-  } catch (err) {
-    console.error('Get dzongkhag towns error:', err)
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to retrieve towns for dzongkhag' 
     })
   }
 })

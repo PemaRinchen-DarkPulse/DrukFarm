@@ -304,11 +304,8 @@ export async function markOrderShipped({ orderId, cid }){
 
 // Drop-off locations APIs
 export async function fetchDzongkhags(){
-  const resp = await request('/drop-off-locations')
-  const locations = resp?.data || []
-  // Extract unique dzongkhag names as strings
-  const dzongkhags = [...new Set(locations.map(location => location.dzongkhag))].filter(Boolean)
-  return dzongkhags
+  const resp = await request('/drop-off-locations/dzongkhags')
+  return resp?.data || []
 }
 
 export async function fetchTownsByDzongkhag(dzongkhag){
