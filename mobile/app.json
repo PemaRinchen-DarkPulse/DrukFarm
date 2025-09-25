@@ -9,7 +9,8 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "extra": {
-      "API_BASE": "http://10.24.76.123:5000/api"
+      "API_DEV": "http://10.24.76.123:5000/api",
+      "API_PROD": "https://druk-farm-backend.vercel.app/api"
     },
     "splash": {
       "image": "./assets/icon.png",

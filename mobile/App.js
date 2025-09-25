@@ -1,9 +1,12 @@
 // App.jsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+// Initialize API configuration
+import { initializeApi } from './lib/apiInit';
 
 // Screens
 import Home from './screens/HomePage';
@@ -71,6 +74,11 @@ const withMainLayout = (ScreenComponent) => (props) => {
 };
 
 export default function App() {
+  // Initialize API configuration on app startup
+  useEffect(() => {
+    initializeApi();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <NavigationContainer>

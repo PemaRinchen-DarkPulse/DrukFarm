@@ -129,16 +129,26 @@ export default function AccountSettings({ navigation }) {
             onPress={async () => {
               try {
                 await logoutUser();
-              } catch (e) {}
+              } catch (e) {
+                console.warn('Logout API call failed:', e);
+              }
+              
+              // Clear user state
               setCurrentUser(null);
+              
+              // Clear any web storage if available (for Expo web)
               try {
                 if (typeof localStorage !== "undefined") localStorage.clear();
               } catch (e) {}
               try {
-                if (typeof sessionStorage !== "undefined")
-                  sessionStorage.clear();
+                if (typeof sessionStorage !== "undefined") sessionStorage.clear();
               } catch (e) {}
-              navigation.navigate("Home");
+              
+              // Reset navigation stack to ensure clean state
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Home' }],
+              });
             }}
           >
             <Text style={[styles.rowText, { color: "#DC2626" }]}>Sign Out</Text>

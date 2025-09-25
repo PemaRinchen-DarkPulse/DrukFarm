@@ -1,10 +1,7 @@
-// API base from Expo config (Hermes-safe).
-// Configure in app.json -> expo.extra.API_BASE (e.g., "http://localhost:5000/api").
-import Constants from 'expo-constants'
+// API configuration using dynamic environment-based URL switching
+import { apiConfig } from './apiConfig';
 
-const extra = (Constants?.expoConfig?.extra) || {}
-// Default to local backend if nothing provided
-const API_BASE = (extra.API_BASE || 'http://localhost:5000/api').replace(/\/$/, '')
+const API_BASE = apiConfig.baseUrl;
 
 async function request(path, opts = {}){
   const res = await fetch(`${API_BASE}${path}`, {

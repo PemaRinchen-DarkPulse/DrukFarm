@@ -1,9 +1,7 @@
-import Constants from 'expo-constants'
+import { apiConfig } from './apiConfig';
 
-// Derive API origin from expo extra.API_BASE (which should end with /api)
-const extra = (Constants?.expoConfig?.extra) || {}
-const RAW_API_BASE = (extra.API_BASE || 'http://localhost:5000/api').replace(/\/$/, '')
-const API_ORIGIN = RAW_API_BASE.replace(/\/api$/i, '')
+// Use the centralized API configuration
+const API_ORIGIN = apiConfig.origin;
 
 export function resolveProductImage(product){
   if (!product) return placeholder()

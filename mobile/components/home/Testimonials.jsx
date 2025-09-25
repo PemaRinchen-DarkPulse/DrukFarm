@@ -22,6 +22,13 @@ const testimonials = [
 export default function Testimonials() {
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>What Our Community Says</Text>
+        <Text style={styles.subtitle}>
+          Hear from farmers, restaurants, and consumers who trust DrukFarm
+        </Text>
+      </View>
+      
       {testimonials.map((t, index) => (
         <View key={index} style={styles.card}>
           <Text style={styles.quote}>"{t.quote}"</Text>
@@ -37,6 +44,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f9fafb", // light gray background like web
     padding: 16,
+  },
+  header: {
+    marginBottom: 24,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1f2937",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 24,
   },
   card: {
     backgroundColor: "white",

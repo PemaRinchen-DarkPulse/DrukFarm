@@ -98,6 +98,18 @@ export default function Dashboard({ navigation }) {
     return <TransporterDashboard navigation={navigation} />;
   }
   
+  // Authentication check - redirect if user is not logged in or not a farmer
+  useEffect(() => {
+    if (!user || !user.cid || String(user.role || '').toLowerCase() !== 'farmer') {
+      console.log('User not authenticated as farmer, redirecting to Home');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+      return;
+    }
+  }, [user, navigation]);
+  
   const [activeTab, setActiveTab] = useState("Products");
   const [showAddProductModal, setShowAddProductModal] = useState(false);
 

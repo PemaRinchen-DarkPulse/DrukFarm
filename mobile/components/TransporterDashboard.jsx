@@ -52,6 +52,14 @@ export default function TransporterDashboard({ navigation }) {
   const [showDropOffTownDropdown, setShowDropOffTownDropdown] = useState(false);
 
   const loadOrders = useCallback(async () => {
+    // Don't load orders if user is not logged in or not a transporter
+    if (!user || !user.cid || String(user.role || '').toLowerCase() !== 'transporter') {
+      console.log('User not logged in or not a transporter, skipping order load');
+      setOrders([]);
+      setShippedOrders([]);
+      return;
+    }
+    
     try {
       setLoading(true);
       console.log('Loading orders for user:', { cid: user?.cid, id: user?.id, name: user?.name });
@@ -223,6 +231,18 @@ export default function TransporterDashboard({ navigation }) {
     setShowDropOffDzongkhagDropdown(false);
     setShowDropOffTownDropdown(false);
   };
+
+  // Authentication check - redirect if user is not logged in or not a transporter
+  useEffect(() => {
+    if (!user || !user.cid || String(user.role || '').toLowerCase() !== 'transporter') {
+      console.log('User not authenticated as transporter, redirecting to Home');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+      return;
+    }
+  }, [user, navigation]);
 
   useEffect(() => {
     loadOrders();

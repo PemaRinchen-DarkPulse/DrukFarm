@@ -27,7 +27,13 @@ export default function SuccessMessage({
         {/* Done Button */}
         <TouchableOpacity
           style={styles.button}
-          onPress={onDone || (() => navigation.goBack())}
+          onPress={onDone || (() => {
+            if (navigation?.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Home');
+            }
+          })}
         >
           <Text style={styles.buttonText}>Done</Text>
         </TouchableOpacity>
