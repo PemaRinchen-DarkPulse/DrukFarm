@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "DrukFarm",
+    "slug": "drukfarm-mobile",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "extra": {
       "API_DEV": "http://10.24.76.123:5000/api",
-      "API_PROD": "https://druk-farm-backend.vercel.app/api"
+      "API_PROD": "https://druk-farm-backend.vercel.app/api",
+      "eas": {
+        "projectId": "f15a4069-339a-4a91-a313-695d8e616d12"
+      }
     },
     "splash": {
       "image": "./assets/icon.png",
@@ -19,16 +22,23 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourname.mobile"
+      "bundleIdentifier": "com.pemarinchen12.drukfarm"
     },
     "android": {
-      "package": "com.yourname.mobile",
+      "package": "com.pemarinchen12.drukfarm",
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
+      "minSdkVersion": 23,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "pan",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro"
@@ -40,10 +50,12 @@
         {
           "photosPermission": "The app needs access to your photos to let you select a product image."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "updates": {
       "fallbackToCacheTimeout": 0
-    }
+    },
+    "owner": "pemarinchen12"
   }
 }

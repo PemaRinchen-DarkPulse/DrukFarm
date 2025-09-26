@@ -1,0 +1,45 @@
+{
+  "build": {
+    "base": {
+      "env": {
+        "MY_SECRET": "@MY_SECRET"
+      },
+      "android": {
+        "image": "latest"
+      }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "gradleCommand": ":app:assembleDebug"
+      }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "android": {
+        "gradleCommand": ":app:assembleRelease"
+      }
+    },
+    "production": {
+      "extends": "base",
+      "autoIncrement": true,
+      "android": {
+        "gradleCommand": ":app:bundleRelease"
+      }
+    },
+    "apk": {
+      "extends": "base",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      }
+    }
+  },
+  "cli": {
+    "appVersionSource": "remote"
+  }
+}
