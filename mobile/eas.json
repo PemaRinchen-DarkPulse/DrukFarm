@@ -8,14 +8,7 @@
         "image": "latest"
       }
     },
-    "development": {
-      "extends": "base",
-      "developmentClient": true,
-      "distribution": "internal",
-      "android": {
-        "gradleCommand": ":app:assembleDebug"
-      }
-    },
+
     "preview": {
       "extends": "base",
       "distribution": "internal",

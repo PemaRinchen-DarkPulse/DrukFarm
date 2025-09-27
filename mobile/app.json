@@ -44,7 +44,6 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-barcode-scanner",
       [
         "expo-image-picker",
         {
