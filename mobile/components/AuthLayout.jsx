@@ -77,7 +77,7 @@ function CustomDropdown({ options, value, onChange, placeholder = 'Select…', o
 
 const RegisterStep1 = React.memo(function RegisterStep1({ formData, setField, nextStep, onDropdownOpenChange }) {
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 8 }}>
       {/* CID */}
       <View>
         <Text style={styles.label}>CID</Text>
@@ -143,7 +143,7 @@ const RegisterStep1 = React.memo(function RegisterStep1({ formData, setField, ne
 
 const RegisterStep2 = React.memo(function RegisterStep2({ formData, setField, showPassword, showConfirm, togglePassword, toggleConfirm, prevStep, loading, onSubmit, onDropdownOpenChange }) {
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 8 }}>
       {/* Phone */}
       <View>
         <Text style={styles.label}>Phone Number</Text>
@@ -162,7 +162,7 @@ const RegisterStep2 = React.memo(function RegisterStep2({ formData, setField, sh
       <View>
         <Text style={[styles.label, { marginBottom: 4 }]}>Role</Text>
         <CustomDropdown
-          options={["Farmer", "Consumer", "Transporter"]}
+          options={["Farmer", "Consumer", "Transporter", "Tshogpas"]}
           value={formData.role}
           onChange={(v) => setField('role', v)}
           placeholder="Select Role"
@@ -223,7 +223,7 @@ const RegisterStep2 = React.memo(function RegisterStep2({ formData, setField, sh
 
 const LoginForm = React.memo(function LoginForm({ formData, setField, showPassword, togglePassword, loading, onSubmit }) {
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 8 }}>
       {/* Phone */}
       <View>
         <Text style={styles.label}>Phone Number</Text>
@@ -296,7 +296,7 @@ export default function AuthLayout({ mode = 'login' }) {
         // Redirect based on role
         const role = String(res?.user?.role || '').toLowerCase()
         let routeName = 'Products' // Default for consumers
-        if (role === 'farmer') {
+        if (role === 'farmer' || role === 'tshogpas') {
           routeName = 'Dashboard'
         } else if (role === 'transporter') {
           routeName = 'TransporterDashboard'
@@ -311,7 +311,7 @@ export default function AuthLayout({ mode = 'login' }) {
         // Redirect based on role
         const role = String(res?.user?.role || '').toLowerCase()
         let routeName = 'Products' // Default for consumers
-        if (role === 'farmer') {
+        if (role === 'farmer' || role === 'tshogpas') {
           routeName = 'Dashboard'
         } else if (role === 'transporter') {
           routeName = 'TransporterDashboard'
@@ -397,8 +397,8 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F5F7FB' },
   center: { minHeight: Dimensions.get('window').height, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   card: {
-    width: '100%', maxWidth: 384, backgroundColor: '#fff', borderRadius: 16, padding: 24,
-    height: 600,
+    width: '100%', maxWidth: 384, backgroundColor: '#fff', borderRadius: 16, padding: 20,
+    height: 450,
     shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
     elevation: 8,
     justifyContent: 'center',
@@ -409,21 +409,21 @@ const styles = StyleSheet.create({
   errorText: { color: '#dc2626', textAlign: 'center', fontSize: 13 },
 
   label: { fontSize: 12, fontWeight: '500', color: '#374151' },
-  input: { marginTop: 4, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#111827' },
+  input: { marginTop: 3, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: '#111827' },
 
-  passwordWrap: { marginTop: 4, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center' },
-  passwordInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: '#111827' },
+  passwordWrap: { marginTop: 3, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingLeft: 10, paddingRight: 8, flexDirection: 'row', alignItems: 'center' },
+  passwordInput: { flex: 1, paddingVertical: 8, fontSize: 14, color: '#111827' },
   eyeBtn: { padding: 4 },
 
-  button: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  button: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontWeight: '600' },
-  buttonOutline: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  buttonOutline: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   buttonOutlineText: { color: '#374151', fontWeight: '500' },
 
   linkMuted: { fontSize: 12, color: '#2563eb' },
 
-  dropdownTrigger: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dropdownTrigger: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dropdownText: { fontSize: 14, color: '#111827', flex: 1, marginRight: 8 },
   placeholder: { color: '#9ca3af' },
   dropdownWrap: { position: 'relative' },

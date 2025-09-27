@@ -35,7 +35,7 @@ export default function Features(){
         const user = getUser()
         const currentCid = user?.cid || getCurrentCid()
         // Show products to everyone. If a farmer is logged in, hide their own products.
-        const visible = (user?.role === 'farmer' && currentCid)
+        const visible = ((user?.role === 'farmer' || user?.role === 'tshogpas') && currentCid)
           ? list.filter(p => !p.createdBy || p.createdBy !== currentCid)
           : list
         const guessMimeFromBase64 = (b64) => {

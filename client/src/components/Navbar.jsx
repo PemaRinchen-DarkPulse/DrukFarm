@@ -15,7 +15,7 @@ export default function Navbar() {
   const menuRef = useRef(null)
 
   const role = user?.role || null
-  const isFarmer = role === 'farmer'
+  const isFarmer = role === 'farmer' || role === 'tshogpas'
   const isTransporter = role === 'transporter'
 
   useEffect(() => {

@@ -45,7 +45,7 @@ router.post('/register', async (req, res) => {
 		if (!name || typeof name !== 'string' || !name.trim()) {
 			return res.status(400).json({ error: 'Name is required' })
 		}
-		const validRoles = ['consumer', 'farmer', 'transporter']
+		const validRoles = ['consumer', 'farmer', 'transporter', 'tshogpas']
 		const validDzongkhags = new Set([
 			'Bumthang',
 			'Chhukha',
@@ -241,7 +241,7 @@ router.patch('/:cid', async (req, res) => {
 			if (location !== undefined) user.location = location
 			if (dzongkhag !== undefined) user.dzongkhag = dzongkhag
 			if (role) {
-				const allowedRoles = ['consumer','farmer','transporter']
+				const allowedRoles = ['consumer','farmer','transporter','tshogpas']
 				if (allowedRoles.includes(role)) user.role = role
 			}
 			if (gender) {

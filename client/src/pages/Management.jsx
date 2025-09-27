@@ -224,7 +224,7 @@ const Management = () => {
     return 'consumer' // default minimal privileges
   }
   const role = getRole()
-  const isFarmer = role === 'farmer'
+  const isFarmer = role === 'farmer' || role === 'tshogpas'
   const isTransporter = role === 'transporter'
 
   const location = useLocation()

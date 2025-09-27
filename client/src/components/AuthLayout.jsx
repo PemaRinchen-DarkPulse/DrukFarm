@@ -188,7 +188,7 @@ const RegisterStep2 = React.memo(({ mobile = false, formData, handleChange, hand
     <div>
       <label className="block text-xs font-medium text-gray-700 mb-1" htmlFor={mobile ? 'role-mobile' : 'role'}>Role</label>
       <CustomDropdown
-        options={['Farmer', 'Consumer', 'Transporter']}
+        options={['Farmer', 'Consumer', 'Transporter', 'Tshogpas']}
         value={formData.role}
         onChange={handleChange}
         placeholder="Select Role"

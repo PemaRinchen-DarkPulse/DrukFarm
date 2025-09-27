@@ -17,7 +17,7 @@ export default function AccountSettings({ navigation }) {
     const off = onAuthChange(setUser);
     return off;
   }, []);
-  const isFarmer = !!user && String(user.role || '').toLowerCase() === 'farmer';
+  const isFarmer = !!user && (String(user.role || '').toLowerCase() === 'farmer' || String(user.role || '').toLowerCase() === 'tshogpas');
 
   return (
     <View style={styles.container}>

@@ -100,7 +100,7 @@ export default function Dashboard({ navigation }) {
   
   // Authentication check - redirect if user is not logged in or not a farmer
   useEffect(() => {
-    if (!user || !user.cid || String(user.role || '').toLowerCase() !== 'farmer') {
+    if (!user || !user.cid || (String(user.role || '').toLowerCase() !== 'farmer' && String(user.role || '').toLowerCase() !== 'tshogpas')) {
       console.log('User not authenticated as farmer, redirecting to Home');
       navigation.reset({
         index: 0,

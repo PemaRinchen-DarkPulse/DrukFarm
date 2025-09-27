@@ -33,17 +33,17 @@ export default function Orders({ myOnly = false }) {
     }
     const role = guessRole()
     // If myOnly is true, we always show consumer-like view of own placed orders
-    const effectiveIsFarmer = !myOnly && role === 'farmer'
+    const effectiveIsFarmer = !myOnly && (role === 'farmer' || role === 'tshogpas')
     setIsFarmer(effectiveIsFarmer)
 
     const cid = getCurrentCid()
     const fetcher = myOnly
       ? api.fetchMyOrders({ cid })
-      : (role === 'farmer' ? api.fetchSellerOrders({ cid }) : api.fetchMyOrders({ cid }))
+      : ((role === 'farmer' || role === 'tshogpas') ? api.fetchSellerOrders({ cid }) : api.fetchMyOrders({ cid }))
     Promise.resolve(fetcher)
       .then((resp) => {
         if (!mounted) return
-        const list = (!myOnly && role === 'farmer') ? (resp?.orders || []) : (resp || [])
+        const list = (!myOnly && (role === 'farmer' || role === 'tshogpas')) ? (resp?.orders || []) : (resp || [])
         setOrders(list)
       })
       .catch((e) => console.error(e))
