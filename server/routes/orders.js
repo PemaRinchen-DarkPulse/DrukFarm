@@ -638,6 +638,9 @@ router.get('/seller', authCid, async (req, res) => {
 	try {
 		const sellerCid = req.user.cid
 		const docs = await Order.find({ 'product.sellerCid': sellerCid }).sort({ createdAt: -1 })
+		// Get seller info for the current seller (since they're viewing their own orders)
+		const sellerInfo = await User.findOne({ cid: sellerCid }).select('cid name phoneNumber location')
+		
 		const mapped = docs.map(o => ({
 			orderId: String(o._id),
 			status: o.status,
@@ -651,6 +654,7 @@ router.get('/seller', authCid, async (req, res) => {
 				unit: o.product.unit,
 				price: o.product.price,
 				productImageBase64: o.product.productImageBase64 || '',
+				sellerCid: o.product.sellerCid, // Include sellerCid for reference
 			},
 			buyer: {
 				cid: o.userSnapshot?.cid,
@@ -658,6 +662,19 @@ router.get('/seller', authCid, async (req, res) => {
 				location: o.userSnapshot?.location,
 				phoneNumber: o.userSnapshot?.phoneNumber,
 			},
+			// Include seller information (the current user viewing the orders)
+			seller: sellerInfo ? {
+				cid: sellerInfo.cid,
+				name: sellerInfo.name,
+				phoneNumber: sellerInfo.phoneNumber,
+				location: sellerInfo.location,
+			} : { cid: sellerCid },
+			// Include delivery address if it exists
+			deliveryAddress: o.deliveryAddress ? {
+				title: o.deliveryAddress.title,
+				place: o.deliveryAddress.place,
+				dzongkhag: o.deliveryAddress.dzongkhag,
+			} : null,
 		}))
 		res.json({ success: true, orders: mapped })
 	} catch (err) {

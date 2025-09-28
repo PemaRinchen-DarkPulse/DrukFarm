@@ -19,14 +19,17 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import * as FileSystem from 'expo-file-system';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
+import { ensureMediaLibraryImagePermission } from '../utils/imageDownloadSimple';
 import * as ImagePicker from 'expo-image-picker';
 import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage } from '../lib/api';
 import { resolveProductImage } from '../lib/image';
 import { useAuth, getCurrentCid } from '../lib/auth';
 import TransporterDashboard from '../components/TransporterDashboard';
 import TshogpasDashboard from '../components/TshogpasDashboard';
+import HiddenOrderImage from '../components/ui/HiddenOrderImage';
 
 // CustomDropdown component
 const LIST_MAX = 160;
@@ -151,6 +154,7 @@ export default function Dashboard({ navigation }) {
   const [keyboardPadding, setKeyboardPadding] = useState(0);
   // Keep a stable reference to full screen height (unaffected by keyboard) for modal sizing
   const screenHeightRef = useRef(Dimensions.get('screen').height);
+  const hiddenImgRef = useRef(null);
 
   // Categories fetched from backend
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -532,10 +536,10 @@ export default function Dashboard({ navigation }) {
 
       // Request media library permissions
       console.log('Requesting media library permissions...');
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      console.log('Permission status:', status);
+      const permForQR = await ensureMediaLibraryImagePermission();
+      console.log('Permission granted:', permForQR.granted);
       
-      if (status !== 'granted') {
+      if (!permForQR.granted) {
         Alert.alert('Permission Required', 'Please allow access to save QR code to your device.');
         return;
       }
@@ -543,7 +547,9 @@ export default function Dashboard({ navigation }) {
       // Create a filename with the order ID and timestamp
       const timestamp = Date.now();
       const filename = `DrukFarm_Order_QR_${orderId.slice(-6)}_${timestamp}.png`;
-      const fileUri = FileSystem.documentDirectory + filename;
+  const baseDirQR = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+  if (!baseDirQR) throw new Error('No writable directory available');
+  const fileUri = baseDirQR + filename;
       console.log('Saving to file URI:', fileUri);
       
       // Extract base64 data (remove data:image/png;base64, prefix if present)
@@ -551,8 +557,8 @@ export default function Dashboard({ navigation }) {
       console.log('Base64 data length:', base64Data.length);
       
       // Save the base64 image data to a temporary file
-      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-        encoding: FileSystem.EncodingType.Base64,
+      await LegacyFileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: 'base64',
       });
       console.log('File written successfully');
 
@@ -645,17 +651,9 @@ export default function Dashboard({ navigation }) {
       console.log('Starting image download for order:', orderId);
       console.log('User CID:', cid);
       
-      // Request MediaLibrary permission (this works in Expo Go)
-      console.log('Requesting MediaLibrary permission...');
-      const mediaPermission = await MediaLibrary.requestPermissionsAsync();
-      console.log('Media permission status:', mediaPermission.status);
-      
-      // Skip native storage permission in Expo Go to avoid getting stuck
-      const storagePermission = await requestStoragePermission();
-      console.log('Storage permission granted:', storagePermission);
-      
-      // If MediaLibrary permission is denied, offer share-only option
-      if (mediaPermission.status !== 'granted') {
+      // Request Photos permission via helper (won't re-prompt if already granted)
+      const mediaPermission = await ensureMediaLibraryImagePermission();
+      if (!mediaPermission.granted) {
         console.log('MediaLibrary permission denied, offering share-only option');
         Alert.alert(
           'Permission Required', 
@@ -709,91 +707,56 @@ export default function Dashboard({ navigation }) {
   const downloadAndSaveImage = async (orderId, hasStoragePermission) => {
     const cid = getCurrentCid();
     
-    // Download image from server
-    console.log('Downloading image from server...');
-    const response = await downloadOrderImage(orderId, cid);
-    console.log('Server response:', {
-      success: response?.success,
-      hasData: !!response?.data,
-      dataLength: response?.data?.length,
-      filename: response?.filename
-    });
-    
-    if (!response.success || !response.data) {
-      console.log('Image Download Error: Invalid server response');
-      Alert.alert('Error', 'No image data received from server.');
-      return;
-    }
-    
-    console.log('Received image data, filename:', response.filename);
-    
-    const filename = response.filename || `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`;
-    
-    // Save to accessible location - use app's document directory (always writable in Expo Go)
-    const savedFileUri = FileSystem.documentDirectory + filename;
-    let displayPath = `App Documents/${filename}`;
-    
-    console.log('Saving image to accessible location:', savedFileUri);
-    
-    // Save image file from base64 directly to accessible location
-    await FileSystem.writeAsStringAsync(savedFileUri, response.data, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    
-    console.log('Image saved successfully to device storage');
-    
-    // Try to save to MediaLibrary for easy access
     try {
-      const asset = await MediaLibrary.createAssetAsync(savedFileUri);
-      console.log('Saved to device storage:', asset.id);
+      console.log('Starting custom order card generation for order:', orderId);
       
-      // Try to organize in DrukFarm Orders album for easy finding
-      try {
-        let album = await MediaLibrary.getAlbumAsync('DrukFarm Orders');
-        if (!album) {
-          album = await MediaLibrary.createAlbumAsync('DrukFarm Orders', asset, false);
-          console.log('Created DrukFarm Orders album:', album.id);
-        } else {
-          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-          console.log('Added to DrukFarm Orders album');
+      // Find the order in our local orders list to get complete data
+      const orderData = orders.find(o => String(o.orderId) === String(orderId));
+      
+      if (!orderData) {
+        console.log('Order not found in local list, fetching from server...');
+        // If not found locally, fetch from server
+        try {
+          const resp = await fetchSellerOrders({ cid });
+          const ordersList = resp?.orders || resp || [];
+          const serverOrder = ordersList.find(o => String(o.orderId) === String(orderId));
+          
+          if (!serverOrder) {
+            Alert.alert('Error', 'Order not found.');
+            return;
+          }
+          
+          // Use HiddenOrderImage component to generate and save custom order card
+          const success = await hiddenImgRef.current?.captureAndSave(serverOrder);
+          
+          if (success) {
+            console.log('Custom order card generated and saved successfully');
+          } else {
+            console.log('Order card generation failed');
+            Alert.alert('Error', 'Failed to generate order card. Please try again.');
+          }
+        } catch (fetchError) {
+          console.log('Error fetching order from server:', fetchError);
+          Alert.alert('Error', 'Could not retrieve order details.');
         }
-        // Update display path to show accessible location
-        displayPath = 'Device Storage > DrukFarm Orders';
-      } catch (albumError) {
-        console.log('Could not create album, but file is saved:', albumError);
-        displayPath = 'Device Storage > Photos';
+      } else {
+        console.log('Using local order data for card generation');
+        
+        // Use HiddenOrderImage component to generate and save custom order card
+        const success = await hiddenImgRef.current?.captureAndSave(orderData);
+        
+        if (success) {
+          console.log('Custom order card generated and saved successfully');
+        } else {
+          console.log('Order card generation failed');
+          Alert.alert('Error', 'Failed to generate order card. Please try again.');
+        }
       }
-    } catch (mediaError) {
-      console.log('MediaLibrary save failed, file saved to app documents:', savedFileUri);
-      // Keep original display path if MediaLibrary fails
+      
+    } catch (error) {
+      console.log('downloadAndSaveImage error:', error);
+      Alert.alert('Download Error', `Failed to generate order card: ${error.message || 'Unknown error'}`);
     }
-    
-    // Success message with clear access instructions
-    Alert.alert(
-      'Order Image Saved!',
-      `Your order image has been saved to your device!\n\nLocation: ${displayPath}\n\nTo view:\n• Open your gallery/photos app\n• Or share it to view elsewhere\n• Image is permanently saved`,
-      [
-        { text: 'Great!', style: 'default' },
-        {
-          text: 'Share Image',
-          onPress: async () => {
-            if (await Sharing.isAvailableAsync()) {
-              try {
-                await Sharing.shareAsync(savedFileUri, {
-                  mimeType: 'image/png',
-                  dialogTitle: `Order #${orderId.slice(-6)}`,
-                });
-              } catch (shareError) {
-                console.log('Share error:', shareError);
-              }
-            }
-          },
-        },
-      ]
-    );
-    
-    // Keep file permanently saved for easy access
-    console.log('Order image permanently saved to accessible location:', savedFileUri);
   };
 
   // Fallback function for image download when storage permissions are not available
@@ -813,77 +776,36 @@ export default function Dashboard({ navigation }) {
         return;
       }
 
-      console.log('Starting image download and save for order:', orderId);
+      console.log('Starting custom order card generation for order:', orderId);
       
-      // Download image from server
-      const response = await downloadOrderImage(orderId, cid);
-      if (!response.success || !response.data) {
-        Alert.alert('Error', 'No image data received from server.');
-        return;
-      }
+      // Find the order in our local orders list to get complete data
+      const orderData = orders.find(o => String(o.orderId) === String(orderId));
+      let success = false;
       
-      // Save as PNG file
-      const filename = response.filename || `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`;
-      
-      // Save to app documents (most accessible location in Expo Go)
-      const savedFileUri = FileSystem.documentDirectory + filename;
-      let displayPath = `App Documents/${filename}`;
-      
-      // Save image file permanently to easily accessible location
-      await FileSystem.writeAsStringAsync(savedFileUri, response.data, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      
-      console.log('Image saved to accessible location:', savedFileUri);
-      
-      // Always try to save to device storage for maximum accessibility
-      try {
-        const asset = await MediaLibrary.createAssetAsync(savedFileUri);
+      if (!orderData) {
+        // If not found locally, fetch from server
+        const resp = await fetchSellerOrders({ cid });
+        const ordersList = resp?.orders || resp || [];
+        const serverOrder = ordersList.find(o => String(o.orderId) === String(orderId));
         
-        // Create/use DrukFarm Orders album
-        try {
-          let album = await MediaLibrary.getAlbumAsync('DrukFarm Orders');
-          if (!album) {
-            album = await MediaLibrary.createAlbumAsync('DrukFarm Orders', asset, false);
-          } else {
-            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-          }
-          displayPath = 'Device Storage > DrukFarm Orders';
-        } catch (albumError) {
-          displayPath = 'Device Storage > Photos';
+        if (!serverOrder) {
+          Alert.alert('Error', 'Order not found.');
+          return;
         }
-      } catch (mediaError) {
-        console.log('Device storage save failed, but file saved to:', savedFileUri);
-      }
-      
-      // Show success message with clear access instructions
-      if (await Sharing.isAvailableAsync()) {
-        Alert.alert(
-          'Image Downloaded!',
-          `Your order image has been saved!\n\nLocation: ${displayPath}\n\nTo view:\n• Open your gallery/photos app\n• Or share to view elsewhere`,
-          [
-            { text: 'Perfect!', style: 'default' },
-            {
-              text: 'Share Image',
-              onPress: async () => {
-                try {
-                  await Sharing.shareAsync(savedFileUri, {
-                    mimeType: 'image/png',
-                    dialogTitle: `Order #${orderId.slice(-6)}`,
-                  });
-                } catch (shareError) {
-                  console.log('Share error:', shareError);
-                  Alert.alert('Error', 'Failed to share image.');
-                }
-              },
-            },
-          ]
-        );
+        
+        // Use HiddenOrderImage component to generate and save custom order card
+        success = await hiddenImgRef.current?.captureAndSave(serverOrder);
       } else {
-        Alert.alert('Image Saved!', `Image is accessible at:\n${displayPath}\n\nOpen your gallery to view.`);
+        // Use HiddenOrderImage component to generate and save custom order card
+        success = await hiddenImgRef.current?.captureAndSave(orderData);
       }
       
-      // Keep file permanently saved for easy access
+      if (success) {
+        console.log('Image download process completed successfully');
+      } else {
+        console.log('Image save failed via HiddenOrderImage');
+        Alert.alert('Error', 'Failed to save image to gallery. Please check permissions.');
+      }
       
     } catch (error) {
       console.log('Download Image error:', error);
@@ -1419,6 +1341,7 @@ export default function Dashboard({ navigation }) {
             </View>
         </View>
       </Modal>
+      <HiddenOrderImage ref={hiddenImgRef} />
     </View>
   );
 }

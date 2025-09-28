@@ -23,7 +23,7 @@ export default function Navbar() {
     navigation.navigate('Wishlist'); // replace with your Wishlist screen
   };
 
-  const canAccessDashboard = !!user && ['farmer', 'transporter'].includes(String(user.role || '').toLowerCase());
+  const canAccessDashboard = !!user && ['farmer', 'transporter', 'tshogpas'].includes(String(user.role || '').toLowerCase());
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

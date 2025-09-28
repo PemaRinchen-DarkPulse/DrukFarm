@@ -20,8 +20,10 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import * as FileSystem from 'expo-file-system';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
+import { ensureMediaLibraryImagePermission } from '../utils/imageDownloadSimple';
 import * as ImagePicker from 'expo-image-picker';
 import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage } from '../lib/api';
 import { downloadOrderImageToGallery } from '../utils/imageDownloadSimple';
@@ -30,6 +32,7 @@ import { resolveProductImage } from '../lib/image';
 import { useAuth, getCurrentCid } from '../lib/auth';
 import TransporterDashboard from '../components/TransporterDashboard';
 import TshogpasDashboard from '../components/TshogpasDashboard';
+import HiddenOrderImage from '../components/ui/HiddenOrderImage';
 
 // CustomDropdown component
 const LIST_MAX = 160;
@@ -166,6 +169,7 @@ export default function FarmerDashboard({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [downloadingImage, setDownloadingImage] = useState(null); // Track which image is being downloaded
+  const hiddenImgRef = useRef(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const getProducts = async () => {
@@ -551,10 +555,10 @@ export default function FarmerDashboard({ navigation }) {
 
       // Request media library permissions
       console.log('Requesting media library permissions...');
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      console.log('Permission status:', status);
+      const permForQR = await ensureMediaLibraryImagePermission();
+      console.log('Permission granted:', permForQR.granted);
       
-      if (status !== 'granted') {
+      if (!permForQR.granted) {
         Alert.alert('Permission Required', 'Please allow access to save QR code to your device.');
         return;
       }
@@ -562,7 +566,9 @@ export default function FarmerDashboard({ navigation }) {
       // Create a filename with the order ID and timestamp
       const timestamp = Date.now();
       const filename = `DrukFarm_Order_QR_${orderId.slice(-6)}_${timestamp}.png`;
-      const fileUri = FileSystem.documentDirectory + filename;
+  const baseDirQR = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+  if (!baseDirQR) throw new Error('No writable directory available');
+  const fileUri = baseDirQR + filename;
       console.log('Saving to file URI:', fileUri);
       
       // Extract base64 data (remove data:image/png;base64, prefix if present)
@@ -570,7 +576,7 @@ export default function FarmerDashboard({ navigation }) {
       console.log('Base64 data length:', base64Data.length);
       
       // Save the base64 image data to a temporary file
-      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+      await LegacyFileSystem.writeAsStringAsync(fileUri, base64Data, {
         encoding: 'base64',
       });
       console.log('File written successfully');
@@ -644,11 +650,12 @@ export default function FarmerDashboard({ navigation }) {
     
     console.log('Starting image download for confirmed order (no status change):', orderId);
     setDownloadingImage(orderId);
-    
     try {
-      const downloadSuccess = await downloadOrderImageToGallery(orderId);
-      if (!downloadSuccess) {
-        console.log('Image download failed for confirmed order:', orderId);
+      // Try local generation first (Expo friendly)
+      const localOk = await hiddenImgRef.current?.captureAndSave(orderId);
+      if (!localOk) {
+        // Fallback to server-rendered image if local failed
+        await downloadAndSaveImage(orderId, false);
       }
     } catch (error) {
       console.log('Download error:', error);
@@ -688,35 +695,13 @@ export default function FarmerDashboard({ navigation }) {
       console.log('Starting image download for order:', orderId);
       console.log('User CID:', cid);
       
-      // Request MediaLibrary permission (this works in Expo Go)
-      console.log('Requesting MediaLibrary permission...');
-      const mediaPermission = await MediaLibrary.requestPermissionsAsync();
-      console.log('Media permission status:', mediaPermission.status);
-      
-      // Skip native storage permission in Expo Go to avoid getting stuck
-      const storagePermission = await requestStoragePermission();
-      console.log('Storage permission granted:', storagePermission);
-      
-      // If MediaLibrary permission is denied, offer share-only option
-      if (mediaPermission.status !== 'granted') {
-        console.log('MediaLibrary permission denied, offering share-only option');
-        Alert.alert(
-          'Permission Required', 
-          'Need media access to save image. Share instead?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Share Image',
-              onPress: () => handleDownloadImageWithoutSaving(orderId)
-            }
-          ]
-        );
-        return;
+      // Prefer local generation (renders a clean white image with QR)
+      const localOk = await hiddenImgRef.current?.captureAndSave(orderId);
+      if (!localOk) {
+        // Fallback to server PNG download route
+        console.log('Local generation failed, falling back to server');
+        await proceedWithLimitedPermissions();
       }
-      
-      // Since we're in Expo Go, always use limited permissions (MediaLibrary only)
-      console.log('Using MediaLibrary-only approach for Expo Go compatibility');
-      await proceedWithLimitedPermissions();
 
     } catch (error) {
       console.log('Download Image error:', error);
@@ -753,114 +738,57 @@ export default function FarmerDashboard({ navigation }) {
     const cid = getCurrentCid();
     
     try {
-      // Download image from server
-      console.log('Downloading image from server for order:', orderId);
-      const response = await downloadOrderImage(orderId, cid);
-      console.log('Server response received:', {
-        success: response?.success,
-        hasData: !!response?.data,
-        hasData: !!response?.data,
-        dataLength: response?.data?.length,
-        dataLength: response?.data?.length,
-        filename: response?.filename
+      console.log('Starting custom order card generation for order:', orderId);
+      
+      // Find the order in our local orders list to get complete data
+      const orderData = orders.find(o => {
+        const oId = String(o.orderId || o._id || '');
+        return oId === String(orderId);
       });
       
-      // Check for response data - try both base64Data and data fields
-      const imageData = response?.data;
-      if (!response?.success || !imageData) {
-        console.log('Image Download Error: Invalid server response');
-        Alert.alert('Error', 'No image data received from server.');
-        return;
-      }
-      
-      console.log('Processing image data, length:', imageData.length);
-      
-      const filename = response.filename || `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`;
-      const savedFileUri = FileSystem.documentDirectory + filename;
-      
-      console.log('Saving image to:', savedFileUri);
-      
-      // Clean base64 data (remove data URL prefix if present)
-      let cleanBase64 = imageData;
-      if (cleanBase64.includes(',')) {
-        cleanBase64 = cleanBase64.split(',')[1];
-      }
-      
-      // Save image file from base64
-      await FileSystem.writeAsStringAsync(savedFileUri, cleanBase64, {
-        encoding: 'base64',
-      });
-      
-      console.log('Image file saved successfully to app directory');
-      
-      // Try to save to device gallery using MediaLibrary
-      let gallerySuccess = false;
-      let displayPath = 'App Documents';
-      
-      try {
-        console.log('Attempting to save to device gallery...');
-        const asset = await MediaLibrary.createAssetAsync(savedFileUri);
-        console.log('Asset created successfully:', asset.id);
-        
-        // Try to organize in album
+      if (!orderData) {
+        console.log('Order not found in local list, fetching from server...');
+        // If not found locally, fetch from server
         try {
-          let album = await MediaLibrary.getAlbumAsync('DrukFarm Orders');
-          if (!album) {
-            console.log('Creating new DrukFarm Orders album...');
-            album = await MediaLibrary.createAlbumAsync('DrukFarm Orders', asset, false);
-            console.log('Album created:', album.title);
-          } else {
-            console.log('Adding to existing album...');
-            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          const resp = await fetchSellerOrders({ cid });
+          const ordersList = resp?.orders || resp || [];
+          const serverOrder = ordersList.find(o => String(o.orderId) === String(orderId));
+          
+          if (!serverOrder) {
+            Alert.alert('Error', 'Order not found.');
+            return;
           }
-          displayPath = 'Gallery > DrukFarm Orders';
-          gallerySuccess = true;
-        } catch (albumError) {
-          console.log('Album error (but image saved to gallery):', albumError);
-          displayPath = 'Device Gallery';
-          gallerySuccess = true;
+          
+          // Use HiddenOrderImage component to generate and save custom order card
+          const success = await hiddenImgRef.current?.captureAndSave(serverOrder);
+          
+          if (success) {
+            console.log('Custom order card generated and saved successfully');
+          } else {
+            console.log('Order card generation failed');
+            Alert.alert('Error', 'Failed to generate order card. Please try again.');
+          }
+        } catch (fetchError) {
+          console.log('Error fetching order from server:', fetchError);
+          Alert.alert('Error', 'Could not retrieve order details.');
         }
-      } catch (mediaError) {
-        console.log('MediaLibrary error:', mediaError);
-        console.log('Image saved to app directory only');
+      } else {
+        console.log('Using local order data for card generation');
+        
+        // Use HiddenOrderImage component to generate and save custom order card
+        const success = await hiddenImgRef.current?.captureAndSave(orderData);
+        
+        if (success) {
+          console.log('Custom order card generated and saved successfully');
+        } else {
+          console.log('Order card generation failed');
+          Alert.alert('Error', 'Failed to generate order card. Please try again.');
+        }
       }
-      
-      // Show success message
-      const successMessage = gallerySuccess 
-        ? `Image saved to your ${displayPath}!\n\nYou can find it in your Photos app.`
-        : `Image saved to app directory.\n\nPath: ${filename}`;
-      
-      Alert.alert(
-        'Order Image Downloaded!',
-        successMessage,
-        [
-          { text: 'Great!', style: 'default' },
-          {
-            text: 'Share Now',
-            onPress: async () => {
-              if (await Sharing.isAvailableAsync()) {
-                try {
-                  await Sharing.shareAsync(savedFileUri, {
-                    mimeType: 'image/png',
-                    dialogTitle: `Order Details - #${orderId.slice(-6)}`,
-                  });
-                } catch (shareError) {
-                  console.log('Share error:', shareError);
-                  Alert.alert('Share Error', 'Could not share the image.');
-                }
-              } else {
-                Alert.alert('Error', 'Sharing not available on this device.');
-              }
-            },
-          },
-        ]
-      );
-      
-      console.log('Image download process completed successfully');
       
     } catch (error) {
       console.log('downloadAndSaveImage error:', error);
-      Alert.alert('Download Error', `Failed to download image: ${error.message || 'Unknown error'}`);
+      Alert.alert('Download Error', `Failed to generate order card: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -897,7 +825,9 @@ export default function FarmerDashboard({ navigation }) {
       
       // Save as PNG file
       const filename = response.filename || `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`;
-      const savedFileUri = FileSystem.documentDirectory + filename;
+  const baseDir2 = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+  if (!baseDir2) throw new Error('No writable directory available');
+  const savedFileUri = baseDir2 + filename;
       
       // Clean base64 data
       let cleanBase64 = imageData;
@@ -906,7 +836,7 @@ export default function FarmerDashboard({ navigation }) {
       }
       
       // Save image file for sharing
-      await FileSystem.writeAsStringAsync(savedFileUri, cleanBase64, {
+      await LegacyFileSystem.writeAsStringAsync(savedFileUri, cleanBase64, {
         encoding: 'base64',
       });
       
@@ -1299,6 +1229,8 @@ export default function FarmerDashboard({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Hidden image renderer for download */}
+      <HiddenOrderImage ref={hiddenImgRef} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Icon name="arrow-left" size={24} color="#111827" />
