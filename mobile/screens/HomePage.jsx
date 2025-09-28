@@ -33,6 +33,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
   // Add extra bottom space so the bottom dock doesn't cover tappable items
-  paddingBottom: 140,
+  paddingBottom: 10,
   },
 });

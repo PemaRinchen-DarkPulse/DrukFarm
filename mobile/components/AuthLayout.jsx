@@ -296,8 +296,10 @@ export default function AuthLayout({ mode = 'login' }) {
         // Redirect based on role
         const role = String(res?.user?.role || '').toLowerCase()
         let routeName = 'Products' // Default for consumers
-        if (role === 'farmer' || role === 'tshogpas') {
+        if (role === 'farmer') {
           routeName = 'Dashboard'
+        } else if (role === 'tshogpas') {
+          routeName = 'TshogpasDashboard'
         } else if (role === 'transporter') {
           routeName = 'TransporterDashboard'
         }
@@ -311,8 +313,10 @@ export default function AuthLayout({ mode = 'login' }) {
         // Redirect based on role
         const role = String(res?.user?.role || '').toLowerCase()
         let routeName = 'Products' // Default for consumers
-        if (role === 'farmer' || role === 'tshogpas') {
+        if (role === 'farmer') {
           routeName = 'Dashboard'
+        } else if (role === 'tshogpas') {
+          routeName = 'TshogpasDashboard'
         } else if (role === 'transporter') {
           routeName = 'TransporterDashboard'
         }

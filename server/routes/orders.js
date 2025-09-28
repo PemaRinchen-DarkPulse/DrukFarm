@@ -171,7 +171,7 @@ router.post('/buy', authCid, async (req, res) => {
 				totalPrice: Number((product.price * qty).toFixed(2)),
 				qrCodeDataUrl,
 				source: 'buy',
-				status: 'pending',
+				status: 'order placed',
 			})
 		} catch (createErr) {
 			// Rollback decrement on failure creating order
@@ -278,7 +278,7 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 				totalPrice: Number((p.price * qty).toFixed(2)),
 				qrCodeDataUrl,
 				source: 'cart',
-				status: 'pending',
+				status: 'order placed',
 			})
 		}
 
@@ -407,7 +407,7 @@ router.post('/checkout', authCid, async (req, res) => {
 				totalPrice: Number((p.price * n.quantity).toFixed(2)),
 				qrCodeDataUrl,
 				source: 'cart', // treat as cart-style batch
-				status: 'pending',
+				status: 'order placed',
 			})
 		}
 
@@ -455,8 +455,8 @@ router.get('/transport-search', authCid, async (req, res) => {
 			return res.status(400).json({ error: 'Missing from or to dzongkhag(s)' })
 		}
 
-		// Only consider orders that could require transport (pending or paid)
-		const candidateOrders = await Order.find({ status: { $in: ['pending', 'paid'] } }).sort({ createdAt: -1 })
+		// Only consider orders that could require transport (shipped orders ready for pickup)
+		const candidateOrders = await Order.find({ status: { $in: ['shipped', 'pending', 'paid'] } }).sort({ createdAt: -1 })
 
 		// Build maps of seller and buyer users to access dzongkhag and contact info
 		const sellerCids = [...new Set(candidateOrders.map(o => o?.product?.sellerCid).filter(Boolean))]
@@ -633,8 +633,6 @@ router.patch('/:orderId/delivered', authCid, async (req, res) => {
 	}
 })
 
-module.exports = router
-
 // GET /api/orders/seller -> Orders for products created by the current seller (by CID)
 router.get('/seller', authCid, async (req, res) => {
 	try {
@@ -716,7 +714,7 @@ router.patch('/:orderId/cancel', authCid, async (req, res) => {
 		const order = await Order.findById(orderId)
 		if (!order) return res.status(404).json({ error: 'Order not found' })
 		if (String(order.userCid) !== String(userCid)) return res.status(403).json({ error: 'Forbidden' })
-		if (order.status !== 'pending') return res.status(409).json({ error: 'Only pending orders can be cancelled' })
+		if (order.status !== 'order placed' && order.status !== 'pending') return res.status(409).json({ error: 'Only placed orders can be cancelled' })
 		order.status = 'cancelled'
 		await order.save()
 		// Restock the product since the order is cancelled before fulfillment
@@ -749,8 +747,8 @@ router.patch('/:orderId/shipped', authCid, async (req, res) => {
 			return res.status(403).json({ error: 'Not your product order' })
 		}
 		
-		// Only allow shipping pending orders
-		if (order.status !== 'pending') {
+		// Only allow shipping confirmed orders (or pending for backward compatibility)
+		if (order.status !== 'order confirmed' && order.status !== 'pending') {
 			return res.status(409).json({ error: `Cannot ship order with status: ${order.status}` })
 		}
 		
@@ -770,6 +768,43 @@ router.patch('/:orderId/shipped', authCid, async (req, res) => {
 	} catch (err) {
 		console.error('Mark shipped error:', err)
 		res.status(500).json({ error: 'Failed to mark as shipped' })
+	}
+})
+
+// PATCH /api/orders/:orderId/confirm -> mark order as confirmed (farmer/tshogpas accept order)
+router.patch('/:orderId/confirm', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params
+		if (!mongoose.Types.ObjectId.isValid(String(orderId))) return res.status(400).json({ error: 'Invalid order id' })
+		
+		const sellerCid = req.user.cid
+		const order = await Order.findById(orderId)
+		if (!order) return res.status(404).json({ error: 'Order not found' })
+		
+		// Verify this is the seller's product
+		if (String(order.product.sellerCid) !== String(sellerCid)) {
+			return res.status(403).json({ error: 'Not your product order' })
+		}
+		
+		// Only allow confirming orders that are placed
+		if (order.status !== 'order placed') {
+			return res.status(409).json({ error: `Cannot confirm order with status: ${order.status}` })
+		}
+		
+		// Update status to confirmed
+		order.status = 'order confirmed'
+		await order.save()
+		
+		res.json({ 
+			success: true, 
+			order: { 
+				orderId: String(order._id), 
+				status: order.status 
+			}
+		})
+	} catch (err) {
+		console.error('Mark confirmed error:', err)
+		res.status(500).json({ error: 'Failed to mark as confirmed' })
 	}
 })
 
@@ -938,7 +973,7 @@ router.get('/transporter', authCid, async (req, res) => {
 		
 		// Fetch orders that are available for transport or assigned to this transporter
 		const availableOrders = await Order.find({ 
-			status: { $in: ['pending', 'placed', 'paid', 'shipped', 'OUT_FOR_DELIVERY', 'Out for Delivery', 'delivered'] }, 
+			status: { $in: ['shipped', 'out for delivery', 'OUT_FOR_DELIVERY', 'delivered'] }, 
 			$or: [
 				{ transporter: { $exists: false } }, // Available orders
 				{ 'transporter.cid': transporterId } // Orders assigned to this transporter
@@ -1009,7 +1044,7 @@ router.patch('/:orderId/status', authCid, async (req, res) => {
 		// Handle different status updates
 		switch (status) {
 			case 'accept':
-				if (order.status !== 'pending' && order.status !== 'shipped') {
+				if (order.status !== 'shipped') {
 					return res.status(409).json({ error: 'Order cannot be accepted in current status' })
 				}
 				order.status = 'OUT_FOR_DELIVERY'
@@ -1061,12 +1096,14 @@ function getTransporterStatus(orderStatus, transporter, transporterId) {
 		switch (orderStatus) {
 			case 'shipped':
 				return 'Shipped' // Ready for transport
+			case 'order confirmed':
+				return 'Confirmed' // Not yet shipped
+			case 'order placed':
+				return 'Placed' // Not yet confirmed
 			case 'paid':
 				return 'Paid' // Ready for transport
-			case 'placed':
-				return 'Placed' // Ready for transport
 			case 'pending':
-				return 'Pending' // Available for pickup
+				return 'Pending' // Legacy status
 			default:
 				return 'Available'
 		}
@@ -1076,6 +1113,7 @@ function getTransporterStatus(orderStatus, transporter, transporterId) {
 		switch (orderStatus) {
 			case 'shipped':
 				return 'Shipped' // Show as shipped for assigned transporter too
+			case 'out for delivery':
 			case 'OUT_FOR_DELIVERY':
 				return 'Accepted'
 			case 'PICKED_UP':
@@ -1089,6 +1127,40 @@ function getTransporterStatus(orderStatus, transporter, transporterId) {
 	
 	return 'Assigned' // Assigned to another transporter
 }
+
+// GET /api/orders/tshogpas -> Orders confirmed and ready for Tshogpas to ship
+router.get('/tshogpas', authCid, async (req, res) => {
+	try {
+		// Fetch orders with 'order confirmed' status - ready for Tshogpas to handle
+		const docs = await Order.find({ status: 'order confirmed' }).sort({ createdAt: -1 })
+		const mapped = docs.map(o => ({
+			orderId: String(o._id),
+			status: o.status,
+			createdAt: o.createdAt,
+			totalPrice: o.totalPrice,
+			quantity: o.quantity,
+			qrCodeDataUrl: o.qrCodeDataUrl,
+			product: {
+				productId: String(o.product.productId),
+				name: o.product.productName,
+				unit: o.product.unit,
+				price: o.product.price,
+				sellerCid: o.product.sellerCid,
+				productImageBase64: o.product.productImageBase64 || '',
+			},
+			buyer: {
+				cid: o.userSnapshot?.cid,
+				name: o.userSnapshot?.name,
+				location: o.userSnapshot?.location,
+				phoneNumber: o.userSnapshot?.phoneNumber,
+			},
+		}))
+		res.json({ success: true, orders: mapped })
+	} catch (err) {
+		console.error('Fetch tshogpas orders error:', err)
+		res.status(500).json({ error: 'Failed to fetch confirmed orders' })
+	}
+})
 
 // Helper function to calculate transport fee
 function calculateTransportFee(totalAmount) {

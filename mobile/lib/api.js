@@ -243,6 +243,12 @@ export async function fetchSellerOrders({ cid } = {}){
   return request('/orders/seller', { headers })
 }
 
+export async function fetchTshogpasOrders({ cid } = {}){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request('/orders/tshogpas', { headers })
+}
+
 export async function fetchMyOrders({ cid } = {}){
   const headers = {}
   if (cid) headers['x-cid'] = cid
@@ -299,6 +305,12 @@ export async function markOrderShipped({ orderId, cid }){
   return request(`/orders/${orderId}/shipped`, { method: 'PATCH', headers })
 }
 
+export async function markOrderConfirmed({ orderId, cid }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request(`/orders/${orderId}/confirm`, { method: 'PATCH', headers })
+}
+
 // Drop-off locations APIs
 export async function fetchDzongkhags(){
   const resp = await request('/drop-off-locations/dzongkhags')
@@ -348,14 +360,13 @@ export async function downloadOrderImage(orderId, cid){
       headers 
     });
     
-    console.log('[API] downloadOrderImage response:', {
-      success: response?.success,
-      hasData: !!response?.data,
-      dataLength: response?.data?.length,
-      filename: response?.filename
-    });
-    
-    return response;
+  console.log('[API] downloadOrderImage response:', {
+    success: response?.success,
+    hasData: !!response?.data,
+    dataLength: response?.data?.length || 0,
+    filename: response?.filename,
+    keys: Object.keys(response || {})
+  });    return response;
   } catch (error) {
     console.log('[API] downloadOrderImage error:', error);
     throw error;
@@ -387,8 +398,8 @@ export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
   fetchUserByCid, updateUser,
-  addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, unifiedCheckout, fetchSellerOrders, fetchMyOrders, cancelMyOrder,
-  searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered, markOrderShipped,
+  addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, unifiedCheckout, fetchSellerOrders, fetchTshogpasOrders, fetchMyOrders, cancelMyOrder,
+  searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered, markOrderShipped, markOrderConfirmed,
   addToWishlist, getWishlist, removeFromWishlist,
   logoutUser,
   fetchDzongkhags, fetchTownsByDzongkhag,

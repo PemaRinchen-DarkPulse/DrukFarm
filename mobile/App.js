@@ -15,7 +15,7 @@ import Register from './screens/Register';
 import About from './screens/About';
 import How from './screens/How';
 import Contact from './screens/Contact';
-import Dashboard from './screens/Dashboard';
+import FarmerDashboard from './screens/FarmerDashboard';
 import Products from './screens/Products';
 import Cart from './screens/Cart';
 import Checkout from './components/Checkout';
@@ -37,6 +37,7 @@ import Profile from './components/setting/Profile';
 import Address from './components/Address';
 import Payouts from './components/setting/Payouts';
 import TransporterDashboard from './components/TransporterDashboard';
+import TshogpasDashboard from './components/TshogpasDashboard';
 
 
 const Stack = createNativeStackNavigator();
@@ -88,7 +89,7 @@ export default function App() {
           <Stack.Screen name="About" component={withMainLayout(About)} />
           <Stack.Screen name="How It Works" component={withMainLayout(How)} />
           <Stack.Screen name="Contact" component={withMainLayout(Contact)} />
-          <Stack.Screen name="Dashboard" component={withMainLayout(Dashboard)} />
+          <Stack.Screen name="Dashboard" component={withMainLayout(FarmerDashboard)} />
           <Stack.Screen name="Products" component={withMainLayout(Products)} />
           <Stack.Screen name="Cart" component={withMainLayout(Cart)} />
           <Stack.Screen name="Checkout" component={withMainLayout(Checkout)} />
@@ -106,6 +107,7 @@ export default function App() {
           <Stack.Screen name="Address" component={withMainLayout(Address)} />
           <Stack.Screen name="Payouts" component={withMainLayout(Payouts)} />
           <Stack.Screen name="TransporterDashboard" component={withMainLayout(TransporterDashboard)} />
+          <Stack.Screen name="TshogpasDashboard" component={withMainLayout(TshogpasDashboard)} />
 
 
           {/* Public screens without dock/navbar */}

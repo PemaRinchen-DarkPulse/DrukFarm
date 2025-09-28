@@ -10,6 +10,7 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  RefreshControl,
   PermissionsAndroid,
   Platform,
   KeyboardAvoidingView,
@@ -17,12 +18,14 @@ import {
   Dimensions,
   ActivityIndicator, // <-- Import added
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage } from '../lib/api';
+import { downloadOrderImageToGallery } from '../utils/imageDownloadSimple';
+
 import { resolveProductImage } from '../lib/image';
 import { useAuth, getCurrentCid } from '../lib/auth';
 import TransporterDashboard from '../components/TransporterDashboard';
@@ -91,7 +94,7 @@ function CustomDropdown({ options, value, onChange, placeholder = "Select…" })
   );
 }
 
-export default function Dashboard({ navigation }) {
+export default function FarmerDashboard({ navigation }) {
   const { user } = useAuth();
   
   // Check user role and render appropriate dashboard
@@ -115,7 +118,8 @@ export default function Dashboard({ navigation }) {
     }
   }, [user, navigation]);
   
-  const [activeTab, setActiveTab] = useState("Products");
+  const [activeTab, setActiveTab] = useState("Orders");
+  const [orderSubTab, setOrderSubTab] = useState("All");
   const [showAddProductModal, setShowAddProductModal] = useState(false);
 
   // Helper function to request storage permissions on Android
@@ -161,8 +165,8 @@ export default function Dashboard({ navigation }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(true);
-  const [orderSubTab, setOrderSubTab] = useState("Pending"); // New state for order sub-tabs
   const [downloadingImage, setDownloadingImage] = useState(null); // Track which image is being downloaded
+  const [refreshing, setRefreshing] = useState(false);
 
   const getProducts = async () => {
     try {
@@ -197,20 +201,13 @@ export default function Dashboard({ navigation }) {
     }
   };
 
-  const getOrders = async () => {
+  const getOrders = useCallback(async () => {
     try {
       setOrdersLoading(true);
-      let response;
-      
-      if (isTshogpas) {
-        // Tshogpas see only confirmed orders ready to ship
-        response = await fetchTshogpasOrders({ cid: user?.cid });
-      } else {
-        // Farmers see their own orders
-        response = await fetchSellerOrders({ cid: user?.cid });
-      }
-      
+      // Farmers see their own orders (seller orders)
+      const response = await fetchSellerOrders({ cid: user?.cid });
       const ordersList = response?.orders || [];
+      console.log('Fetched farmer orders:', ordersList); // Debug log
       setOrders(ordersList);
     } catch (error) {
       console.log('Failed to fetch orders:', error);
@@ -218,7 +215,17 @@ export default function Dashboard({ navigation }) {
     } finally {
       setOrdersLoading(false);
     }
-  };
+  }, [user?.cid]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    if (activeTab === "Products") {
+      await getProducts();
+    } else if (activeTab === "Orders") {
+      await getOrders();
+    }
+    setRefreshing(false);
+  }, [activeTab, getOrders]);
 
   useEffect(() => {
     if (activeTab === "Products") {
@@ -226,7 +233,7 @@ export default function Dashboard({ navigation }) {
     } else if (activeTab === "Orders") {
       getOrders();
     }
-  }, [activeTab]);
+  }, [activeTab, getOrders]);
 
   useEffect(() => {
     (async () => {
@@ -442,9 +449,17 @@ export default function Dashboard({ navigation }) {
                   )
                 );
 
+                // Download and save the image automatically for both cases
+                console.log('Attempting to download image for confirmed order:', orderId);
+                setDownloadingImage(orderId);
+                const downloadSuccess = await downloadOrderImageToGallery(orderId);
+                setDownloadingImage(null);
+                if (!downloadSuccess) {
+                  console.log('Image download failed for order:', orderId);
+                }
+
                 // Switch to appropriate tab
                 if (isSelfPurchase) {
-                  await handleDownloadImage(orderId);
                   setOrderSubTab("Shipped");
                   setTimeout(() => {
                     Alert.alert(
@@ -455,11 +470,13 @@ export default function Dashboard({ navigation }) {
                   }, 1000);
                 } else {
                   setOrderSubTab("Confirmed");
-                  Alert.alert(
-                    "Order Confirmed!",
-                    "Order has been confirmed successfully.",
-                    [{ text: "OK" }]
-                  );
+                  setTimeout(() => {
+                    Alert.alert(
+                      "Order Confirmed!",
+                      "Order has been confirmed successfully.",
+                      [{ text: "OK" }]
+                    );
+                  }, 1000); // Delay to avoid conflicting with download alerts
                 }
               }
             } catch (error) {
@@ -495,7 +512,9 @@ export default function Dashboard({ navigation }) {
                 );
 
                 // Download and share the image
-                await handleDownloadImage(orderId);
+                setDownloadingImage(orderId);
+                await downloadOrderImageToGallery(orderId);
+                setDownloadingImage(null);
 
                 // Switch to Shipped tab to show the updated order
                 setOrderSubTab("Shipped");
@@ -552,7 +571,7 @@ export default function Dashboard({ navigation }) {
       
       // Save the base64 image data to a temporary file
       await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64',
       });
       console.log('File written successfully');
 
@@ -612,6 +631,30 @@ export default function Dashboard({ navigation }) {
     } catch (error) {
       console.log('QR download error:', error);
       Alert.alert('Error', `Failed to save QR code: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleDownloadConfirmedOrderImage = async (orderId) => {
+    // This function is specifically for downloading images from confirmed orders
+    // without changing the order status
+    if (downloadingImage === orderId) {
+      console.log('Image download already in progress for order:', orderId);
+      return;
+    }
+    
+    console.log('Starting image download for confirmed order (no status change):', orderId);
+    setDownloadingImage(orderId);
+    
+    try {
+      const downloadSuccess = await downloadOrderImageToGallery(orderId);
+      if (!downloadSuccess) {
+        console.log('Image download failed for confirmed order:', orderId);
+      }
+    } catch (error) {
+      console.log('Download error:', error);
+      Alert.alert('Error', `Failed to download image: ${error.message || 'Unknown error'}`);
+    } finally {
+      setDownloadingImage(null);
     }
   };
 
@@ -709,91 +752,116 @@ export default function Dashboard({ navigation }) {
   const downloadAndSaveImage = async (orderId, hasStoragePermission) => {
     const cid = getCurrentCid();
     
-    // Download image from server
-    console.log('Downloading image from server...');
-    const response = await downloadOrderImage(orderId, cid);
-    console.log('Server response:', {
-      success: response?.success,
-      hasData: !!response?.data,
-      dataLength: response?.data?.length,
-      filename: response?.filename
-    });
-    
-    if (!response.success || !response.data) {
-      console.log('Image Download Error: Invalid server response');
-      Alert.alert('Error', 'No image data received from server.');
-      return;
-    }
-    
-    console.log('Received image data, filename:', response.filename);
-    
-    const filename = response.filename || `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`;
-    
-    // Save to accessible location - use app's document directory (always writable in Expo Go)
-    const savedFileUri = FileSystem.documentDirectory + filename;
-    let displayPath = `App Documents/${filename}`;
-    
-    console.log('Saving image to accessible location:', savedFileUri);
-    
-    // Save image file from base64 directly to accessible location
-    await FileSystem.writeAsStringAsync(savedFileUri, response.data, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    
-    console.log('Image saved successfully to device storage');
-    
-    // Try to save to MediaLibrary for easy access
     try {
-      const asset = await MediaLibrary.createAssetAsync(savedFileUri);
-      console.log('Saved to device storage:', asset.id);
+      // Download image from server
+      console.log('Downloading image from server for order:', orderId);
+      const response = await downloadOrderImage(orderId, cid);
+      console.log('Server response received:', {
+        success: response?.success,
+        hasData: !!response?.data,
+        hasData: !!response?.data,
+        dataLength: response?.data?.length,
+        dataLength: response?.data?.length,
+        filename: response?.filename
+      });
       
-      // Try to organize in DrukFarm Orders album for easy finding
-      try {
-        let album = await MediaLibrary.getAlbumAsync('DrukFarm Orders');
-        if (!album) {
-          album = await MediaLibrary.createAlbumAsync('DrukFarm Orders', asset, false);
-          console.log('Created DrukFarm Orders album:', album.id);
-        } else {
-          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-          console.log('Added to DrukFarm Orders album');
-        }
-        // Update display path to show accessible location
-        displayPath = 'Device Storage > DrukFarm Orders';
-      } catch (albumError) {
-        console.log('Could not create album, but file is saved:', albumError);
-        displayPath = 'Device Storage > Photos';
+      // Check for response data - try both base64Data and data fields
+      const imageData = response?.data;
+      if (!response?.success || !imageData) {
+        console.log('Image Download Error: Invalid server response');
+        Alert.alert('Error', 'No image data received from server.');
+        return;
       }
-    } catch (mediaError) {
-      console.log('MediaLibrary save failed, file saved to app documents:', savedFileUri);
-      // Keep original display path if MediaLibrary fails
-    }
-    
-    // Success message with clear access instructions
-    Alert.alert(
-      'Order Image Saved!',
-      `Your order image has been saved to your device!\n\nLocation: ${displayPath}\n\nTo view:\n• Open your gallery/photos app\n• Or share it to view elsewhere\n• Image is permanently saved`,
-      [
-        { text: 'Great!', style: 'default' },
-        {
-          text: 'Share Image',
-          onPress: async () => {
-            if (await Sharing.isAvailableAsync()) {
-              try {
-                await Sharing.shareAsync(savedFileUri, {
-                  mimeType: 'image/png',
-                  dialogTitle: `Order #${orderId.slice(-6)}`,
-                });
-              } catch (shareError) {
-                console.log('Share error:', shareError);
+      
+      console.log('Processing image data, length:', imageData.length);
+      
+      const filename = response.filename || `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`;
+      const savedFileUri = FileSystem.documentDirectory + filename;
+      
+      console.log('Saving image to:', savedFileUri);
+      
+      // Clean base64 data (remove data URL prefix if present)
+      let cleanBase64 = imageData;
+      if (cleanBase64.includes(',')) {
+        cleanBase64 = cleanBase64.split(',')[1];
+      }
+      
+      // Save image file from base64
+      await FileSystem.writeAsStringAsync(savedFileUri, cleanBase64, {
+        encoding: 'base64',
+      });
+      
+      console.log('Image file saved successfully to app directory');
+      
+      // Try to save to device gallery using MediaLibrary
+      let gallerySuccess = false;
+      let displayPath = 'App Documents';
+      
+      try {
+        console.log('Attempting to save to device gallery...');
+        const asset = await MediaLibrary.createAssetAsync(savedFileUri);
+        console.log('Asset created successfully:', asset.id);
+        
+        // Try to organize in album
+        try {
+          let album = await MediaLibrary.getAlbumAsync('DrukFarm Orders');
+          if (!album) {
+            console.log('Creating new DrukFarm Orders album...');
+            album = await MediaLibrary.createAlbumAsync('DrukFarm Orders', asset, false);
+            console.log('Album created:', album.title);
+          } else {
+            console.log('Adding to existing album...');
+            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          }
+          displayPath = 'Gallery > DrukFarm Orders';
+          gallerySuccess = true;
+        } catch (albumError) {
+          console.log('Album error (but image saved to gallery):', albumError);
+          displayPath = 'Device Gallery';
+          gallerySuccess = true;
+        }
+      } catch (mediaError) {
+        console.log('MediaLibrary error:', mediaError);
+        console.log('Image saved to app directory only');
+      }
+      
+      // Show success message
+      const successMessage = gallerySuccess 
+        ? `Image saved to your ${displayPath}!\n\nYou can find it in your Photos app.`
+        : `Image saved to app directory.\n\nPath: ${filename}`;
+      
+      Alert.alert(
+        'Order Image Downloaded!',
+        successMessage,
+        [
+          { text: 'Great!', style: 'default' },
+          {
+            text: 'Share Now',
+            onPress: async () => {
+              if (await Sharing.isAvailableAsync()) {
+                try {
+                  await Sharing.shareAsync(savedFileUri, {
+                    mimeType: 'image/png',
+                    dialogTitle: `Order Details - #${orderId.slice(-6)}`,
+                  });
+                } catch (shareError) {
+                  console.log('Share error:', shareError);
+                  Alert.alert('Share Error', 'Could not share the image.');
+                }
+              } else {
+                Alert.alert('Error', 'Sharing not available on this device.');
               }
-            }
+            },
           },
-        },
-      ]
-    );
-    
-    // Keep file permanently saved for easy access
-    console.log('Order image permanently saved to accessible location:', savedFileUri);
+        ]
+      );
+      
+      console.log('Image download process completed successfully');
+      
+    } catch (error) {
+      console.log('downloadAndSaveImage error:', error);
+      Alert.alert('Download Error', `Failed to download image: ${error.message || 'Unknown error'}`);
+    }
   };
 
   // Fallback function for image download when storage permissions are not available
@@ -817,59 +885,61 @@ export default function Dashboard({ navigation }) {
       
       // Download image from server
       const response = await downloadOrderImage(orderId, cid);
-      if (!response.success || !response.data) {
+      const imageData = response?.data;
+      
+      if (!response?.success || !imageData) {
+        console.error('Invalid server response:', response);
         Alert.alert('Error', 'No image data received from server.');
         return;
       }
       
+      console.log('Image data received, preparing for share');
+      
       // Save as PNG file
       const filename = response.filename || `DrukFarm_Order_${orderId.slice(-6)}_${Date.now()}.png`;
-      
-      // Save to app documents (most accessible location in Expo Go)
       const savedFileUri = FileSystem.documentDirectory + filename;
-      let displayPath = `App Documents/${filename}`;
       
-      // Save image file permanently to easily accessible location
-      await FileSystem.writeAsStringAsync(savedFileUri, response.data, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      
-      console.log('Image saved to accessible location:', savedFileUri);
-      
-      // Always try to save to device storage for maximum accessibility
-      try {
-        const asset = await MediaLibrary.createAssetAsync(savedFileUri);
-        
-        // Create/use DrukFarm Orders album
-        try {
-          let album = await MediaLibrary.getAlbumAsync('DrukFarm Orders');
-          if (!album) {
-            album = await MediaLibrary.createAlbumAsync('DrukFarm Orders', asset, false);
-          } else {
-            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-          }
-          displayPath = 'Device Storage > DrukFarm Orders';
-        } catch (albumError) {
-          displayPath = 'Device Storage > Photos';
-        }
-      } catch (mediaError) {
-        console.log('Device storage save failed, but file saved to:', savedFileUri);
+      // Clean base64 data
+      let cleanBase64 = imageData;
+      if (typeof cleanBase64 === 'string' && cleanBase64.includes(',')) {
+        cleanBase64 = cleanBase64.split(',')[1];
       }
       
-      // Show success message with clear access instructions
+      // Save image file for sharing
+      await FileSystem.writeAsStringAsync(savedFileUri, cleanBase64, {
+        encoding: 'base64',
+      });
+      
+      console.log('Image saved for sharing:', savedFileUri);
+      
+      // Try to save to gallery anyway (might work)
+      let savedToGallery = false;
+      try {
+        const asset = await MediaLibrary.createAssetAsync(savedFileUri);
+        console.log('Successfully saved to gallery');
+        savedToGallery = true;
+      } catch (mediaError) {
+        console.log('Could not save to gallery, will share only:', mediaError);
+      }
+      
+      // Show success message with share option
+      const message = savedToGallery 
+        ? 'Image saved to your gallery and ready to share!'
+        : 'Image ready to share!';
+      
       if (await Sharing.isAvailableAsync()) {
         Alert.alert(
-          'Image Downloaded!',
-          `Your order image has been saved!\n\nLocation: ${displayPath}\n\nTo view:\n• Open your gallery/photos app\n• Or share to view elsewhere`,
+          'Image Ready!',
+          message,
           [
-            { text: 'Perfect!', style: 'default' },
+            { text: 'OK', style: 'default' },
             {
-              text: 'Share Image',
+              text: 'Share Now',
               onPress: async () => {
                 try {
                   await Sharing.shareAsync(savedFileUri, {
                     mimeType: 'image/png',
-                    dialogTitle: `Order #${orderId.slice(-6)}`,
+                    dialogTitle: `Order Details - #${orderId.slice(-6)}`,
                   });
                 } catch (shareError) {
                   console.log('Share error:', shareError);
@@ -880,7 +950,7 @@ export default function Dashboard({ navigation }) {
           ]
         );
       } else {
-        Alert.alert('Image Saved!', `Image is accessible at:\n${displayPath}\n\nOpen your gallery to view.`);
+        Alert.alert('Image Ready!', 'Image saved but sharing not available on this device.');
       }
       
       // Keep file permanently saved for easy access
@@ -991,11 +1061,17 @@ export default function Dashboard({ navigation }) {
             
             {canShip && (
               <TouchableOpacity 
-                onPress={() => handleMarkShipped(item.orderId)} 
-                style={styles.shipButton}
+                onPress={() => handleDownloadConfirmedOrderImage(item.orderId)} 
+                style={[styles.downloadButton, downloadingImage === item.orderId && styles.downloadingButton]}
+                disabled={downloadingImage === item.orderId}
               >
-                <Icon name="truck-delivery-outline" size={16} color="#fff" />
-                <Text style={styles.shipButtonText}>Ship</Text>
+                {downloadingImage === item.orderId ? (
+                  <ActivityIndicator size="small" color="#6B7280" />
+                ) : (
+                  <Text style={styles.downloadButtonText}>
+                    Download
+                  </Text>
+                )}
               </TouchableOpacity>
             )}
             
@@ -1038,6 +1114,22 @@ export default function Dashboard({ navigation }) {
     );
   };
 
+  const getFilteredOrders = () => {
+    if (!orders) return [];
+    
+    if (orderSubTab === "All") {
+      return orders;
+    } else if (orderSubTab === "Pending") {
+      return orders.filter(order => order.status?.toLowerCase() === 'order placed');
+    } else if (orderSubTab === "Confirmed") {
+      return orders.filter(order => order.status?.toLowerCase() === 'order confirmed');
+    } else if (orderSubTab === "Shipped") {
+      return orders.filter(order => order.status?.toLowerCase() === 'shipped');
+    }
+    
+    return [];
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case "Products":
@@ -1058,24 +1150,46 @@ export default function Dashboard({ navigation }) {
               renderItem={renderProduct}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
-              refreshing={loading}
-              onRefresh={getProducts}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
             />
           </>
         );
       case "Orders":
-        const filteredOrders = orders.filter(order => {
-          if (orderSubTab === "Pending") {
-            return order.status?.toLowerCase() === 'order placed';
-          } else if (orderSubTab === "Confirmed") {
-            return order.status?.toLowerCase() === 'order confirmed';
-          } else if (orderSubTab === "Shipped") {
-            return order.status?.toLowerCase() === 'shipped';
-          } else if (orderSubTab === "All") {
-            return true;
-          }
-          return false;
-        });
+        return (
+          <>
+            {ordersLoading ? (
+              <View style={styles.centered}>
+                <ActivityIndicator size="large" color="#059669" />
+                <Text style={styles.loadingText}>Loading orders...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={getFilteredOrders()}
+                renderItem={renderOrder}
+                keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
+                contentContainerStyle={styles.listContainer}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Icon name="package-variant-closed" size={64} color="#D1D5DB" />
+                    <Text style={styles.emptyText}>No orders found</Text>
+                    <Text style={styles.emptySubtext}>
+                      {orderSubTab === "All"
+                        ? "You don't have any orders yet"
+                        : orderSubTab === "Pending"
+                        ? "No pending orders at the moment"
+                        : "No confirmed orders ready to ship"}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </>
+        );
 
         return (
           <>
@@ -1150,7 +1264,7 @@ export default function Dashboard({ navigation }) {
               </View>
             </ScrollView>
 
-            {filteredOrders.length === 0 && !ordersLoading ? (
+            {getFilteredOrders().length === 0 && !ordersLoading ? (
               <View style={styles.placeholder}>
                 <Icon name="cart-outline" size={48} color="#6B7280" />
                 <Text style={styles.placeholderText}>
@@ -1159,7 +1273,7 @@ export default function Dashboard({ navigation }) {
               </View>
             ) : (
               <FlatList
-                data={filteredOrders}
+                data={getFilteredOrders()}
                 renderItem={renderOrder}
                 keyExtractor={(item) => item.orderId}
                 contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
@@ -1190,10 +1304,11 @@ export default function Dashboard({ navigation }) {
           <Icon name="arrow-left" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Farmer Dashboard</Text>
+        <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.tabs}>
-        {["Stats", "Products", "Orders"].map((tab) => (
+        {["Products", "Orders"].map((tab) => (
           <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}>
             <Text
               style={[styles.tab, activeTab === tab && styles.activeTab]}
@@ -1204,7 +1319,34 @@ export default function Dashboard({ navigation }) {
         ))}
       </View>
 
-      {renderContent()}
+      {/* Order Sub-tabs */}
+      {activeTab === "Orders" && (
+        <View style={styles.subTabs}>
+          {["All", "Pending", "Confirmed"].map((subTab) => (
+            <TouchableOpacity
+              key={subTab}
+              onPress={() => setOrderSubTab(subTab)}
+              style={[
+                styles.subTab,
+                orderSubTab === subTab && styles.activeSubTab
+              ]}
+            >
+              <Text
+                style={[
+                  styles.subTabText,
+                  orderSubTab === subTab && styles.activeSubTabText
+                ]}
+              >
+                {subTab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.content}>
+        {renderContent()}
+      </View>
 
       <Modal
         animationType="fade"
@@ -1458,6 +1600,65 @@ const styles = StyleSheet.create({
     color: "#DC2626",
     borderBottomWidth: 2,
     borderBottomColor: "#DC2626",
+  },
+  content: {
+    flex: 1,
+  },
+  subTabs: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  subTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+  },
+  activeSubTab: {
+    backgroundColor: "#DC2626",
+  },
+  subTabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  activeSubTabText: {
+    color: "#FFFFFF",
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#6B7280",
+    marginTop: 8,
+  },
+  listContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 100,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    marginTop: 8,
+    textAlign: "center",
+    paddingHorizontal: 32,
   },
   sectionHeader: {
     flexDirection: "row",

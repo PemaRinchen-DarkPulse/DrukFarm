@@ -37,7 +37,9 @@
       "softwareKeyboardLayoutMode": "pan",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -48,6 +50,13 @@
         "expo-image-picker",
         {
           "photosPermission": "The app needs access to your photos to let you select a product image."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow DrukFarm to save order images to your gallery.",
+          "savePhotosPermission": "Allow DrukFarm to save order images to your gallery."
         }
       ],
       "expo-font"

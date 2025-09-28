@@ -60,7 +60,8 @@ const OrderSchema = new mongoose.Schema(
 		qrCodeDataUrl: { type: String, required: true }, // Base64 data URL (downloadable)
 		source: { type: String, enum: ['buy', 'cart'], required: true },
 		// expand status values to include PAID and OUT_FOR_DELIVERY; keep legacy 'Out for Delivery' for backward-compat
-		status: { type: String, enum: ['pending', 'placed', 'paid', 'OUT_FOR_DELIVERY', 'Out for Delivery', 'shipped', 'cancelled', 'delivered'], default: 'pending' },
+		status: { type: String, enum: ['order placed','order confirmed', 'shipped', 'Out for Delivery', 'cancelled', 'delivered'], default: 'order placed' },
+		isPaid: { type: Boolean, default: false }, 
 		transporter: { type: TransporterSnapshotSchema, default: null },
 	},
 	{ timestamps: true, versionKey: false }

@@ -310,18 +310,18 @@ export default function TransporterDashboard({ navigation }) {
         </View>
 
         <View style={styles.orderActions}>
-          {(item.status === 'shipped' || item.status === 'Pending' || !item.transporterId) && (
+          {(item.status === 'shipped' || item.status === 'Shipped') && !item.transporterId && (
             <TouchableOpacity
               style={[styles.actionButton, styles.acceptButton]}
-              onPress={() => handleOrderAction(item.orderId || item.id, 'Accepted')}
+              onPress={() => handleOrderAction(item.orderId || item.id, 'accept')}
             >
               <Text style={styles.acceptButtonText}>Accept Order</Text>
             </TouchableOpacity>
           )}
-          {item.status === 'Accepted' && (
+          {(item.status === 'Accepted' || item.status === 'out for delivery' || item.status === 'OUT_FOR_DELIVERY') && (
             <TouchableOpacity
               style={[styles.actionButton, styles.pickupButton]}
-              onPress={() => handleOrderAction(item.orderId || item.id, 'PickedUp')}
+              onPress={() => handleOrderAction(item.orderId || item.id, 'pickup')}
             >
               <Text style={styles.pickupButtonText}>Mark as Picked Up</Text>
             </TouchableOpacity>
@@ -329,7 +329,7 @@ export default function TransporterDashboard({ navigation }) {
           {item.status === 'PickedUp' && (
             <TouchableOpacity
               style={[styles.actionButton, styles.deliverButton]}
-              onPress={() => handleOrderAction(item.orderId || item.id, 'Delivered')}
+              onPress={() => handleOrderAction(item.orderId || item.id, 'deliver')}
             >
               <Text style={styles.deliverButtonText}>Mark as Delivered</Text>
             </TouchableOpacity>
@@ -354,8 +354,6 @@ export default function TransporterDashboard({ navigation }) {
         const uniqueAvailableOrders = Array.from(new Set(availableOrders.map(o => o.orderId || o.id)))
             .map(id => availableOrders.find(o => (o.orderId || o.id) === id));
         filteredOrders = uniqueAvailableOrders.filter(order => 
-          order.status === 'Pending' || 
-          order.status === 'pending' ||
           order.status === 'Shipped' ||
           order.status === 'shipped'
         );
@@ -364,6 +362,8 @@ export default function TransporterDashboard({ navigation }) {
         filteredOrders = orders.filter(order => 
           (order.transporterId === user?.id || order.transporterId === user?.cid) &&
           (order.status === 'Accepted' || 
+          order.status === 'out for delivery' ||
+          order.status === 'OUT_FOR_DELIVERY' ||
           order.status === 'PickedUp')
         );
         break;
