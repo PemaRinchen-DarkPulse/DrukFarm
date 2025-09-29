@@ -1811,13 +1811,14 @@ const styles = StyleSheet.create({
   productSection: {
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
+    paddingTop: 8,
     paddingBottom: 6,
   },
   productNameText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-    marginTop: 8,
+    marginTop: 16,
     marginBottom: 4,
   },
   orderDetailsText: {

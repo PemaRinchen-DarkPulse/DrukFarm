@@ -311,6 +311,13 @@ export async function markOrderConfirmed({ orderId, cid }){
   return request(`/orders/${orderId}/confirm`, { method: 'PATCH', headers })
 }
 
+export async function confirmOrderWithRoleBasedStatus({ orderId, cid, userRole }){
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  if (userRole) headers['x-user-role'] = userRole
+  return request(`/orders/${orderId}/confirm`, { method: 'PATCH', headers })
+}
+
 // Drop-off locations APIs
 export async function fetchDzongkhags(){
   const resp = await request('/drop-off-locations/dzongkhags')
@@ -399,7 +406,7 @@ export default {
   fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
   fetchUserByCid, updateUser,
   addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, unifiedCheckout, fetchSellerOrders, fetchTshogpasOrders, fetchMyOrders, cancelMyOrder,
-  searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered, markOrderShipped, markOrderConfirmed,
+  searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered, markOrderShipped, markOrderConfirmed, confirmOrderWithRoleBasedStatus,
   addToWishlist, getWishlist, removeFromWishlist,
   logoutUser,
   fetchDzongkhags, fetchTownsByDzongkhag,

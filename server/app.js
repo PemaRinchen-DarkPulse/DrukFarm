@@ -11,7 +11,8 @@ const cartRouter = require('./routes/cart')
 const ordersRouter = require('./routes/orders')
 const wishlistRouter = require('./routes/wishlist')
 const dropOffLocationsRouter = require('./routes/drop-off-locations')
-const addressesRouter = require('./routes/addresses')
+const addressesRouter = require('./routes/addresses');
+const { router: dispatchAddressesRouter } = require('./routes/dispatch-addresses');
 
 function createApp() {
   const app = express()
@@ -35,7 +36,7 @@ function createApp() {
   // Root - helpful landing for the API base
   app.get('/', (_req, res) => {
     res.status(200).send(
-      'DrukFarm API is running. See /api/health, /api/products, /api/categories, /api/users, /api/addresses, /api/drop-off-locations'
+      'DrukFarm API is running. See /api/health, /api/products, /api/categories, /api/users, /api/addresses, /api/drop-off-locations, /api/dispatch-addresses'
     )
   })
 
@@ -52,7 +53,8 @@ function createApp() {
   app.use('/api/orders', ordersRouter)
   app.use('/api/wishlist', wishlistRouter)
   app.use('/api/drop-off-locations', dropOffLocationsRouter)
-  app.use('/api/addresses', addressesRouter)
+  app.use('/api/addresses', addressesRouter);
+  app.use('/api/dispatch-addresses', dispatchAddressesRouter);
 
   // 404 for unmatched routes
   app.use((req, res, next) => {

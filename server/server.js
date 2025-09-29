@@ -71,8 +71,8 @@ async function getApp() {
       throw new Error("❌ MONGODB_URI is not set");
     }
     const uri = process.env.MONGODB_URI;
-  const nosrv = process.env.MONGODB_NOSRV_URI || "";
-  const fallback = process.env.MONGODB_FALLBACK_URI || "mongodb://127.0.0.1:27017/drukfarm";
+    const nosrv = process.env.MONGODB_NOSRV_URI || "";
+    const fallback = process.env.MONGODB_FALLBACK_URI || "mongodb://127.0.0.1:27017/drukfarm";
     const isSrv = /^mongodb\+srv:/i.test(uri);
     try {
       __conn = mongoose.connect(uri);

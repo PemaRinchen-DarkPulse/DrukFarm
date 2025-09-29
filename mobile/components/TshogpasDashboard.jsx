@@ -210,12 +210,8 @@ export default function TshogpasDashboard({ navigation }) {
       
       const fetched = await fetchTshogpasOrders({ cid });
       console.log('Fetched tshogpas orders:', fetched);
+      console.log('Raw orders count:', fetched?.orders?.length || 0);
       const normalized = Array.isArray(fetched?.orders) ? fetched.orders
-        .filter(o => {
-          // Only show orders for products created by this Tshogpas user
-          const productSellerCid = o.product?.sellerCid || o.product?.createdBy;
-          return productSellerCid === user?.cid;
-        })
         .map(o => ({
           orderId: String(o.orderId || o._id || ''),
           _id: String(o._id || o.orderId || ''),
@@ -233,7 +229,7 @@ export default function TshogpasDashboard({ navigation }) {
           buyer: {
             name: o.buyer?.name || o.customerName || 'Unknown',
             cid: o.buyer?.cid || o.customerCid,
-            phone: o.buyer?.phone,
+            phone: o.buyer?.phone || o.buyer?.phoneNumber,
             address: o.buyer?.address
           },
           quantity: o.quantity || 1,
@@ -244,6 +240,15 @@ export default function TshogpasDashboard({ navigation }) {
           qrCodeDataUrl: o.qrCodeDataUrl
         })) : [];
       
+      console.log('Normalized orders count:', normalized.length);
+      console.log('Sample normalized order:', normalized[0]);
+      if (normalized[0]) {
+        console.log('Sample buyer phone data:', {
+          phone: normalized[0].buyer?.phone,
+          phoneNumber: normalized[0].buyer?.phoneNumber,
+          originalBuyer: fetched?.orders?.[0]?.buyer
+        });
+      }
       setOrders(normalized);
     } catch (error) {
       console.error('Error fetching tshogpas orders:', error);
@@ -433,11 +438,27 @@ export default function TshogpasDashboard({ navigation }) {
 
   const handleMarkConfirmed = async (orderId, isSelfPurchase = false) => {
     try {
-      await markOrderConfirmed(orderId);
-      Alert.alert("Success", isSelfPurchase ? "Order accepted!" : "Order confirmed!");
-      getOrders();
+      // For Tshogpas, confirming an order moves it directly to "shipped" status
+      const response = await markOrderConfirmed({ orderId, cid: user?.cid });
+      
+      if (response.success) {
+        // Update local state to reflect the new status (shipped for Tshogpas)
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.orderId === orderId || order._id === orderId
+              ? { ...order, status: 'shipped' }
+              : order
+          )
+        );
+
+        Alert.alert("Success", isSelfPurchase ? "Order accepted and shipped!" : "Order confirmed and shipped!");
+        
+        // Switch to Confirmed tab to show the updated order
+        setOrderSubTab("Confirmed");
+      }
     } catch (error) {
-      Alert.alert("Error", "Failed to confirm order.");
+      console.error('Confirm order error:', error);
+      Alert.alert("Error", error.body?.error || "Failed to confirm order.");
     }
   };
 
@@ -501,7 +522,8 @@ export default function TshogpasDashboard({ navigation }) {
       case "Pending":
         return orders.filter(o => o.status?.toLowerCase() === 'order placed');
       case "Confirmed":
-        return orders.filter(o => o.status?.toLowerCase() === 'order confirmed');
+        // For Tshogpas, "Confirmed" tab shows shipped orders (since they ship directly upon confirming)
+        return orders.filter(o => o.status?.toLowerCase() === 'shipped');
       case "Shipped":
         return orders.filter(o => o.status?.toLowerCase() === 'shipped');
       case "All":
@@ -548,6 +570,10 @@ export default function TshogpasDashboard({ navigation }) {
     const canShip = item.status?.toLowerCase() === 'order confirmed';
     const isShipped = item.status?.toLowerCase() === 'shipped';
     
+    // For Tshogpas, orders move directly to shipped when confirmed
+    // So show download button for shipped orders (which appear in Confirmed tab)
+    const canDownload = isShipped;
+    
     // Special case: if consumer buys their own product, they can accept it directly
     const isSelfPurchase = item.buyer?.cid === item.product?.sellerCid;
 
@@ -579,7 +605,7 @@ export default function TshogpasDashboard({ navigation }) {
               </TouchableOpacity>
             )}
             
-            {canShip && (
+            {canDownload && (
               <TouchableOpacity 
                 onPress={() => handleDownloadConfirmedOrderImage(item.orderId)} 
                 style={[styles.downloadButton, downloadingImage === item.orderId && styles.downloadingButton]}
@@ -608,8 +634,8 @@ export default function TshogpasDashboard({ navigation }) {
           <View style={styles.buyerSection}>
             <Text style={styles.buyerLabel}>Customer</Text>
             <Text style={styles.buyerName}>{item.customerName}</Text>
-            {item.buyer?.phone && (
-              <Text style={styles.buyerContact}>Phone: {item.buyer.phone}</Text>
+            {(item.buyer?.phone || item.buyer?.phoneNumber) && (
+              <Text style={styles.buyerContact}>{item.buyer?.phone || item.buyer?.phoneNumber}</Text>
             )}
             {item.deliveryAddress && (
               <Text style={styles.buyerContact}>Address: {item.deliveryAddress}</Text>
@@ -1265,13 +1291,14 @@ const styles = StyleSheet.create({
   productSection: {
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
+    paddingTop: 8,
     paddingBottom: 6,
   },
   productNameText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-    marginTop: 8,
+    marginTop: 16,
     marginBottom: 4,
   },
   orderDetailsText: {

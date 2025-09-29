@@ -44,6 +44,21 @@ const TransporterSnapshotSchema = new mongoose.Schema(
 	{ _id: false }
 )
 
+// Status history tracking
+const StatusHistorySchema = new mongoose.Schema(
+	{
+		status: { type: String, required: true },
+		changedBy: {
+			cid: { type: String, required: true },
+			role: { type: String, required: true },
+			name: { type: String, default: '' }
+		},
+		timestamp: { type: Date, default: Date.now },
+		notes: { type: String, default: '' }
+	},
+	{ _id: false }
+)
+
 const OrderSchema = new mongoose.Schema(
 	{
 		userCid: {
@@ -63,6 +78,7 @@ const OrderSchema = new mongoose.Schema(
 		status: { type: String, enum: ['order placed','order confirmed', 'shipped', 'Out for Delivery', 'cancelled', 'delivered'], default: 'order placed' },
 		isPaid: { type: Boolean, default: false }, 
 		transporter: { type: TransporterSnapshotSchema, default: null },
+		statusHistory: { type: [StatusHistorySchema], default: [] },
 	},
 	{ timestamps: true, versionKey: false }
 )

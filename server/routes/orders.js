@@ -847,8 +847,24 @@ router.patch('/:orderId/shipped', authCid, async (req, res) => {
 			return res.status(409).json({ error: `Cannot ship order with status: ${order.status}` })
 		}
 		
+		// Get user information for status history
+		const sellerUser = await User.findOne({ cid: sellerCid }).select('name role')
+		
 		// Update status to shipped
 		order.status = 'shipped'
+		
+		// Add status history entry
+		order.statusHistory.push({
+			status: 'shipped',
+			changedBy: {
+				cid: sellerCid,
+				role: sellerUser?.role || 'unknown',
+				name: sellerUser?.name || 'Unknown User'
+			},
+			timestamp: new Date(),
+			notes: 'Order marked as shipped by seller'
+		})
+		
 		await order.save()
 		
 		// Return the existing QR code from the database
@@ -886,8 +902,34 @@ router.patch('/:orderId/confirm', authCid, async (req, res) => {
 			return res.status(409).json({ error: `Cannot confirm order with status: ${order.status}` })
 		}
 		
-		// Update status to confirmed
-		order.status = 'order confirmed'
+		// Get user information for status history
+		const sellerUser = await User.findOne({ cid: sellerCid }).select('name role')
+		const userRole = (sellerUser?.role || '').toLowerCase()
+		
+		// Determine new status based on user role
+		let newStatus = 'order confirmed'
+		let statusNote = 'Order confirmed by seller'
+		
+		if (userRole === 'tshogpas') {
+			newStatus = 'shipped'
+			statusNote = 'Order confirmed and marked as shipped by Tshogpas'
+		}
+		
+		// Update status
+		order.status = newStatus
+		
+		// Add status history entry
+		order.statusHistory.push({
+			status: newStatus,
+			changedBy: {
+				cid: sellerCid,
+				role: sellerUser?.role || 'unknown',
+				name: sellerUser?.name || 'Unknown User'
+			},
+			timestamp: new Date(),
+			notes: statusNote
+		})
+		
 		await order.save()
 		
 		res.json({ 
@@ -1223,11 +1265,17 @@ function getTransporterStatus(orderStatus, transporter, transporterId) {
 	return 'Assigned' // Assigned to another transporter
 }
 
-// GET /api/orders/tshogpas -> Orders confirmed and ready for Tshogpas to ship
+// GET /api/orders/tshogpas -> Orders for Tshogpas to manage (placed, confirmed)
 router.get('/tshogpas', authCid, async (req, res) => {
 	try {
-		// Fetch orders with 'order confirmed' status - ready for Tshogpas to handle
-		const docs = await Order.find({ status: 'order confirmed' }).sort({ createdAt: -1 })
+		const tshogpasCid = req.user.cid
+		
+		// Fetch orders for products created by this Tshogpas user
+		// Include both pending orders and shipped orders (since Tshogpas orders go directly to shipped)
+		const docs = await Order.find({ 
+			'product.sellerCid': tshogpasCid,
+			status: { $in: ['order placed', 'order confirmed', 'shipped'] } 
+		}).sort({ createdAt: -1 })
 		const mapped = docs.map(o => ({
 			orderId: String(o._id),
 			status: o.status,
@@ -1253,7 +1301,7 @@ router.get('/tshogpas', authCid, async (req, res) => {
 		res.json({ success: true, orders: mapped })
 	} catch (err) {
 		console.error('Fetch tshogpas orders error:', err)
-		res.status(500).json({ error: 'Failed to fetch confirmed orders' })
+		res.status(500).json({ error: 'Failed to fetch tshogpas orders' })
 	}
 })
 
