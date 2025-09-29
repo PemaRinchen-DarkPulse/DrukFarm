@@ -18,6 +18,7 @@ export default function AccountSettings({ navigation }) {
     return off;
   }, []);
   const isFarmer = !!user && (String(user.role || '').toLowerCase() === 'farmer' || String(user.role || '').toLowerCase() === 'tshogpas');
+  const isTshogpas = !!user && String(user.role || '').toLowerCase() === 'tshogpas';
 
   return (
     <View style={styles.container}>
@@ -61,6 +62,16 @@ export default function AccountSettings({ navigation }) {
             <Text style={styles.rowText}>Address Book</Text>
             <Icon name="chevron-right" size={20} color="#6B7280" />
           </TouchableOpacity>
+
+          {isTshogpas && (
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() => navigation.navigate("DispatchAddress")}
+            >
+              <Text style={styles.rowText}>Dispatch Address</Text>
+              <Icon name="chevron-right" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          )}
 
           {isFarmer && (
             <TouchableOpacity

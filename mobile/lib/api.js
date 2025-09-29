@@ -354,6 +354,47 @@ export async function setDefaultAddress(id){
   return request(`/addresses/${id}/default`, { method: 'PUT' })
 }
 
+// Dispatch Address APIs
+export async function fetchDispatchAddresses(){
+  return request('/dispatch-addresses')
+}
+
+export async function fetchGewogsByDzongkhag(dzongkhag){
+  if (!dzongkhag) throw new Error('dzongkhag is required')
+  return request(`/dispatch-addresses/${encodeURIComponent(dzongkhag)}`)
+}
+
+export async function fetchVillagesByGewog(dzongkhag, gewog){
+  if (!dzongkhag || !gewog) throw new Error('dzongkhag and gewog are required')
+  return request(`/dispatch-addresses/${encodeURIComponent(dzongkhag)}/${encodeURIComponent(gewog)}`)
+}
+
+export async function createDispatchAddress(dispatchAddressData){
+  return request('/dispatch-addresses', { method: 'POST', body: JSON.stringify(dispatchAddressData) })
+}
+
+// User Dispatch Address APIs
+export async function fetchUserDispatchAddresses(cid){
+  if (!cid) throw new Error('cid is required')
+  return request(`/user-dispatch-addresses/${cid}`)
+}
+
+export async function createUserDispatchAddress(addressData){
+  return request('/user-dispatch-addresses', { method: 'POST', body: JSON.stringify(addressData) })
+}
+
+export async function updateUserDispatchAddress(id, addressData){
+  return request(`/user-dispatch-addresses/${id}`, { method: 'PUT', body: JSON.stringify(addressData) })
+}
+
+export async function deleteUserDispatchAddress(id){
+  return request(`/user-dispatch-addresses/${id}`, { method: 'DELETE' })
+}
+
+export async function setDefaultUserDispatchAddress(id){
+  return request(`/user-dispatch-addresses/${id}/default`, { method: 'PUT' })
+}
+
 export async function downloadOrderImage(orderId, cid){
   const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
@@ -410,6 +451,8 @@ export default {
   addToWishlist, getWishlist, removeFromWishlist,
   logoutUser,
   fetchDzongkhags, fetchTownsByDzongkhag,
-  fetchUserAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress, downloadOrderImage,
+  fetchUserAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress,
+  fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, createDispatchAddress,
+  fetchUserDispatchAddresses, createUserDispatchAddress, updateUserDispatchAddress, deleteUserDispatchAddress, setDefaultUserDispatchAddress,
   fetchTransporterOrders, fetchShippedOrders, updateOrderStatus,
 }

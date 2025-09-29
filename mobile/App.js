@@ -35,6 +35,7 @@ import Category from './components/Category';
 import Buy from './screens/Buy';
 import Profile from './components/setting/Profile';
 import Address from './components/Address';
+import DispatchAddress from './components/DispatchAddress';
 import Payouts from './components/setting/Payouts';
 import TransporterDashboard from './components/TransporterDashboard';
 import TshogpasDashboard from './components/TshogpasDashboard';
@@ -105,6 +106,7 @@ export default function App() {
           <Stack.Screen name="Categories" component={withMainLayout(Category)} />
           <Stack.Screen name="Profile" component={withMainLayout(Profile)} />
           <Stack.Screen name="Address" component={withMainLayout(Address)} />
+          <Stack.Screen name="DispatchAddress" component={withMainLayout(DispatchAddress)} />
           <Stack.Screen name="Payouts" component={withMainLayout(Payouts)} />
           <Stack.Screen name="TransporterDashboard" component={withMainLayout(TransporterDashboard)} />
           <Stack.Screen name="TshogpasDashboard" component={withMainLayout(TshogpasDashboard)} />

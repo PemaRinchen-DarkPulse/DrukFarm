@@ -14,18 +14,12 @@ import {
 import { useRoute } from '@react-navigation/native';
 import { ChevronDown, Check } from 'lucide-react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { fetchDzongkhags, fetchTownsByDzongkhag, fetchUserAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress } from '../lib/api';
+import { fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, fetchUserDispatchAddresses, createUserDispatchAddress, updateUserDispatchAddress, deleteUserDispatchAddress, setDefaultUserDispatchAddress } from '../lib/api';
 import { getCurrentCid } from '../lib/auth';
 
-const iconOptions = [
-    { name: 'home', label: 'Home' },
-    { name: 'briefcase', label: 'Work' },
-    { name: 'school', label: 'School' },
-    { name: 'location', label: 'Other' },
-];
 const LIST_MAX = 160;
 
-// CustomDropdown Component (Unchanged)
+// CustomDropdown Component
 function CustomDropdown({ options, value, onChange, placeholder = 'Select…', disabled = false, isOpen, onToggle }) {
     const handleSelect = useCallback((option) => {
         onChange(option);
@@ -65,8 +59,7 @@ function CustomDropdown({ options, value, onChange, placeholder = 'Select…', d
     );
 }
 
-
-// --- MODIFIED: AddressCard component updated to display place and dzongkhag on separate lines ---
+// AddressCard component
 const AddressCard = ({ address, onDelete, onToggleDefault }) => (
   <View style={styles.addressCard}>
     <View style={styles.addressContent}>
@@ -87,7 +80,6 @@ const AddressCard = ({ address, onDelete, onToggleDefault }) => (
             />
           </View>
         </View>
-        {/* --- MODIFIED: Display place and dzongkhag on separate lines --- */}
         <Text style={styles.addressPlaceText}>{address.place}</Text>
         <Text style={styles.addressDzongkhagText}>{address.dzongkhag}</Text>
       </View>
@@ -103,7 +95,7 @@ const AddressCard = ({ address, onDelete, onToggleDefault }) => (
   </View>
 );
 
-// Helper function to get icon color (Unchanged)
+// Helper function to get icon color
 const getIconColor = (iconName) => {
   const colors = {
     home: '#4CAF50',
@@ -114,19 +106,20 @@ const getIconColor = (iconName) => {
   return colors[iconName] || '#757575';
 };
 
-
-const Address = ({ navigation }) => {
+const DispatchAddress = ({ navigation }) => {
   const route = useRoute();
   const [addresses, setAddresses] = useState([]);
   const [isModalVisible, setModalVisible] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [locationTitle, setLocationTitle] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState('home');
   const [selectedDzongkhag, setSelectedDzongkhag] = useState('');
+  const [selectedGewog, setSelectedGewog] = useState('');
   const [selectedTown, setSelectedTown] = useState('');
   const [dzongkhagList, setDzongkhagList] = useState([]);
+  const [gewogList, setGewogList] = useState([]);
   const [townsList, setTownsList] = useState([]);
   const [loadingDzongkhags, setLoadingDzongkhags] = useState(false);
+  const [loadingGewogs, setLoadingGewogs] = useState(false);
   const [loadingTowns, setLoadingTowns] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -143,7 +136,7 @@ const Address = ({ navigation }) => {
         return;
       }
       
-      const userAddresses = await fetchUserAddresses(userCid);
+      const userAddresses = await fetchUserDispatchAddresses(userCid);
       const addressList = Array.isArray(userAddresses) ? userAddresses : [];
       setAddresses(addressList);
     } catch (error) {
@@ -159,8 +152,8 @@ const Address = ({ navigation }) => {
     const loadDzongkhags = async () => {
         try {
             setLoadingDzongkhags(true);
-            const data = await fetchDzongkhags();
-            const dzongkhags = Array.isArray(data) ? data.filter(item => typeof item === 'string') : [];
+            const data = await fetchDispatchAddresses();
+            const dzongkhags = Array.isArray(data) ? data.map(item => item.dzongkhag) : [];
             setDzongkhagList(dzongkhags);
         } catch (error) {
             console.error('Failed to fetch dzongkhags:', error);
@@ -175,29 +168,50 @@ const Address = ({ navigation }) => {
   }, [isModalVisible]);
 
   useEffect(() => {
-    const loadTowns = async (dzongkhag) => {
+    const loadGewogs = async (dzongkhag) => {
+        try {
+            setLoadingGewogs(true);
+            const data = await fetchGewogsByDzongkhag(dzongkhag);
+            const gewogs = Array.isArray(data) ? data.map(item => item.name) : [];
+            setGewogList(gewogs);
+        } catch (error) {
+            console.error('Failed to fetch gewogs:', error);
+            setGewogList([]);
+        } finally {
+            setLoadingGewogs(false);
+        }
+    };
+    if (selectedDzongkhag) {
+      loadGewogs(selectedDzongkhag);
+    } else {
+      setGewogList([]);
+    }
+  }, [selectedDzongkhag]);
+
+  useEffect(() => {
+    const loadTowns = async (gewog) => {
         try {
             setLoadingTowns(true);
-            const data = await fetchTownsByDzongkhag(dzongkhag);
-            const towns = Array.isArray(data) ? data.filter(item => typeof item === 'string') : [];
+            const data = await fetchVillagesByGewog(selectedDzongkhag, gewog);
+            const towns = Array.isArray(data) ? data : [];
             setTownsList(towns);
         } catch (error) {
-            console.error('Failed to fetch towns:', error);
+            console.error('Failed to fetch villages:', error);
             setTownsList([]);
         } finally {
             setLoadingTowns(false);
         }
     };
-    if (selectedDzongkhag) {
-      loadTowns(selectedDzongkhag);
+    if (selectedGewog) {
+      loadTowns(selectedGewog);
     } else {
       setTownsList([]);
     }
-  }, [selectedDzongkhag]);
+  }, [selectedGewog]);
 
   const handleFormSubmit = async () => {
     try {
-      if (!locationTitle.trim() || !selectedDzongkhag || !selectedTown) {
+      if (!locationTitle.trim() || !selectedDzongkhag || !selectedGewog || !selectedTown) {
         Alert.alert('Error', 'Please fill in all required fields');
         return;
       }
@@ -211,19 +225,20 @@ const Address = ({ navigation }) => {
       const newAddressData = { 
         userCid,
         title: locationTitle.trim(), 
-        icon: selectedIcon, 
-        dzongkhag: selectedDzongkhag, 
+        icon: 'location', // Default icon since we removed icon selection
+        dzongkhag: selectedDzongkhag,
+        gewog: selectedGewog,
         place: selectedTown,
         isDefault: addresses.length === 0
       };
 
-      await createAddress(newAddressData);
+      await createUserDispatchAddress(newAddressData);
       
       await loadUserAddresses();
       setModalVisible(false);
       setLocationTitle('');
-      setSelectedIcon('home');
       setSelectedDzongkhag('');
+      setSelectedGewog('');
       setSelectedTown('');
       setOpenDropdown(null);
       
@@ -253,12 +268,12 @@ const Address = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteAddress(addressId);
+              await deleteUserDispatchAddress(addressId);
               
               if (addressToDelete.isDefault && addresses.length > 1) {
                 const remainingAddresses = addresses.filter(addr => addr._id !== addressId);
                 if (remainingAddresses.length > 0) {
-                  await setDefaultAddress(remainingAddresses[0]._id);
+                  await setDefaultUserDispatchAddress(remainingAddresses[0]._id);
                 }
               }
               
@@ -288,7 +303,7 @@ const Address = ({ navigation }) => {
         return;
       }
       
-      await setDefaultAddress(addressId);
+      await setDefaultUserDispatchAddress(addressId);
       await loadUserAddresses();
       
       // Check if we came from Checkout and redirect back
@@ -319,7 +334,7 @@ const Address = ({ navigation }) => {
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {route?.params?.from === 'Checkout' ? 'Select Address for Checkout' : 'Delivery Addresses'}
+            {route?.params?.from === 'Checkout' ? 'Select Address for Checkout' : 'Dispatch Addresses'}
           </Text>
           <View style={{ width: 24 }} />
         </View>
@@ -358,24 +373,6 @@ const Address = ({ navigation }) => {
                       onFocus={() => setOpenDropdown(null)}
                     />
                   </View>
-
-                  <View onStartShouldSetResponder={() => { setOpenDropdown(null); return false; }}>
-                    <Text style={styles.label}>Icon</Text>
-                     <View style={styles.iconSelectionContainer}>
-                        {iconOptions.map((icon) => (
-                            <TouchableOpacity
-                                key={icon.name}
-                                style={[ styles.iconWrapper, selectedIcon === icon.name && styles.selectedIconWrapper ]}
-                                onPress={() => setSelectedIcon(icon.name)}
-                            >
-                                <Ionicons name={icon.name} size={24} color={selectedIcon === icon.name ? '#059669' : '#555'} />
-                                <Text style={[styles.iconLabel, selectedIcon === icon.name && styles.selectedIconLabel]}>
-                                    {icon.label}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                  </View>
                   
                   <View>
                     <Text style={[styles.label, { marginBottom: 4 }]}>Dzongkhag</Text>
@@ -384,6 +381,7 @@ const Address = ({ navigation }) => {
                       value={selectedDzongkhag}
                       onChange={(value) => {
                         setSelectedDzongkhag(value);
+                        setSelectedGewog('');
                         setSelectedTown('');
                       }}
                       placeholder={loadingDzongkhags ? "Loading..." : "Select Dzongkhag"}
@@ -394,18 +392,39 @@ const Address = ({ navigation }) => {
                   </View>
 
                   <View>
-                    <Text style={[styles.label, { marginBottom: 4 }]}>Place Name</Text>
+                    <Text style={[styles.label, { marginBottom: 4 }]}>Gewog</Text>
+                    <CustomDropdown
+                      options={gewogList}
+                      value={selectedGewog}
+                      onChange={(value) => {
+                        setSelectedGewog(value);
+                        setSelectedTown('');
+                      }}
+                      placeholder={
+                        !selectedDzongkhag ? "Select Dzongkhag first" :
+                        loadingGewogs ? "Loading gewogs..." :
+                        gewogList.length === 0 ? "No gewogs available" :
+                        "Select Gewog"
+                      }
+                      disabled={!selectedDzongkhag || loadingGewogs || gewogList.length === 0}
+                      isOpen={openDropdown === 'gewog'}
+                      onToggle={() => toggleDropdown('gewog')}
+                    />
+                  </View>
+
+                  <View>
+                    <Text style={[styles.label, { marginBottom: 4 }]}>Village</Text>
                     <CustomDropdown
                       options={townsList}
                       value={selectedTown}
                       onChange={setSelectedTown}
                       placeholder={
-                        !selectedDzongkhag ? "Select Dzongkhag first" :
-                        loadingTowns ? "Loading towns..." :
-                        townsList.length === 0 ? "No towns available" :
-                        "Select Town"
+                        !selectedGewog ? "Select Gewog first" :
+                        loadingTowns ? "Loading villages..." :
+                        townsList.length === 0 ? "No villages available" :
+                        "Select Village"
                       }
-                      disabled={!selectedDzongkhag || loadingTowns || townsList.length === 0}
+                      disabled={!selectedGewog || loadingTowns || townsList.length === 0}
                       isOpen={openDropdown === 'town'}
                       onToggle={() => toggleDropdown('town')}
                     />
@@ -431,10 +450,10 @@ const Address = ({ navigation }) => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {route?.params?.from === 'Checkout' ? 'Select Address for Checkout' : 'Delivery Addresses'}
+          {route?.params?.from === 'Checkout' ? 'Select Address for Checkout' : 'Dispatch Addresses'}
         </Text>
         <TouchableOpacity style={styles.headerAddButton} onPress={() => setModalVisible(true)}>
-          <Text style={styles.headerAddButtonText}>+ Address</Text>
+          <Text style={styles.headerAddButtonText}>+ Dispatch</Text>
         </TouchableOpacity>
       </View>
 
@@ -451,7 +470,7 @@ const Address = ({ navigation }) => {
           {addresses.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>No addresses found</Text>
-              <Text style={styles.emptyStateSubtext}>Add your first delivery address</Text>
+              <Text style={styles.emptyStateSubtext}>Add your first dispatch address</Text>
             </View>
           ) : (
             addresses.map((address) => {
@@ -470,8 +489,6 @@ const Address = ({ navigation }) => {
           )}
         </View>
       </ScrollView>
-
-
     </SafeAreaView>
   );
 };
@@ -481,8 +498,6 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F5F7FB' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  headerAddButton: { backgroundColor: '#059669', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 },
-  headerAddButtonText: { color: 'white', fontSize: 14, fontWeight: '600' },
   addressListContainer: { flex: 1 },
   addressList: { padding: 16 },
   addressCard: { backgroundColor: 'white', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2, position: 'relative' },
@@ -493,15 +508,10 @@ const styles = StyleSheet.create({
   addressTitle: { fontSize: 16, fontWeight: '600', color: '#000' },
   switchContainer: { flexDirection: 'row', alignItems: 'center' },
   defaultLabel: { fontSize: 10, fontWeight: 'bold', color: '#4CAF50', backgroundColor: '#E8F5E9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginRight: 8, overflow: 'hidden' },
-  // --- MODIFIED: Replaced 'addressText' with specific styles for each line ---
   addressPlaceText: { fontSize: 14, color: '#333' },
   addressDzongkhagText: { fontSize: 12, color: '#666', marginTop: 2 },
-  deleteButtonContainer: {
-    position: 'absolute',
-    bottom: 12,
-    right: 20,
-  },
-
+  headerAddButton: { backgroundColor: '#059669', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 },
+  headerAddButtonText: { color: 'white', fontSize: 14, fontWeight: '600' },
   
   // Modal & Form Styles
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.6)' },
@@ -521,7 +531,6 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   title: { fontSize: 22, fontWeight: '600', textAlign: 'center' },
-  // --- MODIFIED: Reduced marginTop to decrease space between header and sub-header ---
   subtitle: { fontSize: 14, color: '#64748b', textAlign: 'center', marginTop: 4, marginBottom: 12 },
   formContainer: { 
     marginTop: 20, 
@@ -545,37 +554,18 @@ const styles = StyleSheet.create({
   dropdownItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12 },
   dropdownItemActive: { backgroundColor: '#ecfdf5' },
   dropdownItemText: { fontSize: 14, color: '#111827' },
-  iconSelectionContainer: {
-    marginTop: 4,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  iconWrapper: {
-    width: 65,
-    height: 65,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  selectedIconWrapper: {
-    borderColor: '#059669',
-    backgroundColor: '#ecfdf5',
-    borderWidth: 2,
-  },
-    iconLabel: {
-    marginTop: 4,
-    fontSize: 12,
-    color: '#374151',
-  },
-  selectedIconLabel: {
-    color: '#059669',
-    fontWeight: '600',
-  },
   
   // Action buttons and empty state
+  actionButtons: {
+    flexDirection: 'row',
+    marginTop: 12,
+    gap: 8,
+  },
+  deleteButtonContainer: {
+    position: 'absolute',
+    bottom: 12,
+    right: 20,
+  },
   actionButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -626,4 +616,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Address;
+export default DispatchAddress;
