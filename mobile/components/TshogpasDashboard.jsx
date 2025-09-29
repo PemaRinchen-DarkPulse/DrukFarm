@@ -97,6 +97,9 @@ function CustomDropdown({ options, value, onChange, placeholder = "Select…" })
 
 export default function TshogpasDashboard({ navigation }) {
   const { user } = useAuth();
+  const screenDimensions = Dimensions.get('window');
+  const MODAL_HEIGHT = screenDimensions.height * 0.85;
+  const MODAL_WIDTH = screenDimensions.width * 0.9;
   
   // Authentication check - redirect if user is not logged in or not a tshogpas
   useEffect(() => {
@@ -640,6 +643,22 @@ export default function TshogpasDashboard({ navigation }) {
               refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
               }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Icon name="basket-outline" size={64} color="#D1D5DB" />
+                  <Text style={styles.emptyText}>No products found</Text>
+                  <Text style={styles.emptySubtext}>
+                    Add your first product to start selling
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.emptyActionBtn}
+                    onPress={() => setShowAddProductModal(true)}
+                  >
+                    <Icon name="plus" size={16} color="#fff" />
+                    <Text style={styles.emptyActionBtnText}>Add Product</Text>
+                  </TouchableOpacity>
+                </View>
+              }
             />
           </>
         );
@@ -677,6 +696,24 @@ export default function TshogpasDashboard({ navigation }) {
             )}
           </>
         );
+      case "Payments":
+        return (
+          <FlatList
+            data={[]}
+            renderItem={() => null}
+            keyExtractor={() => 'empty'}
+            contentContainerStyle={styles.listContainer}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Icon name="credit-card" size={64} color="#D1D5DB" />
+                <Text style={styles.emptyText}>No payments found</Text>
+                <Text style={styles.emptySubtext}>
+                  Your payment history will show here
+                </Text>
+              </View>
+            }
+          />
+        );
       default:
         return (
           <View style={styles.centered}>
@@ -699,7 +736,7 @@ export default function TshogpasDashboard({ navigation }) {
       </View>
 
       <View style={styles.tabs}>
-        {["Products", "Orders"].map((tab) => (
+        {["Products", "Orders", "Payments"].map((tab) => (
           <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}>
             <Text
               style={[styles.tab, activeTab === tab && styles.activeTab]}
@@ -744,13 +781,10 @@ export default function TshogpasDashboard({ navigation }) {
         transparent={true}
         visible={showAddProductModal}
         onRequestClose={() => setShowAddProductModal(false)}
+        statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            enabled={Platform.OS === 'ios'}
-            behavior="padding"
-            style={styles.keyboardAvoidingWrapper}
-          >
+          <View style={styles.modalWrapper}>
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add New Product</Text>
@@ -761,7 +795,9 @@ export default function TshogpasDashboard({ navigation }) {
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: 20 }}
+                contentContainerStyle={{ paddingBottom: 10, flexGrow: 1 }}
+                bounces={false}
+                overScrollMode="never"
               >
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Product Name</Text>
@@ -819,6 +855,7 @@ export default function TshogpasDashboard({ navigation }) {
                       />
                     </View>
                   </View>
+                  <View style={{ width: 12 }} />
                   <View style={styles.halfWidth}>
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>Unit</Text>
@@ -868,7 +905,7 @@ export default function TshogpasDashboard({ navigation }) {
                 </TouchableOpacity>
               </ScrollView>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       </Modal>
 
@@ -878,13 +915,10 @@ export default function TshogpasDashboard({ navigation }) {
         transparent={true}
         visible={showAddCategory}
         onRequestClose={() => { setShowAddCategory(false); resetCategoryForm(); }}
+        statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            enabled={Platform.OS === 'ios'}
-            behavior="padding"
-            style={styles.keyboardAvoidingWrapper}
-          >
+          <View style={styles.modalWrapper}>
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>New Category</Text>
@@ -895,7 +929,9 @@ export default function TshogpasDashboard({ navigation }) {
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: 20 }}
+                contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+                bounces={false}
+                overScrollMode="never"
               >
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Name</Text>
@@ -942,7 +978,7 @@ export default function TshogpasDashboard({ navigation }) {
                 </TouchableOpacity>
               </ScrollView>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -958,7 +994,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 10,
     paddingHorizontal: 16,
     paddingTop: 16,
   },
@@ -971,7 +1007,7 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: "row",
     justifyContent: "space-around",
-    marginBottom: 20,
+  marginBottom: 8,
     paddingHorizontal: 16,
   },
   tab: {
@@ -1043,6 +1079,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: "center",
     paddingHorizontal: 32,
+  },
+  emptyActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#059669",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  emptyActionBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 4,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -1255,21 +1306,34 @@ const styles = StyleSheet.create({
   },
   // --- MODAL AND FORM STYLES ---
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
-  keyboardAvoidingWrapper: {
-    width: "90%",
-    maxHeight: "85%",
+  modalWrapper: {
+    position: 'absolute',
+    width: Dimensions.get('window').width * 0.9,
+    height: Dimensions.get('window').height * 0.85,
+    top: Dimensions.get('window').height * 0.075,
+    left: Dimensions.get('window').width * 0.05,
   },
   modalContainer: {
     width: '100%',
     height: '100%',
+    minWidth: '100%',
+    minHeight: '100%',
+    maxWidth: '100%',
+    maxHeight: '100%',
     backgroundColor: "white",
     borderRadius: 16,
     paddingHorizontal: 20,
+    overflow: 'hidden',
+    flex: 0,
     paddingTop: 10,
     paddingBottom: 10,
     shadowColor: "#000",
@@ -1485,5 +1549,21 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 14,
     color: '#111827'
+  },
+  paymentsContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  placeholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 12,
   },
 });

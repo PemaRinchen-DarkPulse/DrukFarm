@@ -82,9 +82,15 @@ function pickProductId(req) {
 
 // Atomically decrement stock if sufficient; returns updated product or null if insufficient
 async function tryDecrementStock(productId, qty) {
+	// Ensure quantity is a positive integer
+	const quantity = Math.floor(Number(qty))
+	if (!Number.isFinite(quantity) || quantity < 1) {
+		throw new Error('Invalid quantity for stock decrement')
+	}
+	
 	return Product.findOneAndUpdate(
-		{ _id: productId, stockQuantity: { $gte: qty } },
-		{ $inc: { stockQuantity: -qty } },
+		{ _id: productId, stockQuantity: { $gte: quantity } },
+		{ $inc: { stockQuantity: -quantity } },
 		{ new: true }
 	)
 }
@@ -92,11 +98,53 @@ async function tryDecrementStock(productId, qty) {
 // Best-effort rollback for stock decrements (used on failures after decrement)
 async function rollbackStock(decrements) {
 	// decrements: Array<{ productId, qty }>
+	if (!Array.isArray(decrements) || decrements.length === 0) return
+	
 	await Promise.allSettled(
-		(decrements || []).map(d =>
-			Product.updateOne({ _id: d.productId }, { $inc: { stockQuantity: d.qty } })
-		)
+		decrements.map(async d => {
+			const quantity = Math.floor(Number(d.qty))
+			if (!Number.isFinite(quantity) || quantity < 1) return Promise.resolve()
+			
+			const result = await Product.updateOne(
+				{ _id: d.productId }, 
+				{ $inc: { stockQuantity: quantity } }
+			)
+			
+			// Log rollback for debugging
+			if (result.modifiedCount > 0) {
+				console.log(`[Stock Rollback] Product ID: ${d.productId}, Restored: ${quantity}`)
+			}
+			
+			return result
+		})
 	)
+}
+
+// Validate product availability and stock for ordering
+async function validateProductForOrder(productId, requestedQty) {
+	const product = await Product.findById(productId)
+	if (!product) {
+		return { valid: false, error: 'Product not found', code: 404 }
+	}
+	
+	if (product.price <= 0) {
+		return { valid: false, error: 'Product is not available for purchase', code: 400 }
+	}
+	
+	if (product.stockQuantity < requestedQty) {
+		return { 
+			valid: false, 
+			error: 'Insufficient stock', 
+			code: 409,
+			details: {
+				requested: requestedQty,
+				available: product.stockQuantity,
+				productName: product.productName
+			}
+		}
+	}
+	
+	return { valid: true, product }
 }
 
 // POST /api/orders/buy -> Single product purchase (independent of cart)
@@ -117,18 +165,32 @@ router.post('/buy', authCid, async (req, res) => {
 		}
 		console.log('[orders/buy] parsed qty=', qty);
 
-		// Fetch product first for pricing snapshot & manual stock validation (helpful for clearer errors)
-		const product = await Product.findById(productId)
-		if (!product) return res.status(404).json({ error: 'Product not found' })
-		if (!(product.stockQuantity >= qty)) {
-			return res.status(409).json({ error: 'Insufficient stock', available: product.stockQuantity })
+		// Validate product availability and stock
+		const validation = await validateProductForOrder(productId, qty)
+		if (!validation.valid) {
+			return res.status(validation.code).json({ 
+				error: validation.error, 
+				...validation.details 
+			})
 		}
+		const product = validation.product
 
 		// Atomic decrement to guard against concurrent orders
 		const updated = await tryDecrementStock(product._id, qty)
 		if (!updated) {
-			return res.status(409).json({ error: 'Insufficient stock (race)', available: product.stockQuantity })
+			// Re-fetch current stock for accurate reporting
+			const currentProduct = await Product.findById(productId).select('stockQuantity')
+			console.log(`[Stock Deduction Failed] Product: ${product.productName}, Requested: ${qty}, Available: ${currentProduct?.stockQuantity || 0}`)
+			return res.status(409).json({ 
+				error: 'Insufficient stock due to concurrent orders', 
+				requested: qty,
+				available: currentProduct?.stockQuantity || 0,
+				productName: product.productName 
+			})
 		}
+		
+		// Log successful stock deduction
+		console.log(`[Stock Deducted] Product: ${product.productName}, Quantity: ${qty}, Remaining: ${updated.stockQuantity}`)
 		const userSnapshot = await buildUserSnapshot(req.user.cid)
 		const deliveryAddress = await buildDeliveryAddressSnapshot(req.user.cid, req.body.deliveryAddress)
 
@@ -179,6 +241,11 @@ router.post('/buy', authCid, async (req, res) => {
 			throw createErr
 		}
 
+		// Verify stock integrity (optional but good for monitoring)
+		if (updated.stockQuantity < 0) {
+			console.error(`[Stock Integrity Error] Product ${product.productName} has negative stock: ${updated.stockQuantity}`)
+		}
+
 		return res.status(201).json({
 			success: true,
 			order: toOrderJson(orderDoc),
@@ -207,7 +274,7 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 		const deliveryAddress = await buildDeliveryAddressSnapshot(userCid, req.body.deliveryAddress)
 
 		// Filter valid items and pre-check stock locally
-		const items = cart.items
+		const items = cart.itemsInFarmer
 			.map(i => ({ ...i.toObject?.() || i, product: productMap.get(String(i.productId)) || null }))
 			.filter(x => x.product)
 
@@ -285,8 +352,12 @@ router.post('/cart-checkout', authCid, async (req, res) => {
 		let created
 		try {
 			created = await Order.insertMany(ordersToCreate)
+			
+			// Log successful order creation with stock deduction details
+			console.log(`[Orders Created] ${created.length} orders created from cart checkout for user: ${userCid}`)
 		} catch (insertErr) {
 			// rollback stock if order creation fails
+			console.error('[Order Creation Failed] Rolling back stock decrements:', insertErr)
 			await rollbackStock(decremented)
 			throw insertErr
 		}
@@ -412,7 +483,14 @@ router.post('/checkout', authCid, async (req, res) => {
 		}
 
 		let created
-		try { created = await Order.insertMany(ordersPayload) } catch (e) {
+		try { 
+			created = await Order.insertMany(ordersPayload)
+			
+			// Log successful order creation with stock deduction details
+			console.log(`[Orders Created] ${created.length} orders created from unified checkout for user: ${userCid}`)
+		} catch (e) {
+			// rollback stock if order creation fails
+			console.error('[Order Creation Failed] Rolling back stock decrements:', e)
 			await rollbackStock(decremented)
 			throw e
 		}

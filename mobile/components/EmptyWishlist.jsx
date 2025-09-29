@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { Heart } from "lucide-react-native"; // modern heart icon
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 export default function EmptyWishlist() {
@@ -9,17 +9,14 @@ export default function EmptyWishlist() {
   return (
     <View style={styles.container}>
       {/* Icon */}
-      <View style={styles.iconBox}>
-        <Heart size={48} color="#10B981" strokeWidth={2.5} />
-      </View>
+      <MaterialCommunityIcons name="heart-outline" size={64} color="#D1D5DB" />
 
       {/* Title */}
-      <Text style={styles.title}>Your Wishlist is Empty</Text>
+      <Text style={styles.title}>Your wishlist is empty</Text>
 
       {/* Subtitle */}
       <Text style={styles.subtitle}>
-        Looks like you haven't added anything yet.{"\n"}
-        Let's change that!
+        Add your first product to your wishlist
       </Text>
 
       {/* Explore Products Button */}
@@ -27,7 +24,8 @@ export default function EmptyWishlist() {
         style={styles.button}
         onPress={() => navigation.navigate("Products")}
       >
-        <Text style={styles.buttonText}>Explore Products</Text>
+        <MaterialCommunityIcons name="plus" size={16} color="#fff" />
+        <Text style={styles.buttonText}>Browse Products</Text>
       </TouchableOpacity>
     </View>
   );
@@ -36,47 +34,35 @@ export default function EmptyWishlist() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
     justifyContent: "center",
-    padding: 20,
-    backgroundColor: "#fff",
-  },
-  iconBox: {
-    backgroundColor: "#ECFDF5",
-    borderRadius: 100,
-    padding: 20,
-    marginBottom: 20,
+    alignItems: "center",
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
-    color: "#111",
-    marginBottom: 8,
-    textAlign: "center",
+    color: "#6B7280",
+    marginTop: 16,
   },
   subtitle: {
     fontSize: 14,
-    color: "#666",
+    color: "#9CA3AF",
+    marginTop: 8,
     textAlign: "center",
-    marginBottom: 20,
-    paddingHorizontal: 10,
+    paddingHorizontal: 32,
   },
   button: {
-    backgroundColor: "#10B981", // bright green CTA
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-    width: "100%",
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: "#059669",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 16,
   },
   buttonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
+    marginLeft: 4,
   },
 });

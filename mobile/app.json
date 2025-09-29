@@ -33,8 +33,9 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "softwareKeyboardLayoutMode": "pan",
+      "edgeToEdgeEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
+      "windowSoftInputMode": "adjustNothing",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",

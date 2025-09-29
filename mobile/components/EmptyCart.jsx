@@ -9,15 +9,14 @@ export default function EmptyCart() {
   return (
     <View style={styles.container}>
       {/* Empty Cart Icon */}
-      <MaterialCommunityIcons name="cart-off" size={70} color="#D1D5DB" style={styles.icon} />
+      <MaterialCommunityIcons name="cart-outline" size={64} color="#D1D5DB" />
 
       {/* Title */}
       <Text style={styles.title}>Your cart is empty</Text>
 
       {/* Description */}
       <Text style={styles.subtitle}>
-        Looks like you haven't added anything to your cart yet. Let's find
-        something fresh for you!
+        Add your first product to start shopping
       </Text>
 
       {/* Browse Products Button */}
@@ -25,6 +24,7 @@ export default function EmptyCart() {
         style={styles.button}
         onPress={() => navigation.navigate("Products")}
       >
+        <MaterialCommunityIcons name="plus" size={16} color="#fff" />
         <Text style={styles.buttonText}>Browse Products</Text>
       </TouchableOpacity>
     </View>
@@ -34,43 +34,35 @@ export default function EmptyCart() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
     justifyContent: "center",
-    padding: 20,
-    // ❌ removed backgroundColor so it blends with the page
-  },
-  icon: {
-    marginBottom: 15,
+    alignItems: "center",
   },
   title: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "600",
-    color: "#111",
-    marginBottom: 6,
-    textAlign: "center",
+    color: "#6B7280",
+    marginTop: 16,
   },
   subtitle: {
-    fontSize: 15,
-    color: "#666",
+    fontSize: 14,
+    color: "#9CA3AF",
+    marginTop: 8,
     textAlign: "center",
-    marginBottom: 20,
-    paddingHorizontal: 10,
-    lineHeight: 21,
+    paddingHorizontal: 32,
   },
   button: {
-    backgroundColor: "#065F46",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#059669",
     paddingVertical: 10,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     borderRadius: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
+    marginTop: 16,
   },
   buttonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
+    marginLeft: 4,
   },
 });

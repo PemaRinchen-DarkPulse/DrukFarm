@@ -99,6 +99,9 @@ function CustomDropdown({ options, value, onChange, placeholder = "Select…" })
 
 export default function FarmerDashboard({ navigation }) {
   const { user } = useAuth();
+  const screenDimensions = Dimensions.get('window');
+  const MODAL_HEIGHT = screenDimensions.height * 0.85;
+  const MODAL_WIDTH = screenDimensions.width * 0.9;
   
   // Check user role and render appropriate dashboard
   if (user?.role?.toLowerCase() === 'transporter') {
@@ -1083,6 +1086,22 @@ export default function FarmerDashboard({ navigation }) {
               refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
               }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Icon name="basket-outline" size={64} color="#D1D5DB" />
+                  <Text style={styles.emptyText}>No products found</Text>
+                  <Text style={styles.emptySubtext}>
+                    Add your first product to start selling
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.emptyActionBtn}
+                    onPress={() => setShowAddProductModal(true)}
+                  >
+                    <Icon name="plus" size={16} color="#fff" />
+                    <Text style={styles.emptyActionBtnText}>Add Product</Text>
+                  </TouchableOpacity>
+                </View>
+              }
             />
           </>
         );
@@ -1222,6 +1241,24 @@ export default function FarmerDashboard({ navigation }) {
             </Text>
           </View>
         );
+      case "Payments":
+        return (
+          <FlatList
+            data={[]}
+            renderItem={() => null}
+            keyExtractor={() => 'empty'}
+            contentContainerStyle={styles.listContainer}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Icon name="credit-card" size={64} color="#D1D5DB" />
+                <Text style={styles.emptyText}>No payments found</Text>
+                <Text style={styles.emptySubtext}>
+                  Your payment history will show here
+                </Text>
+              </View>
+            }
+          />
+        );
       default:
         return null;
     }
@@ -1240,7 +1277,7 @@ export default function FarmerDashboard({ navigation }) {
       </View>
 
       <View style={styles.tabs}>
-        {["Products", "Orders"].map((tab) => (
+        {["Products", "Orders", "Payments"].map((tab) => (
           <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}>
             <Text
               style={[styles.tab, activeTab === tab && styles.activeTab]}
@@ -1285,30 +1322,14 @@ export default function FarmerDashboard({ navigation }) {
         transparent={true}
         visible={showAddProductModal}
         onRequestClose={() => setShowAddProductModal(false)}
+        statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
-          {/**
-           * NOTE: Previously we used behavior="height" on Android which shrinks the whole form
-           * when the keyboard appears. To keep the modal size stable, we only enable the
-           * KeyboardAvoidingView on iOS (using padding). On Android the view is rendered as a
-           * normal container so the form height remains constant and the keyboard may cover
-           * lower fields, but the internal ScrollView lets the user scroll them into view.
-           * If you prefer the keyboard to pan instead of overlay, set in app.json:
-           * "android": { "softwareKeyboardLayoutMode": "pan" }
-           */}
-          <KeyboardAvoidingView
-            enabled={Platform.OS === 'ios'}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
-            style={styles.keyboardAvoidingWrapper}
-          >
-            <View style={[styles.modalContainer, { height: screenHeightRef.current * 0.85, maxHeight: screenHeightRef.current * 0.85 }]}>
+          <View style={styles.modalWrapper}>
+            <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add New Product</Text>
-                <TouchableOpacity
-                  style={styles.closeButtonHeader}
-                  onPress={() => setShowAddProductModal(false)}
-                >
+                <TouchableOpacity style={styles.closeButtonHeader} onPress={() => setShowAddProductModal(false)}>
                   <Icon name="close-circle-outline" size={24} color="#6B7280" />
                 </TouchableOpacity>
               </View>
@@ -1316,87 +1337,92 @@ export default function FarmerDashboard({ navigation }) {
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: 20 + (Platform.OS === 'android' ? keyboardPadding : 0) }}
+                contentContainerStyle={{ paddingBottom: 10, flexGrow: 1 }}
+                bounces={false}
+                overScrollMode="never"
               >
-                {/* Product Name */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Product Name</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="e.g., Organic Apples"
+                    placeholder="Enter product name"
                     placeholderTextColor="#9ca3af"
                     value={productName}
                     onChangeText={setProductName}
                   />
                 </View>
 
-                {/* Category and Stock Quantity Row */}
-                <View style={styles.formRow}>
-                  <View style={{ width: '58%' }}>
+                <View style={styles.inputGroup}>
+                  <View style={styles.categoryHeader}>
                     <Text style={styles.inputLabel}>Category</Text>
-                    <CustomDropdown
-                      options={categoryOptions}
-                      value={productCategory}
-                      onChange={setProductCategory}
-                      placeholder="Select category..."
-                    />
-                    <TouchableOpacity onPress={() => setShowAddCategory(true)} style={styles.inlineAddLink}>
-                      <Text style={styles.inlineAddLinkText}>+ New Category</Text>
+                    <TouchableOpacity onPress={() => setShowAddCategory(true)} style={styles.addCategoryBtn}>
+                      <Icon name="plus-circle-outline" size={20} color="#059669" />
+                      <Text style={styles.addCategoryText}>Add New</Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={{ width: '38%' }}>
-                    <Text style={styles.inputLabel}>Stock Qty</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g., 50"
-                      placeholderTextColor="#9ca3af"
-                      keyboardType="numeric"
-                      value={productStockQuantity}
-                      onChangeText={setProductStockQuantity}
-                    />
-                  </View>
+                  <CustomDropdown
+                    options={categoryOptions}
+                    value={productCategory}
+                    onChange={setProductCategory}
+                    placeholder="Select a category"
+                  />
                 </View>
 
-                {/* Description */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Description</Text>
+                  <Text style={styles.inputLabel}>Description (70-150 chars)</Text>
                   <TextInput
                     style={styles.descriptionInput}
-                    placeholder="Min 70, Max 150 characters"
+                    placeholder="Describe your product..."
                     placeholderTextColor="#9ca3af"
-                    multiline
-                    maxLength={150}
                     value={productDescription}
                     onChangeText={setProductDescription}
+                    multiline
+                    numberOfLines={4}
+                    maxLength={160}
                   />
                   <Text style={styles.charCount}>{productDescription.length} / 150</Text>
                 </View>
 
-                {/* Price and Unit Row */}
                 <View style={styles.formRow}>
-                  <View style={{ width: '38%' }}>
-                    <Text style={styles.inputLabel}>Price (Nu.)</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g., 120"
-                      placeholderTextColor="#9ca3af"
-                      keyboardType="numeric"
-                      value={productPrice}
-                      onChangeText={setProductPrice}
-                    />
+                  <View style={styles.halfWidth}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Price (Nu.)</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="0.00"
+                        placeholderTextColor="#9ca3af"
+                        value={productPrice}
+                        onChangeText={setProductPrice}
+                        keyboardType="numeric"
+                      />
+                    </View>
                   </View>
-                  <View style={{ width: '58%' }}>
-                    <Text style={styles.inputLabel}>Unit</Text>
-                    <CustomDropdown
-                      options={unitOptions}
-                      value={productUnit}
-                      onChange={setProductUnit}
-                      placeholder="Select a unit..."
-                    />
+                  <View style={{ width: 12 }} />
+                  <View style={styles.halfWidth}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Unit</Text>
+                      <CustomDropdown
+                        options={unitOptions}
+                        value={productUnit}
+                        onChange={setProductUnit}
+                        placeholder="Select unit"
+                      />
+                    </View>
                   </View>
                 </View>
 
-                {/* Product Image Uploader */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Stock Quantity</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter stock quantity"
+                    placeholderTextColor="#9ca3af"
+                    value={productStockQuantity}
+                    onChangeText={setProductStockQuantity}
+                    keyboardType="numeric"
+                  />
+                </View>
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Product Image</Text>
                   {!productImage ? (
@@ -1422,7 +1448,7 @@ export default function FarmerDashboard({ navigation }) {
                 </TouchableOpacity>
               </ScrollView>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       </Modal>
 
@@ -1432,9 +1458,11 @@ export default function FarmerDashboard({ navigation }) {
         transparent={true}
         visible={showAddCategory}
         onRequestClose={() => { setShowAddCategory(false); resetCategoryForm(); }}
+        statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, { height: screenHeightRef.current * 0.6, maxHeight: screenHeightRef.current * 0.6 }]}>
+          <View style={styles.modalWrapper}>
+            <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>New Category</Text>
                 <TouchableOpacity style={styles.closeButtonHeader} onPress={() => { setShowAddCategory(false); resetCategoryForm(); }}>
@@ -1444,7 +1472,9 @@ export default function FarmerDashboard({ navigation }) {
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: 20 + (Platform.OS === 'android' ? keyboardPadding : 0) }}
+                contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+                bounces={false}
+                overScrollMode="never"
               >
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Name</Text>
@@ -1491,6 +1521,7 @@ export default function FarmerDashboard({ navigation }) {
                 </TouchableOpacity>
               </ScrollView>
             </View>
+          </View>
         </View>
       </Modal>
     </View>
@@ -1519,7 +1550,7 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: "row",
     justifyContent: "space-around",
-    marginBottom: 20,
+  marginBottom: 8,
     paddingHorizontal: 16,
   },
   tab: {
@@ -1591,6 +1622,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: "center",
     paddingHorizontal: 32,
+  },
+  emptyActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#059669",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  emptyActionBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 4,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -1679,6 +1725,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingTop: 100,
   },
   placeholderText: {
     fontSize: 14,
@@ -1885,21 +1932,34 @@ const styles = StyleSheet.create({
 
   // --- MODAL AND FORM STYLES ---
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
-  keyboardAvoidingWrapper: {
-    width: "90%",
-    maxHeight: "85%",
+  modalWrapper: {
+    position: 'absolute',
+    width: Dimensions.get('window').width * 0.9,
+    height: Dimensions.get('window').height * 0.85,
+    top: Dimensions.get('window').height * 0.075,
+    left: Dimensions.get('window').width * 0.05,
   },
   modalContainer: {
     width: '100%',
     height: '100%',
+    minWidth: '100%',
+    minHeight: '100%',
+    maxWidth: '100%',
+    maxHeight: '100%',
     backgroundColor: "white",
     borderRadius: 16,
     paddingHorizontal: 20,
+    overflow: 'hidden',
+    flex: 0,
     paddingTop: 10,
     paddingBottom: 10,
     shadowColor: "#000",
@@ -1930,6 +1990,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 15,
+  },
+  halfWidth: {
+    flex: 1,
   },
   inputGroup: {
     marginBottom: 15,
@@ -1966,6 +2029,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 2,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  addCategoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  addCategoryText: {
+    fontSize: 14,
+    color: '#059669',
+    marginLeft: 4,
   },
 
   // --- MODERN IMAGE UPLOADER STYLES ---
@@ -2094,12 +2172,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#111827'
   },
-  inlineAddLink: {
-    marginTop: 8,
-  },
-  inlineAddLinkText: {
-    color: '#059669',
-    fontSize: 13,
-    fontWeight: '600',
+  paymentsContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
   },
 });

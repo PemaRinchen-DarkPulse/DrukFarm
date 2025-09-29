@@ -374,9 +374,9 @@ export default function MyOrders({ navigation }) {
       {/* Empty State */}
       {!loading && !error && orders.length === 0 && (
         <View style={styles.centerContainer}>
-          <Icon name="package-variant" size={48} color="#9CA3AF" />
-          <Text style={styles.emptyText}>No orders yet</Text>
-          <Text style={styles.emptySubtext}>Start shopping to see your orders here</Text>
+          <Icon name="package-variant-closed" size={64} color="#D1D5DB" />
+          <Text style={styles.emptyText}>No orders found</Text>
+          <Text style={styles.emptySubtext}>You don't have any orders yet</Text>
         </View>
       )}
 
@@ -417,7 +417,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 32,
   },
   loadingText: {
     fontSize: 16,
@@ -445,14 +444,15 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#374151",
-    marginTop: 12,
+    color: "#6B7280",
+    marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: "#6B7280",
-    marginTop: 4,
+    color: "#9CA3AF",
+    marginTop: 8,
     textAlign: "center",
+    paddingHorizontal: 32,
   },
 
   // Summary view card styles

@@ -401,7 +401,60 @@ export default function TransporterDashboard({ navigation }) {
     return filteredOrders;
   };
 
-  const tabs = ["Available", "My Delivery", "Completed"];
+  const renderContent = () => {
+    if (activeTab === "Payments") {
+      return (
+        <FlatList
+          data={[]}
+          renderItem={() => null}
+          keyExtractor={() => 'empty'}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Icon name="credit-card" size={64} color="#D1D5DB" />
+              <Text style={styles.emptyText}>No payments found</Text>
+              <Text style={styles.emptySubtext}>
+                Your payment history will show here
+              </Text>
+            </View>
+          }
+        />
+      );
+    }
+
+    // Default content for other tabs (Available, My Delivery, Completed)
+    return loading ? (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#059669" />
+        <Text style={styles.loadingText}>Loading orders...</Text>
+      </View>
+    ) : (
+      <FlatList
+        data={getFilteredOrders()}
+        renderItem={renderOrderItem}
+        keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
+        contentContainerStyle={styles.listContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Icon name="truck-outline" size={64} color="#D1D5DB" />
+            <Text style={styles.emptyText}>No orders found</Text>
+            <Text style={styles.emptySubtext}>
+              {activeTab === "Available"
+                ? "Check back later for new orders"
+                : activeTab === "My Delivery"
+                ? "Orders you accept will appear here"
+                : "Completed deliveries will be listed here"}
+            </Text>
+          </View>
+        }
+      />
+    );
+  };
+
+  const tabs = ["Available", "My Delivery", "Completed", "Payments"];
 
   return (
     <View style={styles.container}>
@@ -451,35 +504,7 @@ export default function TransporterDashboard({ navigation }) {
       </View>
 
       <View style={styles.content}>
-        {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#059669" />
-            <Text style={styles.loadingText}>Loading orders...</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={getFilteredOrders()}
-            renderItem={renderOrderItem}
-            keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
-            contentContainerStyle={styles.listContainer}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Icon name="truck-outline" size={64} color="#D1D5DB" />
-                <Text style={styles.emptyText}>No orders found</Text>
-                <Text style={styles.emptySubtext}>
-                  {activeTab === "Available"
-                    ? "Check back later for new orders"
-                    : activeTab === "My Delivery"
-                    ? "Orders you accept will appear here"
-                    : "Completed deliveries will be listed here"}
-                </Text>
-              </View>
-            }
-          />
-        )}
+        {renderContent()}
       </View>
 
       {/* Bottom Sheet Filter Modal */}
@@ -929,17 +954,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingTop: 100,
   },
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#374151',
+    color: '#6B7280',
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#9CA3AF',
     textAlign: 'center',
     marginTop: 8,
     paddingHorizontal: 32,
@@ -1226,5 +1251,27 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  paymentsContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  placeholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 16,
   },
 });
