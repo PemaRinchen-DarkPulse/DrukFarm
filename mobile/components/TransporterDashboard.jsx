@@ -17,9 +17,16 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useAuth } from '../lib/auth';
-import { fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, fetchDzongkhags, fetchTownsByDzongkhag } from '../lib/api';
+import { fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, fetchDzongkhags, fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, setOutForDelivery } from '../lib/api';
 
 const { height: screenHeight } = Dimensions.get('window');
+
+// Helper function to normalize status for styling
+const getStatusStyleName = (status) => {
+  if (!status) return 'unknown';
+  // Convert 'Out for Delivery' to 'OutforDelivery' for style naming
+  return status.replace(/\s+/g, '');
+};
 
 export default function TransporterDashboard({ navigation }) {
   const { user } = useAuth();
@@ -32,24 +39,32 @@ export default function TransporterDashboard({ navigation }) {
   // Bottom sheet states
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [pickupDzongkhag, setPickupDzongkhag] = useState('');
-  const [pickupTown, setPickupTown] = useState('');
+  const [pickupGewog, setPickupGewog] = useState('');
+  const [pickupVillage, setPickupVillage] = useState('');
   const [dropOffDzongkhag, setDropOffDzongkhag] = useState('');
   const [dropOffTown, setDropOffTown] = useState('');
   const slideAnim = useState(new Animated.Value(screenHeight))[0];
   
   // Data states
   const [dzongkhags, setDzongkhags] = useState([]);
-  const [pickupTowns, setPickupTowns] = useState([]);
+  const [pickupGewogs, setPickupGewogs] = useState([]);
+  const [pickupVillages, setPickupVillages] = useState([]);
   const [dropOffTowns, setDropOffTowns] = useState([]);
   const [loadingDzongkhags, setLoadingDzongkhags] = useState(false);
-  const [loadingPickupTowns, setLoadingPickupTowns] = useState(false);
+  const [loadingPickupGewogs, setLoadingPickupGewogs] = useState(false);
+  const [loadingPickupVillages, setLoadingPickupVillages] = useState(false);
   const [loadingDropOffTowns, setLoadingDropOffTowns] = useState(false);
   
   // Dropdown visibility states
   const [showPickupDzongkhagDropdown, setShowPickupDzongkhagDropdown] = useState(false);
-  const [showPickupTownDropdown, setShowPickupTownDropdown] = useState(false);
+  const [showPickupGewogDropdown, setShowPickupGewogDropdown] = useState(false);
+  const [showPickupVillageDropdown, setShowPickupVillageDropdown] = useState(false);
   const [showDropOffDzongkhagDropdown, setShowDropOffDzongkhagDropdown] = useState(false);
   const [showDropOffTownDropdown, setShowDropOffTownDropdown] = useState(false);
+
+  // Payment-related state
+  const [paymentOrders, setPaymentOrders] = useState([]);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   const loadOrders = useCallback(async () => {
     // Don't load orders if user is not logged in or not a transporter
@@ -79,7 +94,20 @@ export default function TransporterDashboard({ navigation }) {
           orderId: o.orderId,
           status: o.status,
           customerName: o.customerName,
-          product: o.product?.name
+          product: o.product?.name,
+          transporterId: o.transporterId,
+          transporter: o.transporter
+        })));
+      }
+      
+      if (allOrdersResponse?.orders) {
+        console.log('Transporter orders from API:', allOrdersResponse.orders.length);
+        console.log('Sample transporter orders:', allOrdersResponse.orders.slice(0, 3).map(o => ({
+          orderId: o.orderId || o.id,
+          status: o.status,
+          customerName: o.customerName,
+          transporterId: o.transporterId,
+          transporter: o.transporter
         })));
       }
       
@@ -93,18 +121,103 @@ export default function TransporterDashboard({ navigation }) {
     }
   }, [user?.cid, user?.id]);
 
+  const loadPaymentOrders = useCallback(async () => {
+    if (!user || !user.cid || String(user.role || '').toLowerCase() !== 'transporter') {
+      console.log('User not logged in or not a transporter, skipping payment order load');
+      setPaymentOrders([]);
+      return;
+    }
+    
+    try {
+      setPaymentLoading(true);
+      
+      // Fetch transporter orders for payment tracking
+      const response = await fetchTransporterOrders({ 
+        cid: user?.cid, 
+        transporterId: user?.id || user?.cid 
+      });
+      
+      // Filter to only show orders that are in payment-relevant states
+      const paymentRelevantOrders = (response?.orders || []).filter(order => 
+        ['delivered', 'completed', 'payment pending'].includes(order.status?.toLowerCase())
+      ).map(o => ({
+        orderId: String(o.orderId || o._id || ''),
+        product: {
+          name: o.product?.name || o.product?.productName || 'Unknown Product',
+          price: o.product?.price || 0,
+        },
+        buyer: {
+          name: o.buyer?.name || o.customerName || 'Unknown Buyer',
+          cid: o.buyer?.cid || o.customerCid
+        },
+        totalPrice: o.totalAmount || (o.product?.price * o.quantity) || 0,
+        status: o.status || 'unknown',
+        settlementDate: o.settlementDate,
+        transporterSettlementDate: o.transporterSettlementDate
+      }));
+      
+      setPaymentOrders(paymentRelevantOrders);
+    } catch (error) {
+      console.error('Error loading payment orders:', error);
+      Alert.alert('Error', 'Failed to load payment orders');
+    } finally {
+      setPaymentLoading(false);
+    }
+  }, [user?.cid, user?.id]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadOrders();
+    if (activeTab === "Payments") {
+      await loadPaymentOrders();
+    } else {
+      await loadOrders();
+    }
     setRefreshing(false);
-  }, [loadOrders]);
+  }, [loadOrders, loadPaymentOrders, activeTab]);
+
+  const handleMarkPaymentReceived = async (orderId) => {
+    try {
+      Alert.alert(
+        'Payment Received',
+        'Mark this payment as received?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Confirm',
+            onPress: async () => {
+              try {
+                // Update order status to indicate payment received
+                await updateOrderStatus({ orderId, status: 'payment received', cid: user?.cid });
+                
+                // Update local state
+                setPaymentOrders(prevOrders => 
+                  prevOrders.map(order => 
+                    order.orderId === orderId 
+                      ? { ...order, status: 'payment received', settlementDate: new Date().toISOString() }
+                      : order
+                  )
+                );
+                
+                Alert.alert('Success', 'Payment marked as received');
+              } catch (error) {
+                Alert.alert('Error', 'Failed to mark payment as received');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process payment');
+    }
+  };
 
   // Data loading functions
   const loadDzongkhags = useCallback(async () => {
     try {
       setLoadingDzongkhags(true);
-      const data = await fetchDzongkhags();
-      setDzongkhags(data);
+      const data = await fetchDispatchAddresses();
+      const dzongkhagNames = data.map(item => item.dzongkhag);
+      setDzongkhags(dzongkhagNames);
     } catch (error) {
       console.error('Error loading dzongkhags:', error);
       Alert.alert('Error', 'Failed to load dzongkhags');
@@ -113,21 +226,39 @@ export default function TransporterDashboard({ navigation }) {
     }
   }, []);
 
-  const loadPickupTowns = useCallback(async (dzongkhag) => {
+  const loadPickupGewogs = useCallback(async (dzongkhag) => {
     if (!dzongkhag) {
-      setPickupTowns([]);
+      setPickupGewogs([]);
       return;
     }
     try {
-      setLoadingPickupTowns(true);
-      const data = await fetchTownsByDzongkhag(dzongkhag);
-      setPickupTowns(data);
+      setLoadingPickupGewogs(true);
+      const data = await fetchGewogsByDzongkhag(dzongkhag);
+      setPickupGewogs(data);
     } catch (error) {
-      console.error('Error loading pickup towns:', error);
-      Alert.alert('Error', 'Failed to load towns for pickup location');
-      setPickupTowns([]);
+      console.error('Error loading pickup gewogs:', error);
+      Alert.alert('Error', 'Failed to load gewogs for pickup location');
+      setPickupGewogs([]);
     } finally {
-      setLoadingPickupTowns(false);
+      setLoadingPickupGewogs(false);
+    }
+  }, []);
+
+  const loadPickupVillages = useCallback(async (dzongkhag, gewog) => {
+    if (!dzongkhag || !gewog) {
+      setPickupVillages([]);
+      return;
+    }
+    try {
+      setLoadingPickupVillages(true);
+      const data = await fetchVillagesByGewog(dzongkhag, gewog);
+      setPickupVillages(data);
+    } catch (error) {
+      console.error('Error loading pickup villages:', error);
+      Alert.alert('Error', 'Failed to load villages for pickup location');
+      setPickupVillages([]);
+    } finally {
+      setLoadingPickupVillages(false);
     }
   }, []);
 
@@ -194,8 +325,19 @@ export default function TransporterDashboard({ navigation }) {
   // Dropdown handlers
   const handlePickupDzongkhagSelect = (dzongkhag) => {
     setPickupDzongkhag(dzongkhag);
-    setPickupTown(''); // Reset town selection
-    loadPickupTowns(dzongkhag);
+    setPickupGewog(''); // Reset gewog selection
+    setPickupVillage(''); // Reset village selection
+    loadPickupGewogs(dzongkhag);
+  };
+
+  const handlePickupGewogSelect = (gewog) => {
+    setPickupGewog(gewog);
+    setPickupVillage(''); // Reset village selection
+    loadPickupVillages(pickupDzongkhag, gewog);
+  };
+
+  const handlePickupVillageSelect = (village) => {
+    setPickupVillage(village);
   };
 
   const handleDropOffDzongkhagSelect = (dzongkhag) => {
@@ -207,7 +349,8 @@ export default function TransporterDashboard({ navigation }) {
   const applyFilters = () => {
     const filterData = {
       pickupDzongkhag,
-      pickupTown,
+      pickupGewog,
+      pickupVillage,
       dropOffDzongkhag,
       dropOffTown
     };
@@ -217,17 +360,20 @@ export default function TransporterDashboard({ navigation }) {
 
   const clearFilters = () => {
     setPickupDzongkhag('');
-    setPickupTown('');
+    setPickupGewog('');
+    setPickupVillage('');
     setDropOffDzongkhag('');
     setDropOffTown('');
-    setPickupTowns([]);
+    setPickupGewogs([]);
+    setPickupVillages([]);
     setDropOffTowns([]);
     closeAllDropdowns();
   };
 
   const closeAllDropdowns = () => {
     setShowPickupDzongkhagDropdown(false);
-    setShowPickupTownDropdown(false);
+    setShowPickupGewogDropdown(false);
+    setShowPickupVillageDropdown(false);
     setShowDropOffDzongkhagDropdown(false);
     setShowDropOffTownDropdown(false);
   };
@@ -248,6 +394,12 @@ export default function TransporterDashboard({ navigation }) {
     loadOrders();
   }, [loadOrders]);
 
+  useEffect(() => {
+    if (activeTab === "Payments") {
+      loadPaymentOrders();
+    }
+  }, [activeTab, loadPaymentOrders]);
+
   // Debug effect to track modal visibility
   useEffect(() => {
     console.log('isFilterVisible changed to:', isFilterVisible);
@@ -255,16 +407,37 @@ export default function TransporterDashboard({ navigation }) {
 
   const handleOrderAction = async (orderId, action) => {
     try {
-      await updateOrderStatus({ 
-        orderId, 
-        status: action, 
-        cid: user?.cid 
-      });
-      Alert.alert('Success', `Order ${action} successfully`);
+      if (action === 'accept') {
+        // When accepting an order, set it to "out for delivery" with transporter details
+        await setOutForDelivery({ 
+          orderId, 
+          cid: user?.cid,
+          name: user?.name || user?.fullName || 'Transporter',
+          phoneNumber: user?.phoneNumber || user?.phone || ''
+        });
+        Alert.alert('Success', 'Order accepted and set for delivery');
+      } else if (action === 'deliver') {
+        // Update status to delivered
+        await updateOrderStatus({ 
+          orderId, 
+          status: 'Delivered', 
+          cid: user?.cid 
+        });
+        Alert.alert('Success', 'Order delivered successfully');
+      } else {
+        // For other actions, use the generic status update
+        await updateOrderStatus({ 
+          orderId, 
+          status: action, 
+          cid: user?.cid 
+        });
+        Alert.alert('Success', `Order ${action} successfully`);
+      }
       loadOrders(); 
     } catch (error) {
       console.error('Error updating order:', error);
-      Alert.alert('Error', `Failed to ${action} order`);
+      const errorMessage = error?.body?.message || error?.message || 'Unknown error occurred';
+      Alert.alert('Error', `Failed to ${action === 'accept' ? 'accept' : action} order: ${errorMessage}`);
     }
   };
 
@@ -277,7 +450,7 @@ export default function TransporterDashboard({ navigation }) {
           <Text style={styles.orderNumber}>
             Order #{item.orderNumber || item.orderId?.slice(-6) || 'Unknown'}
           </Text>
-          <View style={[styles.statusBadge, styles[`status${item.status || 'unknown'}`]]}>
+          <View style={[styles.statusBadge, styles[`status${getStatusStyleName(item.status)}`]]}>
             <Text style={styles.statusText}>{item.status || 'Unknown'}</Text>
           </View>
         </View>
@@ -318,23 +491,7 @@ export default function TransporterDashboard({ navigation }) {
               <Text style={styles.acceptButtonText}>Accept Order</Text>
             </TouchableOpacity>
           )}
-          {(item.status === 'Accepted' || item.status === 'out for delivery' || item.status === 'OUT_FOR_DELIVERY') && (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.pickupButton]}
-              onPress={() => handleOrderAction(item.orderId || item.id, 'pickup')}
-            >
-              <Text style={styles.pickupButtonText}>Mark as Picked Up</Text>
-            </TouchableOpacity>
-          )}
-          {item.status === 'PickedUp' && (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.deliverButton]}
-              onPress={() => handleOrderAction(item.orderId || item.id, 'deliver')}
-            >
-              <Text style={styles.deliverButtonText}>Mark as Delivered</Text>
-            </TouchableOpacity>
-          )}
-          {item.status === 'Delivered' && (
+          {(item.status === 'delivered' || item.status === 'Delivered') && (
             <View style={styles.completedBadge}>
               <Icon name="check-circle" size={16} color="#10B981" />
               <Text style={styles.completedText}>Completed</Text>
@@ -348,6 +505,11 @@ export default function TransporterDashboard({ navigation }) {
   const getFilteredOrders = () => {
     let filteredOrders = [];
     
+    console.log('Filtering orders for tab:', activeTab);
+    console.log('Total orders:', orders.length);
+    console.log('Total shipped orders:', shippedOrders.length);
+    console.log('Current user:', { cid: user?.cid, id: user?.id });
+    
     switch (activeTab) {
       case "Available":
         const availableOrders = [...shippedOrders, ...orders.filter(order => !order.transporterId)];
@@ -359,34 +521,110 @@ export default function TransporterDashboard({ navigation }) {
         );
         break;
       case "My Delivery":
-        filteredOrders = orders.filter(order => 
-          (order.transporterId === user?.id || order.transporterId === user?.cid) &&
-          (order.status === 'Accepted' || 
-          order.status === 'out for delivery' ||
-          order.status === 'OUT_FOR_DELIVERY' ||
-          order.status === 'PickedUp')
-        );
+        // Combine both orders arrays and filter for orders assigned to current transporter
+        const allMyOrders = [...orders, ...shippedOrders];
+        const uniqueMyOrders = Array.from(new Set(allMyOrders.map(o => o.orderId || o.id)))
+            .map(id => allMyOrders.find(o => (o.orderId || o.id) === id));
+        
+        console.log('=== MY DELIVERY DEBUG ===');
+        console.log('Total unique orders to check:', uniqueMyOrders.length);
+        console.log('Current user CID:', user?.cid);
+        console.log('Current user ID:', user?.id);
+        
+        filteredOrders = uniqueMyOrders.filter(order => {
+          // Debug each order
+          console.log('Checking order:', {
+            orderId: order.orderId || order.id,
+            status: order.status,
+            transporterId: order.transporterId,
+            'transporter.cid': order.transporter?.cid,
+            'transporter.name': order.transporter?.name
+          });
+          
+          // Check if order is assigned to current transporter
+          const isAssignedToMe = (
+            order.transporterId === user?.id || 
+            order.transporterId === user?.cid ||
+            order.transporter?.cid === user?.cid ||
+            order.transporter?.cid === user?.id
+          );
+          
+          // The transporter assignment is already checked through transporter fields
+          // No need for additional status-based assignment logic
+          const isAssignedToMeUpdated = isAssignedToMe;
+          
+          console.log('Transporter assignment checks:', {
+            'transporterId === user.id': order.transporterId === user?.id,
+            'transporterId === user.cid': order.transporterId === user?.cid,
+            'transporter.cid === user.cid': order.transporter?.cid === user?.cid,
+            'transporter.cid === user.id': order.transporter?.cid === user?.id,
+            'isAssignedToMe': isAssignedToMe,
+            'isAssignedToMeUpdated': isAssignedToMeUpdated,
+            'order.status': order.status
+          });
+          
+          // Check if order has appropriate status for "My Delivery"
+          const hasMyDeliveryStatus = (
+            order.status === 'Out for Delivery' ||
+            order.status === 'delivered' ||
+            order.status === 'Delivered'
+          );
+          
+          console.log('Status checks:', {
+            'status': order.status,
+            'hasMyDeliveryStatus': hasMyDeliveryStatus
+          });
+          
+          const shouldInclude = isAssignedToMeUpdated && hasMyDeliveryStatus;
+          console.log('Should include in My Delivery:', shouldInclude);
+          console.log('---');
+          
+          return shouldInclude;
+        });
+        console.log('=== END MY DELIVERY DEBUG ===');
         break;
       case "Completed":
-        filteredOrders = orders.filter(order => 
-          order.status === 'Delivered' || 
-          order.status === 'delivered'
-        );
+        // Combine both orders arrays and filter for completed orders by current transporter
+        const allCompletedOrders = [...orders, ...shippedOrders];
+        const uniqueCompletedOrders = Array.from(new Set(allCompletedOrders.map(o => o.orderId || o.id)))
+            .map(id => allCompletedOrders.find(o => (o.orderId || o.id) === id));
+        
+        filteredOrders = uniqueCompletedOrders.filter(order => {
+          // Check if order was completed by current transporter
+          const isCompletedByMe = (
+            order.transporterId === user?.id || 
+            order.transporterId === user?.cid ||
+            order.transporter?.cid === user?.cid ||
+            order.transporter?.cid === user?.id
+          );
+          
+          // Check if order is completed
+          const isCompleted = (
+            order.status === 'delivered' ||
+            order.status === 'Delivered'
+          );
+          
+          return isCompletedByMe && isCompleted;
+        });
         break;
       default:
         filteredOrders = [];
     }
 
     // Apply location filters if they exist
-    if (pickupDzongkhag || pickupTown || dropOffDzongkhag || dropOffTown) {
+    if (pickupDzongkhag || pickupGewog || pickupVillage || dropOffDzongkhag || dropOffTown) {
       filteredOrders = filteredOrders.filter(order => {
         const matchesPickupDzongkhag = !pickupDzongkhag || 
           (order.pickupLocation && order.pickupLocation.toLowerCase().includes(pickupDzongkhag.toLowerCase())) ||
           (order.customerAddress && order.customerAddress.toLowerCase().includes(pickupDzongkhag.toLowerCase()));
         
-        const matchesPickupTown = !pickupTown || 
-          (order.pickupLocation && order.pickupLocation.toLowerCase().includes(pickupTown.toLowerCase())) ||
-          (order.customerAddress && order.customerAddress.toLowerCase().includes(pickupTown.toLowerCase()));
+        const matchesPickupGewog = !pickupGewog || 
+          (order.pickupLocation && order.pickupLocation.toLowerCase().includes(pickupGewog.toLowerCase())) ||
+          (order.customerAddress && order.customerAddress.toLowerCase().includes(pickupGewog.toLowerCase()));
+        
+        const matchesPickupVillage = !pickupVillage || 
+          (order.pickupLocation && order.pickupLocation.toLowerCase().includes(pickupVillage.toLowerCase())) ||
+          (order.customerAddress && order.customerAddress.toLowerCase().includes(pickupVillage.toLowerCase()));
         
         const matchesDropOffDzongkhag = !dropOffDzongkhag || 
           (order.deliveryLocation && order.deliveryLocation.toLowerCase().includes(dropOffDzongkhag.toLowerCase()));
@@ -394,31 +632,116 @@ export default function TransporterDashboard({ navigation }) {
         const matchesDropOffTown = !dropOffTown || 
           (order.deliveryLocation && order.deliveryLocation.toLowerCase().includes(dropOffTown.toLowerCase()));
           
-        return matchesPickupDzongkhag && matchesPickupTown && matchesDropOffDzongkhag && matchesDropOffTown;
+        return matchesPickupDzongkhag && matchesPickupGewog && matchesPickupVillage && matchesDropOffDzongkhag && matchesDropOffTown;
       });
     }
+
+    console.log('Filtered orders for', activeTab, ':', filteredOrders.length);
+    console.log('Sample filtered orders:', filteredOrders.slice(0, 3).map(o => ({
+      orderId: o.orderId || o.id,
+      status: o.status,
+      transporterId: o.transporterId,
+      transporter: o.transporter
+    })));
 
     return filteredOrders;
   };
 
+  const renderPaymentTableRow = ({ item }) => {
+    const isPending = item.status !== 'payment received';
+    
+    return (
+      <View style={styles.paymentTableRow}>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>{item.product?.name || 'Unknown Product'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>Nu.{item.totalPrice || '0'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={[styles.paymentCellText, styles.statusText]}>{item.status || 'Unknown'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          {isPending ? (
+            <TouchableOpacity 
+              style={styles.receivedButton}
+              onPress={() => handleMarkPaymentReceived(item.orderId)}
+            >
+              <Text style={styles.receivedButtonText}>Received</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.paymentCellText}>
+              {item.settlementDate 
+                ? new Date(item.settlementDate).toLocaleDateString() 
+                : 'N/A'
+              }
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderPaymentTableHeader = () => {
+    return (
+      <View style={styles.paymentTableHeader}>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Order ID</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Product</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Tshogpa</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Amount</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Status</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Action</Text>
+        </View>
+      </View>
+    );
+  };
+
   const renderContent = () => {
     if (activeTab === "Payments") {
-      return (
-        <FlatList
-          data={[]}
-          renderItem={() => null}
-          keyExtractor={() => 'empty'}
-          contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Icon name="credit-card" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No payments found</Text>
-              <Text style={styles.emptySubtext}>
-                Your payment history will show here
-              </Text>
-            </View>
-          }
-        />
+      return paymentLoading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#059669" />
+          <Text style={styles.loadingText}>Loading payments...</Text>
+        </View>
+      ) : (
+        <View style={styles.paymentTableContainer}>
+          {renderPaymentTableHeader()}
+          <FlatList
+            data={paymentOrders}
+            renderItem={renderPaymentTableRow}
+            keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
+            contentContainerStyle={styles.paymentListContainer}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Icon name="credit-card" size={64} color="#D1D5DB" />
+                <Text style={styles.emptyText}>No payment orders found</Text>
+                <Text style={styles.emptySubtext}>
+                  Your payment history will show here
+                </Text>
+              </View>
+            }
+          />
+        </View>
       );
     }
 
@@ -466,7 +789,7 @@ export default function TransporterDashboard({ navigation }) {
         <TouchableOpacity 
           style={[
             styles.filterButton, 
-            (pickupDzongkhag || pickupTown || dropOffDzongkhag || dropOffTown) && styles.filterButtonActive
+            (pickupDzongkhag || pickupGewog || pickupVillage || dropOffDzongkhag || dropOffTown) && styles.filterButtonActive
           ]} 
           onPress={() => {
             console.log('Filter button pressed');
@@ -475,16 +798,16 @@ export default function TransporterDashboard({ navigation }) {
         >
           <Text style={[
             styles.filterText,
-            (pickupDzongkhag || pickupTown || dropOffDzongkhag || dropOffTown) && styles.filterTextActive
+            (pickupDzongkhag || pickupGewog || pickupVillage || dropOffDzongkhag || dropOffTown) && styles.filterTextActive
           ]}>
             Filter
           </Text>
           <Icon 
-            name={pickupDzongkhag || pickupTown || dropOffDzongkhag || dropOffTown ? "filter" : "filter-outline"} 
+            name={pickupDzongkhag || pickupGewog || pickupVillage || dropOffDzongkhag || dropOffTown ? "filter" : "filter-outline"} 
             size={20} 
-            color={(pickupDzongkhag || pickupTown || dropOffDzongkhag || dropOffTown) ? "#059669" : "#111827"} 
+            color={(pickupDzongkhag || pickupGewog || pickupVillage || dropOffDzongkhag || dropOffTown) ? "#059669" : "#111827"} 
           />
-          {(pickupDzongkhag || pickupTown || dropOffDzongkhag || dropOffTown) && (
+          {(pickupDzongkhag || pickupGewog || pickupVillage || dropOffDzongkhag || dropOffTown) && (
             <View style={styles.filterIndicator} />
           )}
         </TouchableOpacity>
@@ -544,7 +867,8 @@ export default function TransporterDashboard({ navigation }) {
                   <TouchableOpacity 
                     style={styles.dropdownButton}
                     onPress={() => {
-                      setShowPickupTownDropdown(false);
+                      setShowPickupGewogDropdown(false);
+                      setShowPickupVillageDropdown(false);
                       setShowDropOffDzongkhagDropdown(false);
                       setShowDropOffTownDropdown(false);
                       setShowPickupDzongkhagDropdown(!showPickupDzongkhagDropdown);
@@ -584,51 +908,106 @@ export default function TransporterDashboard({ navigation }) {
                   )}
                 </View>
 
-                {/* Pickup Town Dropdown */}
+                {/* Pickup Gewog Dropdown */}
                 <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Town</Text>
+                  <Text style={styles.inputLabel}>Gewog</Text>
                   <TouchableOpacity 
                     style={[styles.dropdownButton, !pickupDzongkhag && styles.disabledDropdown]}
                     onPress={() => {
                       if (pickupDzongkhag) {
                         setShowPickupDzongkhagDropdown(false);
+                        setShowPickupVillageDropdown(false);
                         setShowDropOffDzongkhagDropdown(false);
                         setShowDropOffTownDropdown(false);
-                        setShowPickupTownDropdown(!showPickupTownDropdown);
+                        setShowPickupGewogDropdown(!showPickupGewogDropdown);
                       }
                     }}
                     disabled={!pickupDzongkhag}
                   >
-                    <Icon name="home-map-marker" size={20} color={pickupDzongkhag ? "#6B7280" : "#D1D5DB"} style={styles.inputIcon} />
-                    <Text style={[styles.dropdownText, (!pickupTown || !pickupDzongkhag) && styles.placeholderText]}>
-                      {pickupTown || (pickupDzongkhag ? 'Select Town' : 'Select Dzongkhag first')}
+                    <Icon name="map" size={20} color={pickupDzongkhag ? "#6B7280" : "#D1D5DB"} style={styles.inputIcon} />
+                    <Text style={[styles.dropdownText, (!pickupGewog || !pickupDzongkhag) && styles.placeholderText]}>
+                      {pickupGewog || (pickupDzongkhag ? 'Select Gewog' : 'Select Dzongkhag first')}
                     </Text>
                     <Icon 
-                      name={showPickupTownDropdown ? "chevron-up" : "chevron-down"} 
+                      name={showPickupGewogDropdown ? "chevron-up" : "chevron-down"} 
                       size={20} 
                       color={pickupDzongkhag ? "#6B7280" : "#D1D5DB"} 
                     />
                   </TouchableOpacity>
                   
-                  {showPickupTownDropdown && pickupDzongkhag && (
+                  {showPickupGewogDropdown && pickupDzongkhag && (
                     <View style={styles.dropdownList}>
-                      {loadingPickupTowns ? (
+                      {loadingPickupGewogs ? (
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator size="small" color="#059669" />
                           <Text style={styles.loadingText}>Loading...</Text>
                         </View>
                       ) : (
                         <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
-                          {pickupTowns.map((town, index) => (
+                          {pickupGewogs.map((gewog, index) => (
                             <TouchableOpacity
                               key={index}
                               style={styles.dropdownItem}
                               onPress={() => {
-                                setPickupTown(town);
-                                setShowPickupTownDropdown(false);
+                                handlePickupGewogSelect(gewog.name);
+                                setShowPickupGewogDropdown(false);
                               }}
                             >
-                              <Text style={styles.dropdownItemText}>{town}</Text>
+                              <Text style={styles.dropdownItemText}>{gewog.name}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      )}
+                    </View>
+                  )}
+                </View>
+
+                {/* Pickup Village Dropdown */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Village</Text>
+                  <TouchableOpacity 
+                    style={[styles.dropdownButton, (!pickupDzongkhag || !pickupGewog) && styles.disabledDropdown]}
+                    onPress={() => {
+                      if (pickupDzongkhag && pickupGewog) {
+                        setShowPickupDzongkhagDropdown(false);
+                        setShowPickupGewogDropdown(false);
+                        setShowDropOffDzongkhagDropdown(false);
+                        setShowDropOffTownDropdown(false);
+                        setShowPickupVillageDropdown(!showPickupVillageDropdown);
+                      }
+                    }}
+                    disabled={!pickupDzongkhag || !pickupGewog}
+                  >
+                    <Icon name="home-city" size={20} color={(pickupDzongkhag && pickupGewog) ? "#6B7280" : "#D1D5DB"} style={styles.inputIcon} />
+                    <Text style={[styles.dropdownText, (!pickupVillage || !pickupDzongkhag || !pickupGewog) && styles.placeholderText]}>
+                      {pickupVillage || ((pickupDzongkhag && pickupGewog) ? 'Select Village' : 'Select Gewog first')}
+                    </Text>
+                    <Icon 
+                      name={showPickupVillageDropdown ? "chevron-up" : "chevron-down"} 
+                      size={20} 
+                      color={(pickupDzongkhag && pickupGewog) ? "#6B7280" : "#D1D5DB"} 
+                    />
+                  </TouchableOpacity>
+                  
+                  {showPickupVillageDropdown && pickupDzongkhag && pickupGewog && (
+                    <View style={styles.dropdownList}>
+                      {loadingPickupVillages ? (
+                        <View style={styles.loadingContainer}>
+                          <ActivityIndicator size="small" color="#059669" />
+                          <Text style={styles.loadingText}>Loading...</Text>
+                        </View>
+                      ) : (
+                        <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                          {pickupVillages.map((village, index) => (
+                            <TouchableOpacity
+                              key={index}
+                              style={styles.dropdownItem}
+                              onPress={() => {
+                                handlePickupVillageSelect(village);
+                                setShowPickupVillageDropdown(false);
+                              }}
+                            >
+                              <Text style={styles.dropdownItemText}>{village}</Text>
                             </TouchableOpacity>
                           ))}
                         </ScrollView>
@@ -649,7 +1028,8 @@ export default function TransporterDashboard({ navigation }) {
                     style={styles.dropdownButton}
                     onPress={() => {
                       setShowPickupDzongkhagDropdown(false);
-                      setShowPickupTownDropdown(false);
+                      setShowPickupGewogDropdown(false);
+                      setShowPickupVillageDropdown(false);
                       setShowDropOffTownDropdown(false);
                       setShowDropOffDzongkhagDropdown(!showDropOffDzongkhagDropdown);
                     }}
@@ -696,7 +1076,8 @@ export default function TransporterDashboard({ navigation }) {
                     onPress={() => {
                       if (dropOffDzongkhag) {
                         setShowPickupDzongkhagDropdown(false);
-                        setShowPickupTownDropdown(false);
+                        setShowPickupGewogDropdown(false);
+                        setShowPickupVillageDropdown(false);
                         setShowDropOffDzongkhagDropdown(false);
                         setShowDropOffTownDropdown(!showDropOffTownDropdown);
                       }
@@ -866,7 +1247,7 @@ const styles = StyleSheet.create({
   statusShipped: {
     backgroundColor: '#FDE68A',
   },
-  statusAccepted: {
+  statusOutforDelivery: {
     backgroundColor: '#DBEAFE',
   },
   statusPickedUp: {
@@ -911,13 +1292,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#059669',
   },
   acceptButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  pickupButton: {
-    backgroundColor: '#F59E0B',
-  },
-  pickupButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
   },
@@ -1169,7 +1543,7 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
-    maxHeight: 150,
+    maxHeight: 185, // Height for approximately 5 items
     zIndex: 1000,
     elevation: 5,
     shadowColor: '#000',
@@ -1181,7 +1555,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
   },
   dropdownScroll: {
-    maxHeight: 140,
+    maxHeight: 180, // Slightly less than dropdownList to ensure proper scrolling
   },
   dropdownItem: {
     paddingHorizontal: 16,
@@ -1273,5 +1647,72 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     paddingHorizontal: 16,
+  },
+
+  // Payment Styles
+  paymentTableContainer: {
+    flex: 1,
+    marginHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  paymentTableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  paymentTableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  paymentTableCell: {
+    flex: 1,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+  },
+  paymentHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  paymentCellText: {
+    fontSize: 12,
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '500',
+    textTransform: 'capitalize',
+  },
+  receivedButton: {
+    backgroundColor: '#059669',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    alignItems: 'center',
+  },
+  receivedButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  paymentListContainer: {
+    flexGrow: 1,
   },
 });

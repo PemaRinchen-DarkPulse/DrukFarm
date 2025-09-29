@@ -623,8 +623,21 @@ router.patch('/:orderId/out-for-delivery', authCid, async (req, res) => {
 			phoneNumber: (body.phoneNumber || me.phoneNumber || ''),
 		}
 
-		order.status = 'OUT_FOR_DELIVERY'
+		order.status = 'Out for Delivery'  // Use correct enum value
 		order.transporter = transporter
+		
+		// Add to status history
+		order.statusHistory.push({
+			status: 'Out for Delivery',
+			changedBy: {
+				cid: me.cid,
+				role: me.role || 'transporter',
+				name: me.name || ''
+			},
+			timestamp: new Date(),
+			notes: 'Order accepted by transporter and set for delivery'
+		})
+		
 		await order.save()
 
 		return res.json({ success: true, order: { orderId: String(order._id), status: order.status, transporter: order.transporter } })
@@ -1131,7 +1144,7 @@ router.get('/transporter', authCid, async (req, res) => {
 		
 		// Fetch orders that are available for transport or assigned to this transporter
 		const availableOrders = await Order.find({ 
-			status: { $in: ['shipped', 'out for delivery', 'OUT_FOR_DELIVERY', 'delivered'] }, 
+			status: { $in: ['shipped', 'Out for Delivery', 'delivered'] }, 
 			$or: [
 				{ transporter: { $exists: false } }, // Available orders
 				{ 'transporter.cid': transporterId } // Orders assigned to this transporter
@@ -1152,6 +1165,7 @@ router.get('/transporter', authCid, async (req, res) => {
 			
 			return {
 				id: String(order._id),
+				orderId: String(order._id), // Add orderId for consistency
 				orderNumber: String(order._id).slice(-6),
 				status: getTransporterStatus(order.status, order.transporter, transporterId),
 				customerName: order.userSnapshot?.name || buyer?.name || 'Unknown',
@@ -1160,6 +1174,7 @@ router.get('/transporter', authCid, async (req, res) => {
 				totalAmount: order.totalPrice || 0,
 				transportFee: calculateTransportFee(order.totalPrice), // Helper function to calculate transport fee
 				transporterId: order.transporter?.cid || null,
+				transporter: order.transporter || null, // Add full transporter object
 				createdAt: order.createdAt,
 				product: {
 					name: order.product?.productName || 'Unknown Product',
@@ -1217,15 +1232,9 @@ router.patch('/:orderId/status', authCid, async (req, res) => {
 					}
 					break
 					
-				case 'pickup':
-					if (order.status !== 'Out for Delivery' || order.transporter?.cid !== userCid) {
-						return res.status(409).json({ error: 'Cannot mark as picked up' })
-					}
-					order.status = 'PICKED_UP'
-					break
-					
 				case 'deliver':
-					if (order.status !== 'PICKED_UP' || order.transporter?.cid !== userCid) {
+				case 'delivered':
+					if (!['Out for Delivery', 'delivered'].includes(order.status) || order.transporter?.cid !== userCid) {
 						return res.status(409).json({ error: 'Cannot mark as delivered' })
 					}
 					order.status = 'delivered'
@@ -1310,11 +1319,8 @@ function getTransporterStatus(orderStatus, transporter, transporterId) {
 		switch (orderStatus) {
 			case 'shipped':
 				return 'Shipped' // Show as shipped for assigned transporter too
-			case 'out for delivery':
-			case 'OUT_FOR_DELIVERY':
-				return 'Accepted'
-			case 'PICKED_UP':
-				return 'PickedUp'
+			case 'Out for Delivery':
+				return 'Out for Delivery'
 			case 'delivered':
 				return 'Delivered'
 			default:
@@ -1331,10 +1337,9 @@ router.get('/tshogpas', authCid, async (req, res) => {
 		const tshogpasCid = req.user.cid
 		
 		// Fetch orders for products created by this Tshogpas user
-		// Include both pending orders and shipped orders (since Tshogpas orders go directly to shipped)
+		// Include ALL orders regardless of status so Tshogpas can see complete order lifecycle
 		const docs = await Order.find({ 
-			'product.sellerCid': tshogpasCid,
-			status: { $in: ['order placed', 'order confirmed', 'shipped'] } 
+			'product.sellerCid': tshogpasCid
 		}).sort({ createdAt: -1 })
 		const mapped = docs.map(o => ({
 			orderId: String(o._id),

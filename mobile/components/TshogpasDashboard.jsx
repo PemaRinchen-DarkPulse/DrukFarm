@@ -25,7 +25,7 @@ import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { ensureMediaLibraryImagePermission } from '../utils/imageDownloadSimple';
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts, fetchCategories, createCategory, fetchTshogpasOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, fetchUserDispatchAddresses } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory, fetchTshogpasOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, fetchUserDispatchAddresses, updateOrderStatus } from '../lib/api';
 import { downloadOrderImageToGallery } from '../utils/imageDownloadSimple';
 
 import { resolveProductImage } from '../lib/image';
@@ -60,7 +60,16 @@ function CustomDropdown({ options, value, onChange, placeholder = "Select…" })
           style={[styles.dropdownText, !value && styles.placeholderTextDropdown]}
           numberOfLines={1}
         >
-          {value || placeholder}
+          {(() => {
+            if (!value) return placeholder;
+            // Find the option that matches the current value
+            const selectedOption = options.find(opt => 
+              typeof opt === 'object' ? opt.value === value : opt === value
+            );
+            return selectedOption 
+              ? (typeof selectedOption === 'object' ? selectedOption.label : selectedOption)
+              : value;
+          })()}
         </Text>
         <Icon
           name={open ? "chevron-up" : "chevron-down"}
@@ -72,22 +81,28 @@ function CustomDropdown({ options, value, onChange, placeholder = "Select…" })
       {open && (
         <View style={styles.dropdownList}>
           <ScrollView style={{ maxHeight: LIST_MAX }} nestedScrollEnabled>
-            {options.map((opt) => (
-              <TouchableOpacity
-                key={opt}
-                style={[
-                  styles.dropdownItem,
-                  value === opt && styles.dropdownItemActive,
-                ]}
-                activeOpacity={0.85}
-                onPress={() => handleSelect(opt)}
-              >
-                <Text style={styles.dropdownItemText}>{opt}</Text>
-                {value === opt ? (
-                  <Icon name="check" size={18} color="#059669" />
-                ) : null}
-              </TouchableOpacity>
-            ))}
+            {options.map((opt, index) => {
+              const optionKey = typeof opt === 'object' ? opt.value || opt.label || index : opt;
+              const optionLabel = typeof opt === 'object' ? opt.label : opt;
+              const optionValue = typeof opt === 'object' ? opt.value : opt;
+              
+              return (
+                <TouchableOpacity
+                  key={optionKey}
+                  style={[
+                    styles.dropdownItem,
+                    value === optionValue && styles.dropdownItemActive,
+                  ]}
+                  activeOpacity={0.85}
+                  onPress={() => handleSelect(typeof opt === 'object' ? opt : opt)}
+                >
+                  <Text style={styles.dropdownItemText}>{optionLabel}</Text>
+                  {value === optionValue ? (
+                    <Icon name="check" size={18} color="#059669" />
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       )}
@@ -164,6 +179,12 @@ export default function TshogpasDashboard({ navigation }) {
   const hiddenImgRef = useRef(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Payment-related state for Tshogpas
+  const [paymentTab, setPaymentTab] = useState("Pending");
+  const [paymentFilter, setPaymentFilter] = useState("Earning"); // "Earning" or "Dispatched"
+  const [paymentOrders, setPaymentOrders] = useState([]);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
   const getProducts = async () => {
     try {
       setLoading(true);
@@ -202,46 +223,63 @@ export default function TshogpasDashboard({ navigation }) {
     try {
       setOrdersLoading(true);
       const cid = getCurrentCid();
+      console.log('TshogpasDashboard getOrders called with CID:', cid);
       if (!cid) {
         console.log('No CID available, skipping order fetch');
         setOrders([]);
         return;
       }
       
+      console.log('Calling fetchTshogpasOrders with CID:', cid);
       const fetched = await fetchTshogpasOrders({ cid });
-      console.log('Fetched tshogpas orders:', fetched);
+      console.log('Fetched tshogpas orders response:', fetched);
       console.log('Raw orders count:', fetched?.orders?.length || 0);
+      
+      if (fetched?.orders && fetched.orders.length > 0) {
+        console.log('Sample raw order from API:', JSON.stringify(fetched.orders[0], null, 2));
+        console.log('All order statuses:', fetched.orders.map(o => o.status));
+      }
+      
       const normalized = Array.isArray(fetched?.orders) ? fetched.orders
-        .map(o => ({
-          orderId: String(o.orderId || o._id || ''),
-          _id: String(o._id || o.orderId || ''),
-          id: String(o.orderId || o._id || ''),
-          customerName: o.customerName || o.buyer?.name || 'Unknown',
-          customerCid: o.customerCid || o.buyer?.cid,
-          product: {
-            name: o.product?.name || o.product?.productName || 'Unknown Product',
-            price: o.product?.price || 0,
-            productImageBase64: o.product?.productImageBase64,
-            productImageUrl: o.product?.productImageUrl,
-            sellerCid: o.product?.sellerCid || o.product?.createdBy,
-            sellerName: o.product?.sellerName || 'Unknown Seller'
-          },
-          buyer: {
-            name: o.buyer?.name || o.customerName || 'Unknown',
-            cid: o.buyer?.cid || o.customerCid,
-            phone: o.buyer?.phone || o.buyer?.phoneNumber,
-            address: o.buyer?.address
-          },
-          quantity: o.quantity || 1,
-          totalAmount: o.totalAmount || (o.product?.price * o.quantity) || 0,
-          status: o.status || 'unknown',
-          orderDate: o.orderDate || o.createdAt,
-          deliveryAddress: o.deliveryAddress,
-          qrCodeDataUrl: o.qrCodeDataUrl
-        })) : [];
+        .map((o, index) => {
+          console.log(`Processing order ${index + 1}:`, {
+            id: o._id,
+            orderId: o.orderId,
+            status: o.status,
+            productName: o.product?.name,
+            productSeller: o.product?.sellerCid
+          });
+          return {
+            orderId: String(o.orderId || o._id || ''),
+            _id: String(o._id || o.orderId || ''),
+            id: String(o.orderId || o._id || ''),
+            customerName: o.customerName || o.buyer?.name || 'Unknown',
+            customerCid: o.customerCid || o.buyer?.cid,
+            product: {
+              name: o.product?.name || o.product?.productName || 'Unknown Product',
+              price: o.product?.price || 0,
+              productImageBase64: o.product?.productImageBase64,
+              productImageUrl: o.product?.productImageUrl,
+              sellerCid: o.product?.sellerCid || o.product?.createdBy,
+              sellerName: o.product?.sellerName || 'Unknown Seller'
+            },
+            buyer: {
+              name: o.buyer?.name || o.customerName || 'Unknown',
+              cid: o.buyer?.cid || o.customerCid,
+              phone: o.buyer?.phone || o.buyer?.phoneNumber,
+              address: o.buyer?.address
+            },
+            quantity: o.quantity || 1,
+            totalAmount: o.totalAmount || (o.product?.price * o.quantity) || 0,
+            status: o.status || 'unknown',
+            orderDate: o.orderDate || o.createdAt,
+            deliveryAddress: o.deliveryAddress,
+            qrCodeDataUrl: o.qrCodeDataUrl
+          };
+        }) : [];
       
       console.log('Normalized orders count:', normalized.length);
-      console.log('Sample normalized order:', normalized[0]);
+      console.log('Sample normalized order:', JSON.stringify(normalized[0], null, 2));
       if (normalized[0]) {
         console.log('Sample buyer phone data:', {
           phone: normalized[0].buyer?.phone,
@@ -249,12 +287,67 @@ export default function TshogpasDashboard({ navigation }) {
           originalBuyer: fetched?.orders?.[0]?.buyer
         });
       }
+      
+      console.log('Setting orders state with:', normalized.length, 'orders');
       setOrders(normalized);
     } catch (error) {
       console.error('Error fetching tshogpas orders:', error);
       Alert.alert('Error', 'Failed to load orders');
     } finally {
       setOrdersLoading(false);
+    }
+  };
+
+  const getPaymentOrders = async () => {
+    try {
+      setPaymentLoading(true);
+      const cid = getCurrentCid();
+      if (!cid) {
+        console.log('No CID available, skipping payment order fetch');
+        setPaymentOrders([]);
+        return;
+      }
+      
+      // Fetch orders for payment dashboard
+      const fetched = await fetchTshogpasOrders({ cid });
+      const ordersList = fetched?.orders || [];
+      
+      // Filter to only show orders that are in payment-relevant states
+      const paymentRelevantOrders = ordersList.filter(order => 
+        ['shipped', 'delivered', 'completed', 'payment pending', 'out for delivery'].includes(order.status?.toLowerCase())
+      ).map(o => ({
+        orderId: String(o.orderId || o._id || ''),
+        product: {
+          name: o.product?.name || o.product?.productName || 'Unknown Product',
+          price: o.product?.price || 0,
+          sellerCid: o.product?.sellerCid || o.product?.createdBy,
+          sellerName: o.product?.sellerName || 'Unknown Seller'
+        },
+        buyer: {
+          name: o.buyer?.name || o.customerName || 'Unknown',
+          cid: o.buyer?.cid || o.customerCid
+        },
+        farmer: {
+          name: o.product?.sellerName || 'Unknown Farmer',
+          cid: o.product?.sellerCid || o.product?.createdBy
+        },
+        transporter: {
+          name: o.transporter?.name || 'Unknown Transporter',
+          cid: o.transporter?.cid
+        },
+        totalPrice: o.totalAmount || (o.product?.price * o.quantity) || 0,
+        status: o.status || 'unknown',
+        settlementDate: o.settlementDate,
+        transporterSettlementDate: o.transporterSettlementDate,
+        farmerSettlementDate: o.farmerSettlementDate
+      }));
+      
+      setPaymentOrders(paymentRelevantOrders);
+    } catch (error) {
+      console.error('Error fetching payment orders:', error);
+      Alert.alert('Error', 'Failed to fetch payment orders.');
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -274,12 +367,32 @@ export default function TshogpasDashboard({ navigation }) {
   };
 
   useEffect(() => {
+    console.log('TshogpasDashboard useEffect triggered with:', {
+      userCid: user?.cid,
+      userRole: user?.role,
+      activeTab
+    });
+    
     if (user?.cid && String(user.role || '').toLowerCase() === 'tshogpas') {
-      getProducts();
-      getOrders();
+      console.log('User authenticated as tshogpas, loading data for tab:', activeTab);
+      if (activeTab === "Products") {
+        getProducts();
+      } else if (activeTab === "Orders") {
+        console.log('Loading orders for tshogpas...');
+        getOrders();
+      } else if (activeTab === "Payments") {
+        getPaymentOrders();
+      }
       getCategories();
+    } else {
+      console.log('User not authenticated as tshogpas or missing data:', {
+        userExists: !!user,
+        hasCid: !!user?.cid,
+        role: user?.role,
+        roleCheck: String(user?.role || '').toLowerCase() === 'tshogpas'
+      });
     }
-  }, [user]);
+  }, [user, activeTab]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -287,9 +400,47 @@ export default function TshogpasDashboard({ navigation }) {
       await getProducts();
     } else if (activeTab === "Orders") {
       await getOrders();
+    } else if (activeTab === "Payments") {
+      await getPaymentOrders();
     }
     setRefreshing(false);
   }, [activeTab]);
+
+  const handleMarkPaymentReceived = async (orderId) => {
+    try {
+      Alert.alert(
+        'Payment Received',
+        'Mark this payment as received?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Confirm',
+            onPress: async () => {
+              try {
+                // Update order status to indicate payment received
+                await updateOrderStatus({ orderId, status: 'payment received', cid: user?.cid });
+                
+                // Update local state
+                setPaymentOrders(prevOrders => 
+                  prevOrders.map(order => 
+                    order.orderId === orderId 
+                      ? { ...order, status: 'payment received', settlementDate: new Date().toISOString() }
+                      : order
+                  )
+                );
+                
+                Alert.alert('Success', 'Payment marked as received');
+              } catch (error) {
+                Alert.alert('Error', 'Failed to mark payment as received');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process payment');
+    }
+  };
 
   // Keyboard event listeners for Android
   useEffect(() => {
@@ -562,18 +713,72 @@ export default function TshogpasDashboard({ navigation }) {
   };
 
   const getFilteredOrders = () => {
+    console.log('getFilteredOrders called with:', {
+      orderSubTab,
+      totalOrders: orders.length,
+      orders: orders.map(o => ({ orderId: o.orderId, status: o.status }))
+    });
+    
+    let filtered;
     switch (orderSubTab) {
       case "Pending":
-        return orders.filter(o => o.status?.toLowerCase() === 'order placed');
+        // Show orders that are placed but not yet confirmed/shipped
+        filtered = orders.filter(o => {
+          const status = o.status?.toLowerCase();
+          return status === 'order placed';
+        });
+        break;
       case "Confirmed":
-        // For Tshogpas, "Confirmed" tab shows shipped orders (since they ship directly upon confirming)
-        return orders.filter(o => o.status?.toLowerCase() === 'shipped');
-      case "Shipped":
-        return orders.filter(o => o.status?.toLowerCase() === 'shipped');
+        // Show orders that are shipped
+        filtered = orders.filter(o => {
+          const status = o.status?.toLowerCase();
+          return status === 'shipped';
+        });
+        break;
       case "All":
       default:
-        return orders;
+        // Show ALL orders regardless of status
+        filtered = orders;
     }
+    
+    console.log('Filtered orders for tab', orderSubTab + ':', {
+      count: filtered.length,
+      orders: filtered.map(o => ({ orderId: o.orderId, status: o.status }))
+    });
+    
+    return filtered;
+  };
+
+  const getFilteredPaymentOrders = () => {
+    if (!paymentOrders) return [];
+    
+    let filtered = paymentOrders;
+    
+    // Filter by view type (Earning vs Dispatched)
+    if (paymentFilter === "Earning") {
+      // Show orders for Tshogpas' own earning (same as farmer dashboard)
+      // This is for when Tshogpas acts as a seller
+      filtered = paymentOrders;
+    } else if (paymentFilter === "Dispatched") {
+      // Show orders that Tshogpas dispatched for farmers
+      // This shows the transporter and farmer payment tracking
+      filtered = paymentOrders;
+    }
+    
+    // Filter by payment status
+    if (paymentTab === "Pending") {
+      return filtered.filter(order => 
+        ['shipped', 'delivered', 'payment pending', 'out for delivery'].includes(order.status?.toLowerCase()) && 
+        !order.settlementDate
+      );
+    } else if (paymentTab === "Completed") {
+      return filtered.filter(order => 
+        ['payment received', 'completed'].includes(order.status?.toLowerCase()) || 
+        order.settlementDate
+      );
+    }
+    
+    return filtered;
   };
 
   const renderProduct = ({ item }) => {
@@ -690,6 +895,119 @@ export default function TshogpasDashboard({ navigation }) {
     );
   };
 
+  const renderPaymentTableRow = ({ item }) => {
+    const isPending = paymentTab === "Pending";
+    const isEarningView = paymentFilter === "Earning";
+    
+    return (
+      <View style={styles.paymentTableRow}>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>{item.product?.name || 'Unknown Product'}</Text>
+        </View>
+        {isEarningView ? (
+          <View style={styles.paymentTableCell}>
+            <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.paymentTableCell}>
+              <Text style={styles.paymentCellText}>{item.farmer?.name || 'Unknown Farmer'}</Text>
+            </View>
+            <View style={styles.paymentTableCell}>
+              <Text style={styles.paymentCellText}>{item.transporter?.name || 'Unknown Transporter'}</Text>
+            </View>
+          </>
+        )}
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>Nu.{item.totalPrice || '0'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={[styles.paymentCellText, styles.statusText]}>{item.status || 'Unknown'}</Text>
+        </View>
+        {isPending ? (
+          <View style={styles.paymentTableCell}>
+            <TouchableOpacity 
+              style={styles.receivedButton}
+              onPress={() => handleMarkPaymentReceived(item.orderId)}
+            >
+              <Text style={styles.receivedButtonText}>Received</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.paymentTableCell}>
+            {isEarningView ? (
+              <Text style={styles.paymentCellText}>
+                {item.settlementDate 
+                  ? new Date(item.settlementDate).toLocaleDateString() 
+                  : 'N/A'
+                }
+              </Text>
+            ) : (
+              <View style={styles.settlementDatesContainer}>
+                <Text style={styles.paymentCellText}>
+                  T: {item.transporterSettlementDate 
+                    ? new Date(item.transporterSettlementDate).toLocaleDateString() 
+                    : 'N/A'
+                  }
+                </Text>
+                <Text style={styles.paymentCellText}>
+                  F: {item.farmerSettlementDate 
+                    ? new Date(item.farmerSettlementDate).toLocaleDateString() 
+                    : 'N/A'
+                  }
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderPaymentTableHeader = () => {
+    const isPending = paymentTab === "Pending";
+    const isEarningView = paymentFilter === "Earning";
+    
+    return (
+      <View style={styles.paymentTableHeader}>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Order ID</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Product</Text>
+        </View>
+        {isEarningView ? (
+          <View style={styles.paymentTableCell}>
+            <Text style={styles.paymentHeaderText}>Tshogpa</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.paymentTableCell}>
+              <Text style={styles.paymentHeaderText}>Farmer</Text>
+            </View>
+            <View style={styles.paymentTableCell}>
+              <Text style={styles.paymentHeaderText}>Transporter</Text>
+            </View>
+          </>
+        )}
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Amount</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Status</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>
+            {isPending ? 'Action' : isEarningView ? 'Settlement Date' : 'Settlement Date (T/F)'}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case "Products":
@@ -744,7 +1062,7 @@ export default function TshogpasDashboard({ navigation }) {
               <FlatList
                 data={getFilteredOrders()}
                 renderItem={renderOrder}
-                keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
+                keyExtractor={(item, index) => (item.orderId || item.id || item._id || `order-${index}`)}
                 contentContainerStyle={styles.listContainer}
                 refreshControl={
                   <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -768,21 +1086,79 @@ export default function TshogpasDashboard({ navigation }) {
         );
       case "Payments":
         return (
-          <FlatList
-            data={[]}
-            renderItem={() => null}
-            keyExtractor={() => 'empty'}
-            contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Icon name="credit-card" size={64} color="#D1D5DB" />
-                <Text style={styles.emptyText}>No payments found</Text>
-                <Text style={styles.emptySubtext}>
-                  Your payment history will show here
-                </Text>
+          <>
+            {/* Payment Tabs */}
+            <View style={styles.paymentTabs}>
+              {["Pending", "Completed"].map((tab) => (
+                <TouchableOpacity 
+                  key={tab} 
+                  onPress={() => setPaymentTab(tab)}
+                  style={[
+                    styles.paymentTab,
+                    paymentTab === tab && styles.activePaymentTab
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.paymentTabText,
+                      paymentTab === tab && styles.activePaymentTabText
+                    ]}
+                  >
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Filter Dropdown for Earning/Dispatched */}
+            <View style={styles.filterContainer}>
+              <Text style={styles.filterLabel}>View:</Text>
+              <View style={styles.dropdownWrapper}>
+                <CustomDropdown 
+                  options={[
+                    { label: "Earning", value: "Earning" },
+                    { label: "Dispatched", value: "Dispatched" }
+                  ]}
+                  value={paymentFilter}
+                  onChange={(option) => setPaymentFilter(option.value)}
+                  placeholder="Select View"
+                />
               </View>
-            }
-          />
+            </View>
+
+            {/* Payment Table */}
+            {paymentLoading ? (
+              <View style={styles.centered}>
+                <ActivityIndicator size="large" color="#059669" />
+                <Text style={styles.loadingText}>Loading payments...</Text>
+              </View>
+            ) : (
+              <View style={styles.paymentTableContainer}>
+                {renderPaymentTableHeader()}
+                <FlatList
+                  data={getFilteredPaymentOrders()}
+                  renderItem={renderPaymentTableRow}
+                  keyExtractor={(item, index) => (item.orderId || item.id || item._id || `payment-${index}`)}
+                  contentContainerStyle={styles.paymentListContainer}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                  }
+                  ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                      <Icon name="credit-card" size={64} color="#D1D5DB" />
+                      <Text style={styles.emptyText}>No {paymentTab.toLowerCase()} {paymentFilter.toLowerCase()} payments found</Text>
+                      <Text style={styles.emptySubtext}>
+                        {paymentTab === "Pending" 
+                          ? `Your pending ${paymentFilter.toLowerCase()} payments will show here`
+                          : `Your completed ${paymentFilter.toLowerCase()} payment history will show here`
+                        }
+                      </Text>
+                    </View>
+                  }
+                />
+              </View>
+            )}
+          </>
         );
       default:
         return (
@@ -820,25 +1196,42 @@ export default function TshogpasDashboard({ navigation }) {
       {/* Order Sub-tabs */}
       {activeTab === "Orders" && (
         <View style={styles.subTabs}>
-          {["All", "Pending", "Confirmed"].map((subTab) => (
-            <TouchableOpacity
-              key={subTab}
-              onPress={() => setOrderSubTab(subTab)}
-              style={[
-                styles.subTab,
-                orderSubTab === subTab && styles.activeSubTab
-              ]}
-            >
-              <Text
+          {["All", "Pending", "Confirmed"].map((subTab) => {
+            let count = 0;
+            if (subTab === "All") {
+              count = orders.length;
+            } else if (subTab === "Pending") {
+              count = orders.filter(o => {
+                const status = o.status?.toLowerCase();
+                return status === 'order placed';
+              }).length;
+            } else if (subTab === "Confirmed") {
+              count = orders.filter(o => {
+                const status = o.status?.toLowerCase();
+                return status === 'shipped';
+              }).length;
+            }
+            
+            return (
+              <TouchableOpacity
+                key={subTab}
+                onPress={() => setOrderSubTab(subTab)}
                 style={[
-                  styles.subTabText,
-                  orderSubTab === subTab && styles.activeSubTabText
+                  styles.subTab,
+                  orderSubTab === subTab && styles.activeSubTab
                 ]}
               >
-                {subTab}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.subTabText,
+                    orderSubTab === subTab && styles.activeSubTabText
+                  ]}
+                >
+                  {subTab} ({count})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
@@ -1636,5 +2029,117 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     marginTop: 12,
+  },
+
+  // Payment Styles
+  paymentTabs: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 4,
+  },
+  paymentTab: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  activePaymentTab: {
+    backgroundColor: '#059669',
+  },
+  paymentTabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  activePaymentTabText: {
+    color: '#FFFFFF',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 8,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginRight: 12,
+  },
+  dropdownWrapper: {
+    flex: 1,
+  },
+  paymentTableContainer: {
+    flex: 1,
+    marginHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  paymentTableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  paymentTableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  paymentTableCell: {
+    flex: 1,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+  },
+  paymentHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  paymentCellText: {
+    fontSize: 12,
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '500',
+    textTransform: 'capitalize',
+  },
+  receivedButton: {
+    backgroundColor: '#059669',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    alignItems: 'center',
+  },
+  receivedButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  paymentListContainer: {
+    flexGrow: 1,
+  },
+  settlementDatesContainer: {
+    alignItems: 'center',
   },
 });

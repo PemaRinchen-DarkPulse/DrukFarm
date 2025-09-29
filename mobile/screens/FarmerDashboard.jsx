@@ -25,7 +25,7 @@ import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { ensureMediaLibraryImagePermission } from '../utils/imageDownloadSimple';
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, updateOrderStatus } from '../lib/api';
 import { downloadOrderImageToGallery } from '../utils/imageDownloadSimple';
 
 import { resolveProductImage } from '../lib/image';
@@ -127,6 +127,11 @@ export default function FarmerDashboard({ navigation }) {
   const [activeTab, setActiveTab] = useState("Orders");
   const [orderSubTab, setOrderSubTab] = useState("All");
   const [showAddProductModal, setShowAddProductModal] = useState(false);
+  
+  // Payment-related state
+  const [paymentTab, setPaymentTab] = useState("Pending");
+  const [paymentOrders, setPaymentOrders] = useState([]);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   // Helper function to request storage permissions on Android
   const requestStoragePermission = async () => {
@@ -224,23 +229,83 @@ export default function FarmerDashboard({ navigation }) {
     }
   }, [user?.cid]);
 
+  const getPaymentOrders = useCallback(async () => {
+    try {
+      setPaymentLoading(true);
+      // Fetch orders for payment dashboard (same source as regular orders but for payment tracking)
+      const response = await fetchSellerOrders({ cid: user?.cid });
+      const ordersList = response?.orders || [];
+      // Filter to only show orders that are in payment-relevant states
+      const paymentRelevantOrders = ordersList.filter(order => 
+        ['shipped', 'delivered', 'completed', 'payment pending'].includes(order.status?.toLowerCase())
+      );
+      setPaymentOrders(paymentRelevantOrders);
+    } catch (error) {
+      console.log('Failed to fetch payment orders:', error);
+      Alert.alert('Error', 'Failed to fetch payment orders.');
+    } finally {
+      setPaymentLoading(false);
+    }
+  }, [user?.cid]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     if (activeTab === "Products") {
       await getProducts();
     } else if (activeTab === "Orders") {
       await getOrders();
+    } else if (activeTab === "Payments") {
+      await getPaymentOrders();
     }
     setRefreshing(false);
-  }, [activeTab, getOrders]);
+  }, [activeTab, getOrders, getPaymentOrders]);
+
+  const handleMarkPaymentReceived = async (orderId) => {
+    try {
+      Alert.alert(
+        'Payment Received',
+        'Mark this payment as received?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Confirm',
+            onPress: async () => {
+              try {
+                // Update order status to indicate payment received
+                // You may need to implement this endpoint in your API
+                await updateOrderStatus({ orderId, status: 'payment received', cid: user?.cid });
+                
+                // Update local state
+                setPaymentOrders(prevOrders => 
+                  prevOrders.map(order => 
+                    order.orderId === orderId 
+                      ? { ...order, status: 'payment received', settlementDate: new Date().toISOString() }
+                      : order
+                  )
+                );
+                
+                Alert.alert('Success', 'Payment marked as received');
+              } catch (error) {
+                Alert.alert('Error', 'Failed to mark payment as received');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process payment');
+    }
+  };
 
   useEffect(() => {
     if (activeTab === "Products") {
       getProducts();
     } else if (activeTab === "Orders") {
       getOrders();
+    } else if (activeTab === "Payments") {
+      getPaymentOrders();
     }
-  }, [activeTab, getOrders]);
+  }, [activeTab, getOrders, getPaymentOrders]);
 
   useEffect(() => {
     (async () => {
@@ -1063,6 +1128,95 @@ export default function FarmerDashboard({ navigation }) {
     return [];
   };
 
+  const getFilteredPaymentOrders = () => {
+    if (!paymentOrders) return [];
+    
+    if (paymentTab === "Pending") {
+      return paymentOrders.filter(order => 
+        ['shipped', 'delivered', 'payment pending'].includes(order.status?.toLowerCase()) && 
+        !order.settlementDate
+      );
+    } else if (paymentTab === "Completed") {
+      return paymentOrders.filter(order => 
+        ['payment received', 'completed'].includes(order.status?.toLowerCase()) || 
+        order.settlementDate
+      );
+    }
+    return [];
+  };
+
+  const renderPaymentTableRow = ({ item }) => {
+    const isPending = paymentTab === "Pending";
+    
+    return (
+      <View style={styles.paymentTableRow}>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>{item.product?.name || 'Unknown Product'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentCellText}>Nu.{item.totalPrice || '0'}</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={[styles.paymentCellText, styles.statusText]}>{item.status || 'Unknown'}</Text>
+        </View>
+        {isPending ? (
+          <View style={styles.paymentTableCell}>
+            <TouchableOpacity 
+              style={styles.receivedButton}
+              onPress={() => handleMarkPaymentReceived(item.orderId)}
+            >
+              <Text style={styles.receivedButtonText}>Received</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.paymentTableCell}>
+            <Text style={styles.paymentCellText}>
+              {item.settlementDate 
+                ? new Date(item.settlementDate).toLocaleDateString() 
+                : 'N/A'
+              }
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderPaymentTableHeader = () => {
+    const isPending = paymentTab === "Pending";
+    
+    return (
+      <View style={styles.paymentTableHeader}>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Order ID</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Product</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Tshogpa</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Amount</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>Status</Text>
+        </View>
+        <View style={styles.paymentTableCell}>
+          <Text style={styles.paymentHeaderText}>
+            {isPending ? 'Action' : 'Settlement Date'}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case "Products":
@@ -1243,21 +1397,63 @@ export default function FarmerDashboard({ navigation }) {
         );
       case "Payments":
         return (
-          <FlatList
-            data={[]}
-            renderItem={() => null}
-            keyExtractor={() => 'empty'}
-            contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Icon name="credit-card" size={64} color="#D1D5DB" />
-                <Text style={styles.emptyText}>No payments found</Text>
-                <Text style={styles.emptySubtext}>
-                  Your payment history will show here
-                </Text>
+          <>
+            {/* Payment Tabs */}
+            <View style={styles.paymentTabs}>
+              {["Pending", "Completed"].map((tab) => (
+                <TouchableOpacity 
+                  key={tab} 
+                  onPress={() => setPaymentTab(tab)}
+                  style={[
+                    styles.paymentTab,
+                    paymentTab === tab && styles.activePaymentTab
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.paymentTabText,
+                      paymentTab === tab && styles.activePaymentTabText
+                    ]}
+                  >
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Payment Table */}
+            {paymentLoading ? (
+              <View style={styles.centered}>
+                <ActivityIndicator size="large" color="#059669" />
+                <Text style={styles.loadingText}>Loading payments...</Text>
               </View>
-            }
-          />
+            ) : (
+              <View style={styles.paymentTableContainer}>
+                {renderPaymentTableHeader()}
+                <FlatList
+                  data={getFilteredPaymentOrders()}
+                  renderItem={renderPaymentTableRow}
+                  keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
+                  contentContainerStyle={styles.paymentListContainer}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                  }
+                  ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                      <Icon name="credit-card" size={64} color="#D1D5DB" />
+                      <Text style={styles.emptyText}>No {paymentTab.toLowerCase()} payments found</Text>
+                      <Text style={styles.emptySubtext}>
+                        {paymentTab === "Pending" 
+                          ? "Your pending payments will show here"
+                          : "Your completed payment history will show here"
+                        }
+                      </Text>
+                    </View>
+                  }
+                />
+              </View>
+            )}
+          </>
         );
       default:
         return null;
@@ -2176,5 +2372,98 @@ const styles = StyleSheet.create({
   paymentsContainer: {
     flex: 1,
     paddingHorizontal: 16,
+  },
+  
+  // Payment Styles
+  paymentTabs: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 4,
+  },
+  paymentTab: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  activePaymentTab: {
+    backgroundColor: '#059669',
+  },
+  paymentTabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  activePaymentTabText: {
+    color: '#FFFFFF',
+  },
+  paymentTableContainer: {
+    flex: 1,
+    marginHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  paymentTableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  paymentTableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  paymentTableCell: {
+    flex: 1,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+  },
+  paymentHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  paymentCellText: {
+    fontSize: 12,
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '500',
+    textTransform: 'capitalize',
+  },
+  receivedButton: {
+    backgroundColor: '#059669',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    alignItems: 'center',
+  },
+  receivedButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  paymentListContainer: {
+    flexGrow: 1,
   },
 });
