@@ -63,6 +63,21 @@ export async function fetchOrders(){
   return []
 }
 
+export async function fetchOrderById(orderId, cid){
+  console.log('API: fetchOrderById called with:', { orderId, cid })
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  console.log('API: headers:', headers)
+  try {
+    const result = await request(`/orders/${orderId}`, { headers })
+    console.log('API: fetchOrderById result:', result)
+    return result
+  } catch (error) {
+    console.error('API: fetchOrderById error:', error)
+    throw error
+  }
+}
+
 export async function registerUser(dto){
   return request('/users/register', { method: 'POST', body: JSON.stringify(dto) })
 }
@@ -442,9 +457,20 @@ export async function updateOrderStatus({ orderId, status, cid }){
   return request(`/orders/${orderId}/status`, { method: 'PATCH', headers, body: JSON.stringify(body) })
 }
 
+export async function saveTshogpasDetails(orderId, cid, dispatchAddress){
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  const body = {
+    tshogpasCid: cid,
+    timestamp: new Date().toISOString(),
+    dispatchAddress
+  }
+  return request(`/orders/${orderId}/tshogpas-details`, { method: 'PATCH', headers, body: JSON.stringify(body) })
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
-  fetchCategories, createCategory, fetchOrders, registerUser, loginUser, fetchUsers,
+  fetchCategories, createCategory, fetchOrders, fetchOrderById, registerUser, loginUser, fetchUsers,
   fetchUserByCid, updateUser,
   addToCart, getCart, updateCartItem, removeCartItem, buyProduct, cartCheckout, unifiedCheckout, fetchSellerOrders, fetchTshogpasOrders, fetchMyOrders, cancelMyOrder,
   searchTransportOrders, setOutForDelivery, fetchMyTransports, markDelivered, markOrderShipped, markOrderConfirmed, confirmOrderWithRoleBasedStatus,
@@ -454,5 +480,15 @@ export default {
   fetchUserAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress,
   fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, createDispatchAddress,
   fetchUserDispatchAddresses, createUserDispatchAddress, updateUserDispatchAddress, deleteUserDispatchAddress, setDefaultUserDispatchAddress,
-  fetchTransporterOrders, fetchShippedOrders, updateOrderStatus,
+  fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, saveTshogpasDetails,
+}
+
+// Test function to create a sample order for QR code testing
+export async function createTestOrder(cid) {
+  const headers = {}
+  if (cid) headers['x-cid'] = cid
+  return request('/orders/create-test-order', { 
+    method: 'POST',
+    headers
+  })
 }

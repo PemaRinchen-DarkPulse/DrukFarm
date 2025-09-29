@@ -78,6 +78,13 @@ const OrderSchema = new mongoose.Schema(
 		status: { type: String, enum: ['order placed','order confirmed', 'shipped', 'Out for Delivery', 'cancelled', 'delivered'], default: 'order placed' },
 		isPaid: { type: Boolean, default: false }, 
 		transporter: { type: TransporterSnapshotSchema, default: null },
+		tshogpasCid: { type: String, default: null }, // CID of the Tshogpas who confirmed the order
+		dispatchAddress: { // Default dispatch address of the Tshogpas
+			title: { type: String, default: null },
+			dzongkhag: { type: String, default: null },
+			gewog: { type: String, default: null },
+			place: { type: String, default: null }
+		},
 		statusHistory: { type: [StatusHistorySchema], default: [] },
 	},
 	{ timestamps: true, versionKey: false }

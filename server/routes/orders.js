@@ -4,6 +4,7 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const Cart = require('../models/Cart');
+const { UserDispatchAddress } = require('../models/UserDispatchAddress');
 const { generateQrDataUrl } = require('../utils/qr');
 const { generateOrderImage } = require('../utils/image');
 
@@ -911,8 +912,28 @@ router.patch('/:orderId/confirm', authCid, async (req, res) => {
 		let statusNote = 'Order confirmed by seller'
 		
 		if (userRole === 'tshogpas') {
+			// For Tshogpas, check if they have at least one dispatch address
+			const dispatchAddresses = await UserDispatchAddress.find({ userCid: sellerCid })
+			
+			if (dispatchAddresses.length === 0) {
+				return res.status(400).json({ error: 'Please add your dispatch address' })
+			}
+			
+			// Find the default dispatch address or use the first one
+			const defaultAddress = dispatchAddresses.find(addr => addr.isDefault) || dispatchAddresses[0]
+			
+			// Update order status to shipped and add tshogpas info
 			newStatus = 'shipped'
 			statusNote = 'Order confirmed and marked as shipped by Tshogpas'
+			
+			// Update order with tshogpas CID and dispatch address
+			order.tshogpasCid = sellerCid
+			order.dispatchAddress = {
+				title: defaultAddress.title,
+				dzongkhag: defaultAddress.dzongkhag,
+				gewog: defaultAddress.gewog,
+				place: defaultAddress.place
+			}
 		}
 		
 		// Update status
@@ -1165,50 +1186,89 @@ router.patch('/:orderId/status', authCid, async (req, res) => {
 			return res.status(400).json({ error: 'Invalid order id' })
 		}
 		
-		const transporterCid = req.user.cid
+		const userCid = req.user.cid
 		const order = await Order.findById(orderId)
 		
 		if (!order) {
 			return res.status(404).json({ error: 'Order not found' })
 		}
 		
-		// Verify user is a transporter
-		const transporter = await User.findOne({ cid: transporterCid }).select('role name phoneNumber')
-		if (!transporter || transporter.role?.toLowerCase() !== 'transporter') {
-			return res.status(403).json({ error: 'Only transporters can update order status' })
+		// Get user details
+		const user = await User.findOne({ cid: userCid }).select('role name phoneNumber')
+		if (!user) {
+			return res.status(403).json({ error: 'User not found' })
 		}
 		
-		// Handle different status updates
-		switch (status) {
-			case 'accept':
-				if (order.status !== 'shipped') {
-					return res.status(409).json({ error: 'Order cannot be accepted in current status' })
-				}
-				order.status = 'OUT_FOR_DELIVERY'
-				order.transporter = {
-					cid: transporterCid,
-					name: transporter.name || '',
-					phoneNumber: transporter.phoneNumber || ''
-				}
-				break
-				
-			case 'pickup':
-				if (order.status !== 'OUT_FOR_DELIVERY' || order.transporter?.cid !== transporterCid) {
-					return res.status(409).json({ error: 'Cannot mark as picked up' })
-				}
-				order.status = 'PICKED_UP'
-				break
-				
-			case 'deliver':
-				if (order.status !== 'PICKED_UP' || order.transporter?.cid !== transporterCid) {
-					return res.status(409).json({ error: 'Cannot mark as delivered' })
-				}
-				order.status = 'delivered'
-				break
-				
-			default:
-				return res.status(400).json({ error: 'Invalid status action' })
+		const userRole = user.role?.toLowerCase()
+		
+		// Handle different status updates based on role and requirements
+		if (userRole === 'transporter') {
+			// Original transporter logic
+			switch (status) {
+				case 'accept':
+					if (order.status !== 'shipped') {
+						return res.status(409).json({ error: 'Order cannot be accepted in current status' })
+					}
+					order.status = 'Out for Delivery'
+					order.transporter = {
+						cid: userCid,
+						name: user.name || '',
+						phoneNumber: user.phoneNumber || ''
+					}
+					break
+					
+				case 'pickup':
+					if (order.status !== 'Out for Delivery' || order.transporter?.cid !== userCid) {
+						return res.status(409).json({ error: 'Cannot mark as picked up' })
+					}
+					order.status = 'PICKED_UP'
+					break
+					
+				case 'deliver':
+					if (order.status !== 'PICKED_UP' || order.transporter?.cid !== userCid) {
+						return res.status(409).json({ error: 'Cannot mark as delivered' })
+					}
+					order.status = 'delivered'
+					break
+					
+				default:
+					return res.status(400).json({ error: 'Invalid status action for transporter' })
+			}
+		} else {
+			// General status updates for QR scanning and other purposes
+			const allowedStatuses = ['delivered', 'shipped', 'Out for Delivery', 'order confirmed', 'cancelled']
+			
+			if (!allowedStatuses.includes(status)) {
+				return res.status(400).json({ error: 'Invalid status' })
+			}
+			
+			// Verify user has permission to update this order
+			const hasPermission = (
+				order.userCid === userCid || // Order owner
+				order.product?.sellerCid === userCid || // Product seller
+				order.tshogpasCid === userCid || // Assigned tshogpas
+				order.transporter?.cid === userCid || // Assigned transporter
+				userRole === 'tshogpas' // Tshogpas can update any order
+			)
+			
+			if (!hasPermission) {
+				return res.status(403).json({ error: 'Permission denied to update this order' })
+			}
+			
+			order.status = status
 		}
+		
+		// Add to status history
+		order.statusHistory.push({
+			status: order.status,
+			changedBy: {
+				cid: userCid,
+				role: userRole,
+				name: user.name || ''
+			},
+			timestamp: new Date(),
+			notes: `Status updated via ${userRole === 'transporter' ? 'transport system' : 'QR scan'}`
+		})
 		
 		await order.save()
 		
@@ -1306,10 +1366,144 @@ router.get('/tshogpas', authCid, async (req, res) => {
 })
 
 // Helper function to calculate transport fee
+// GET /orders/:orderId - Fetch a single order by ID
+router.get('/:orderId', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params
+		const userCid = req.user.cid
+		
+		if (!mongoose.Types.ObjectId.isValid(String(orderId))) {
+			return res.status(400).json({ error: 'Invalid order ID' })
+		}
+		
+		const order = await Order.findById(orderId)
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' })
+		}
+		
+		// Get user role to determine access
+		const user = await User.findOne({ cid: userCid }).select('role')
+		const userRole = user?.role?.toLowerCase() || 'consumer'
+		
+		// Access control based on user role
+		const hasAccess = (
+			order.userCid === userCid || // Order owner
+			order.product?.sellerCid === userCid || // Product seller
+			order.tshogpasCid === userCid || // Assigned tshogpas
+			order.transporter?.cid === userCid || // Assigned transporter
+			userRole === 'tshogpas' // Any tshogpas can view orders for processing
+		)
+		
+		if (!hasAccess) {
+			return res.status(403).json({ error: 'Access denied' })
+		}
+		
+		res.json(order)
+	} catch (error) {
+		console.error('Error fetching order:', error)
+		res.status(500).json({ error: 'Internal server error' })
+	}
+})
+
+// PATCH /orders/:orderId/tshogpas-details - Save tshogpas details when shipping order
+router.patch('/:orderId/tshogpas-details', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params
+		const { tshogpasCid, timestamp, dispatchAddress } = req.body
+		const userCid = req.user.cid
+		
+		if (!mongoose.Types.ObjectId.isValid(String(orderId))) {
+			return res.status(400).json({ error: 'Invalid order ID' })
+		}
+		
+		// Verify user is a tshogpas
+		const user = await User.findOne({ cid: userCid }).select('role')
+		if (!user || user.role?.toLowerCase() !== 'tshogpas') {
+			return res.status(403).json({ error: 'Only tshogpas can update these details' })
+		}
+		
+		const order = await Order.findById(orderId)
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' })
+		}
+		
+		// Update tshogpas details
+		order.tshogpasCid = tshogpasCid || userCid
+		if (dispatchAddress) {
+			order.dispatchAddress = {
+				title: dispatchAddress.title || '',
+				dzongkhag: dispatchAddress.dzongkhag || '',
+				gewog: dispatchAddress.gewog || '',
+				place: dispatchAddress.place || ''
+			}
+		}
+		
+		// Add to status history
+		order.statusHistory.push({
+			status: order.status,
+			changedBy: {
+				cid: userCid,
+				role: 'tshogpas',
+				name: user.name || ''
+			},
+			timestamp: new Date(timestamp || Date.now()),
+			notes: 'Tshogpas details updated during shipping'
+		})
+		
+		await order.save()
+		res.json({ message: 'Tshogpas details saved successfully', order })
+	} catch (error) {
+		console.error('Error saving tshogpas details:', error)
+		res.status(500).json({ error: 'Internal server error' })
+	}
+})
+
 function calculateTransportFee(totalAmount) {
 	// Simple calculation: 10% of order value with minimum 20 and maximum 200
 	const fee = Math.max(20, Math.min(200, totalAmount * 0.1))
 	return Math.round(fee * 100) / 100 // Round to 2 decimal places
 }
+
+// Test endpoint to create a sample order for QR code testing
+router.post('/create-test-order', authCid, async (req, res) => {
+	try {
+		const userCid = req.user.cid
+		
+		// Create a simple test order
+		const testOrder = new Order({
+			userCid: userCid,
+			product: {
+				id: new mongoose.Types.ObjectId(),
+				name: 'Test Product',
+				price: 100,
+				sellerCid: userCid, // Make the creator also the seller for testing
+				category: 'Test Category',
+				image: 'test-image.jpg'
+			},
+			quantity: 1,
+			totalAmount: 100,
+			status: 'order confirmed',
+			paymentMethod: 'cash',
+			deliveryAddress: {
+				title: 'Test Address',
+				place: 'Test Place',
+				dzongkhag: 'Test Dzongkhag'
+			},
+			createdAt: new Date(),
+			updatedAt: new Date()
+		})
+		
+		const savedOrder = await testOrder.save()
+		
+		res.json({ 
+			message: 'Test order created successfully',
+			orderId: savedOrder._id,
+			qrCodeData: savedOrder._id.toString()
+		})
+	} catch (error) {
+		console.error('Error creating test order:', error)
+		res.status(500).json({ error: 'Failed to create test order' })
+	}
+})
 
 module.exports = router

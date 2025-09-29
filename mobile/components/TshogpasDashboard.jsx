@@ -25,7 +25,7 @@ import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { ensureMediaLibraryImagePermission } from '../utils/imageDownloadSimple';
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts, fetchCategories, createCategory, fetchTshogpasOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory, fetchTshogpasOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, fetchUserDispatchAddresses } from '../lib/api';
 import { downloadOrderImageToGallery } from '../utils/imageDownloadSimple';
 
 import { resolveProductImage } from '../lib/image';
@@ -438,6 +438,32 @@ export default function TshogpasDashboard({ navigation }) {
 
   const handleMarkConfirmed = async (orderId, isSelfPurchase = false) => {
     try {
+      // Check if tshogpas has at least one dispatch address
+      const cid = getCurrentCid();
+      if (!cid) {
+        Alert.alert("Error", "User not authenticated.");
+        return;
+      }
+
+      const dispatchAddresses = await fetchUserDispatchAddresses(cid);
+      
+      if (!dispatchAddresses || dispatchAddresses.length === 0) {
+        Alert.alert(
+          "No Dispatch Address",
+          "Please add your dispatch address before confirming orders.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Add Address",
+              onPress: () => {
+                navigation.navigate('DispatchAddress');
+              }
+            }
+          ]
+        );
+        return;
+      }
+
       // For Tshogpas, confirming an order moves it directly to "shipped" status
       const response = await markOrderConfirmed({ orderId, cid: user?.cid });
       
@@ -458,7 +484,25 @@ export default function TshogpasDashboard({ navigation }) {
       }
     } catch (error) {
       console.error('Confirm order error:', error);
-      Alert.alert("Error", error.body?.error || "Failed to confirm order.");
+      
+      // Check if the error is about missing dispatch address
+      if (error.body?.error === 'Please add your dispatch address') {
+        Alert.alert(
+          "No Dispatch Address",
+          "Please add your dispatch address before confirming orders.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Add Address",
+              onPress: () => {
+                navigation.navigate('DispatchAddress');
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert("Error", error.body?.error || "Failed to confirm order.");
+      }
     }
   };
 
