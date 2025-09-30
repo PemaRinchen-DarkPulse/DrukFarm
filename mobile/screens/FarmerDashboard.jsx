@@ -1145,37 +1145,38 @@ export default function FarmerDashboard({ navigation }) {
     return [];
   };
 
-  const renderPaymentTableRow = ({ item }) => {
+  const renderPaymentTableRow = ({ item, index }) => {
     const isPending = paymentTab === "Pending";
+    const isEvenRow = index % 2 === 0;
     
     return (
-      <View style={styles.paymentTableRow}>
-        <View style={styles.paymentTableCell}>
+      <View style={[styles.paymentTableRow, { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' }]}>
+        <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
           <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
         </View>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1.5 }]}>
           <Text style={styles.paymentCellText}>{item.product?.name || 'Unknown Product'}</Text>
         </View>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
         </View>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1 }]}>
           <Text style={styles.paymentCellText}>Nu.{item.totalPrice || '0'}</Text>
         </View>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1 }]}>
           <Text style={[styles.paymentCellText, styles.statusText]}>{item.status || 'Unknown'}</Text>
         </View>
         {isPending ? (
-          <View style={styles.paymentTableCell}>
+          <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
             <TouchableOpacity 
               style={styles.receivedButton}
               onPress={() => handleMarkPaymentReceived(item.orderId)}
             >
-              <Text style={styles.receivedButtonText}>Received</Text>
+              <Icon name="check" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.paymentTableCell}>
+          <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
             <Text style={styles.paymentCellText}>
               {item.settlementDate 
                 ? new Date(item.settlementDate).toLocaleDateString() 
@@ -1193,22 +1194,22 @@ export default function FarmerDashboard({ navigation }) {
     
     return (
       <View style={styles.paymentTableHeader}>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
           <Text style={styles.paymentHeaderText}>Order ID</Text>
         </View>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1.5 }]}>
           <Text style={styles.paymentHeaderText}>Product</Text>
         </View>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentHeaderText}>Tshogpa</Text>
         </View>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1 }]}>
           <Text style={styles.paymentHeaderText}>Amount</Text>
         </View>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1 }]}>
           <Text style={styles.paymentHeaderText}>Status</Text>
         </View>
-        <View style={styles.paymentTableCell}>
+        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentHeaderText}>
             {isPending ? 'Action' : 'Settlement Date'}
           </Text>
@@ -1428,30 +1429,34 @@ export default function FarmerDashboard({ navigation }) {
                 <Text style={styles.loadingText}>Loading payments...</Text>
               </View>
             ) : (
-              <View style={styles.paymentTableContainer}>
-                {renderPaymentTableHeader()}
-                <FlatList
-                  data={getFilteredPaymentOrders()}
-                  renderItem={renderPaymentTableRow}
-                  keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
-                  contentContainerStyle={styles.paymentListContainer}
-                  refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                  }
-                  ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                      <Icon name="credit-card" size={64} color="#D1D5DB" />
-                      <Text style={styles.emptyText}>No {paymentTab.toLowerCase()} payments found</Text>
-                      <Text style={styles.emptySubtext}>
-                        {paymentTab === "Pending" 
-                          ? "Your pending payments will show here"
-                          : "Your completed payment history will show here"
-                        }
-                      </Text>
+              <FlatList
+                data={getFilteredPaymentOrders()}
+                renderItem={renderPaymentTableRow}
+                keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
+                contentContainerStyle={styles.listContainer}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Icon name="credit-card" size={64} color="#D1D5DB" />
+                    <Text style={styles.emptyText}>No {paymentTab.toLowerCase()} payments found</Text>
+                    <Text style={styles.emptySubtext}>
+                      {paymentTab === "Pending" 
+                        ? "Your pending payments will show here"
+                        : "Your completed payment history will show here"
+                      }
+                    </Text>
+                  </View>
+                }
+                ListHeaderComponent={
+                  getFilteredPaymentOrders().length > 0 ? (
+                    <View style={styles.paymentTableContainer}>
+                      {renderPaymentTableHeader()}
                     </View>
-                  }
-                />
-              </View>
+                  ) : null
+                }
+              />
             )}
           </>
         );
@@ -1804,7 +1809,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingTop: 100,
+    paddingTop: 140,
   },
   emptyText: {
     fontSize: 18,
@@ -2403,65 +2408,74 @@ const styles = StyleSheet.create({
   },
   paymentTableContainer: {
     flex: 1,
-    marginHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
   },
   paymentTableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#4C7C59',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
   },
   paymentTableRow: {
     flexDirection: 'row',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    borderColor: '#999999',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
   },
   paymentTableCell: {
     flex: 1,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     justifyContent: 'center',
   },
   paymentHeaderText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   paymentCellText: {
-    fontSize: 12,
-    color: '#1F2937',
+    fontSize: 13,
+    color: '#475569',
     textAlign: 'center',
+    lineHeight: 18,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
     textTransform: 'capitalize',
   },
   receivedButton: {
-    backgroundColor: '#059669',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
+    backgroundColor: '#10B981',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
   },
   receivedButtonText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   paymentListContainer: {
     flexGrow: 1,
