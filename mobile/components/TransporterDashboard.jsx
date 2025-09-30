@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useAuth } from '../lib/auth';
-import { fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, fetchDzongkhags, fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, fetchTownsByDzongkhag, setOutForDelivery } from '../lib/api';
+import { fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, fetchDzongkhags, fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, fetchTownsByDzongkhag, setOutForDelivery, confirmTransporterPayment, getPaymentStatus, autoInitializePaymentFlows } from '../lib/api';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -132,6 +132,14 @@ export default function TransporterDashboard({ navigation }) {
     try {
       setPaymentLoading(true);
       
+      // Auto-initialize payment flows for orders that need them
+      try {
+        await autoInitializePaymentFlows({ cid: user?.cid });
+        console.log('Auto-initialized payment flows for transporter');
+      } catch (error) {
+        console.warn('Failed to auto-initialize payment flows:', error);
+      }
+      
       // Fetch transporter orders for payment tracking
       const response = await fetchTransporterOrders({ 
         cid: user?.cid, 
@@ -228,8 +236,8 @@ export default function TransporterDashboard({ navigation }) {
             text: 'Confirm',
             onPress: async () => {
               try {
-                // Update order status to indicate payment received
-                await updateOrderStatus({ orderId, status: 'payment received', cid: user?.cid });
+                // Use the new payment workflow API
+                await confirmTransporterPayment({ orderId, cid: user?.cid });
                 
                 // Update local state
                 setPaymentOrders(prevOrders => 
@@ -240,9 +248,18 @@ export default function TransporterDashboard({ navigation }) {
                   )
                 );
                 
-                Alert.alert('Success', 'Payment marked as received');
+                Alert.alert('Success', 'Payment confirmed successfully');
               } catch (error) {
-                Alert.alert('Error', 'Failed to mark payment as received');
+                console.error('Payment confirmation error:', error);
+                
+                // Handle specific error messages
+                if (error.body?.error?.includes('Order has not been delivered')) {
+                  Alert.alert('Error', 'Order must be delivered before payment can be confirmed');
+                } else if (error.body?.error?.includes('Payment already confirmed')) {
+                  Alert.alert('Info', 'Payment has already been confirmed');
+                } else {
+                  Alert.alert('Error', 'Failed to confirm payment');
+                }
               }
             }
           }

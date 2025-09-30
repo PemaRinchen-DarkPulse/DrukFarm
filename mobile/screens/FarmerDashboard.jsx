@@ -25,7 +25,7 @@ import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { ensureMediaLibraryImagePermission } from '../utils/imageDownloadSimple';
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, updateOrderStatus } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, updateOrderStatus, confirmFarmerPayment, getPaymentStatus } from '../lib/api';
 import { downloadOrderImageToGallery } from '../utils/imageDownloadSimple';
 
 import { resolveProductImage } from '../lib/image';
@@ -268,9 +268,8 @@ export default function FarmerDashboard({ navigation }) {
             text: 'Confirm',
             onPress: async () => {
               try {
-                // Update order status to indicate payment received
-                // You may need to implement this endpoint in your API
-                await updateOrderStatus({ orderId, status: 'payment received', cid: user?.cid });
+                // Use the new payment workflow API
+                await confirmFarmerPayment({ orderId, cid: user?.cid });
                 
                 // Update local state
                 setPaymentOrders(prevOrders => 
@@ -281,9 +280,18 @@ export default function FarmerDashboard({ navigation }) {
                   )
                 );
                 
-                Alert.alert('Success', 'Payment marked as received');
+                Alert.alert('Success', 'Payment confirmed successfully');
               } catch (error) {
-                Alert.alert('Error', 'Failed to mark payment as received');
+                console.error('Payment confirmation error:', error);
+                
+                // Handle specific error messages
+                if (error.body?.error?.includes('Order has not been delivered')) {
+                  Alert.alert('Error', 'Order must be delivered before payment can be confirmed');
+                } else if (error.body?.error?.includes('Payment already confirmed')) {
+                  Alert.alert('Info', 'Payment has already been confirmed');
+                } else {
+                  Alert.alert('Error', 'Failed to confirm payment');
+                }
               }
             }
           }

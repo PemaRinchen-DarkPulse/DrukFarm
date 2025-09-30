@@ -1336,11 +1336,53 @@ router.get('/tshogpas', authCid, async (req, res) => {
 	try {
 		const tshogpasCid = req.user.cid
 		
-		// Fetch orders for products created by this Tshogpas user
-		// Include ALL orders regardless of status so Tshogpas can see complete order lifecycle
-		const docs = await Order.find({ 
-			'product.sellerCid': tshogpasCid
-		}).sort({ createdAt: -1 })
+		// Fetch orders in two categories:
+		// 1. Orders for products created by this Tshogpas user (for selling their own products)
+		// 2. Orders that this Tshogpas has shipped (for dispatch tracking)
+		const [ownProductOrders, dispatchedOrders] = await Promise.all([
+			// Orders for products they created/sell
+			Order.find({ 
+				'product.sellerCid': tshogpasCid
+			}).sort({ createdAt: -1 }),
+			
+			// Orders they have dispatched (shipped)
+			Order.find({ 
+				tshogpasCid: tshogpasCid
+			}).sort({ createdAt: -1 })
+		]);
+		
+		// Combine and deduplicate orders (some orders might appear in both queries)
+		const allOrdersMap = new Map();
+		
+		// Add own product orders
+		ownProductOrders.forEach(o => {
+			allOrdersMap.set(String(o._id), o);
+		});
+		
+		// Add dispatched orders (this will overwrite if same order exists)
+		dispatchedOrders.forEach(o => {
+			allOrdersMap.set(String(o._id), o);
+		});
+		
+		// Convert map back to array and sort by creation date
+		const docs = Array.from(allOrdersMap.values()).sort((a, b) => 
+			new Date(b.createdAt) - new Date(a.createdAt)
+		);
+		
+		console.log(`Tshogpas ${tshogpasCid} orders:`, {
+			ownProducts: ownProductOrders.length,
+			dispatched: dispatchedOrders.length,
+			total: docs.length
+		});
+		
+		// Get seller names for all unique seller CIDs
+		const sellerCids = [...new Set(docs.map(o => o.product.sellerCid).filter(Boolean))];
+		const sellers = await User.find({ cid: { $in: sellerCids } }).select('cid name');
+		const sellerMap = sellers.reduce((acc, seller) => {
+			acc[seller.cid] = seller.name;
+			return acc;
+		}, {});
+
 		const mapped = docs.map(o => ({
 			orderId: String(o._id),
 			status: o.status,
@@ -1348,12 +1390,14 @@ router.get('/tshogpas', authCid, async (req, res) => {
 			totalPrice: o.totalPrice,
 			quantity: o.quantity,
 			qrCodeDataUrl: o.qrCodeDataUrl,
+			tshogpasCid: o.tshogpasCid, // Include this field to track who shipped it
 			product: {
 				productId: String(o.product.productId),
 				name: o.product.productName,
 				unit: o.product.unit,
 				price: o.product.price,
 				sellerCid: o.product.sellerCid,
+				sellerName: sellerMap[o.product.sellerCid] || 'Unknown Seller',
 				productImageBase64: o.product.productImageBase64 || '',
 			},
 			buyer: {
@@ -1362,6 +1406,8 @@ router.get('/tshogpas', authCid, async (req, res) => {
 				location: o.userSnapshot?.location,
 				phoneNumber: o.userSnapshot?.phoneNumber,
 			},
+			// Map buyer location to deliveryAddress for frontend compatibility
+			deliveryAddress: o.userSnapshot?.location,
 		}))
 		res.json({ success: true, orders: mapped })
 	} catch (err) {
@@ -1510,5 +1556,663 @@ router.post('/create-test-order', authCid, async (req, res) => {
 		res.status(500).json({ error: 'Failed to create test order' })
 	}
 })
+
+// ============================================
+// PAYMENT WORKFLOW ENDPOINTS
+// ============================================
+
+// Initialize payment flow for an order
+router.post('/:orderId/payment/initialize', authCid, async (req, res) => {
+	const session = await mongoose.startSession();
+	
+	try {
+		session.startTransaction();
+		
+		const { orderId } = req.params;
+		const userCid = req.user.cid;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const order = await Order.findById(orderId).session(session);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		// Verify user has permission (order creator, transporter, tshogpa, or farmer)
+		const allowedCids = [
+			order.userCid,
+			order.transporter?.cid,
+			order.tshogpasCid,
+			order.product.sellerCid
+		].filter(Boolean);
+		
+		if (!allowedCids.includes(userCid)) {
+			return res.status(403).json({ error: 'Unauthorized to initialize payment for this order' });
+		}
+		
+		await order.initializePaymentFlow();
+		await session.commitTransaction();
+		
+		res.json({
+			message: 'Payment flow initialized successfully',
+			paymentStatus: order.getPaymentStatus()
+		});
+		
+	} catch (error) {
+		await session.abortTransaction();
+		console.error('Error initializing payment flow:', error);
+		
+		if (error.message.includes('Payment flow already initialized') || 
+		    error.message.includes('Missing required actors')) {
+			return res.status(400).json({ error: error.message });
+		}
+		
+		res.status(500).json({ error: 'Failed to initialize payment flow' });
+	} finally {
+		session.endSession();
+	}
+});
+
+// Update payment step status
+router.put('/:orderId/payment/:step', authCid, async (req, res) => {
+	const session = await mongoose.startSession();
+	
+	try {
+		session.startTransaction();
+		
+		const { orderId, step } = req.params;
+		const { status, notes = '' } = req.body;
+		const userCid = req.user.cid;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const validSteps = ['consumer_to_transporter', 'transporter_to_tshogpa', 'tshogpa_to_farmer'];
+		if (!validSteps.includes(step)) {
+			return res.status(400).json({ error: 'Invalid payment step' });
+		}
+		
+		const validStatuses = ['pending', 'completed', 'failed'];
+		if (!validStatuses.includes(status)) {
+			return res.status(400).json({ error: 'Invalid status' });
+		}
+		
+		const order = await Order.findById(orderId).session(session);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		// Verify user has permission to update this specific step
+		const stepConfig = order.paymentFlow.find(s => s.step === step);
+		if (!stepConfig) {
+			return res.status(404).json({ error: 'Payment step not found' });
+		}
+		
+		// Only the receiver (toCid) can mark as completed, sender (fromCid) or receiver can mark as failed
+		if (status === 'completed' && userCid !== stepConfig.toCid) {
+			return res.status(403).json({ error: 'Only the payment receiver can mark step as completed' });
+		}
+		
+		if (status === 'failed' && ![stepConfig.fromCid, stepConfig.toCid].includes(userCid)) {
+			return res.status(403).json({ error: 'Only payment sender or receiver can mark step as failed' });
+		}
+		
+		// Get user details for tracking
+		const user = await User.findOne({ cid: userCid }).select('name').session(session);
+		const changedBy = {
+			cid: userCid,
+			role: getUserRole(userCid, order),
+			name: user?.name || ''
+		};
+		
+		await order.updatePaymentStep(step, status, changedBy, notes);
+		await session.commitTransaction();
+		
+		res.json({
+			message: `Payment step '${step}' updated to '${status}' successfully`,
+			paymentStatus: order.getPaymentStatus()
+		});
+		
+	} catch (error) {
+		await session.abortTransaction();
+		console.error('Error updating payment step:', error);
+		
+		if (error.message.includes('Payment step') || 
+		    error.message.includes('Cannot change status') ||
+		    error.message.includes('Cannot complete a failed')) {
+			return res.status(400).json({ error: error.message });
+		}
+		
+		res.status(500).json({ error: 'Failed to update payment step' });
+	} finally {
+		session.endSession();
+	}
+});
+
+// Get payment status for an order
+router.get('/:orderId/payment/status', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params;
+		const userCid = req.user.cid;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const order = await Order.findById(orderId);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		// Verify user has permission to view payment status
+		const allowedCids = [
+			order.userCid,
+			order.transporter?.cid,
+			order.tshogpasCid,
+			order.product.sellerCid
+		].filter(Boolean);
+		
+		if (!allowedCids.includes(userCid)) {
+			return res.status(403).json({ error: 'Unauthorized to view payment status for this order' });
+		}
+		
+		const paymentStatus = order.getPaymentStatus();
+		
+		res.json({
+			orderId: order._id,
+			paymentStatus,
+			paymentStatusHistory: order.paymentStatusHistory
+		});
+		
+	} catch (error) {
+		console.error('Error getting payment status:', error);
+		res.status(500).json({ error: 'Failed to get payment status' });
+	}
+});
+
+// Get payment history for an order
+router.get('/:orderId/payment/history', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params;
+		const userCid = req.user.cid;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const order = await Order.findById(orderId);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		// Verify user has permission
+		const allowedCids = [
+			order.userCid,
+			order.transporter?.cid,
+			order.tshogpasCid,
+			order.product.sellerCid
+		].filter(Boolean);
+		
+		if (!allowedCids.includes(userCid)) {
+			return res.status(403).json({ error: 'Unauthorized to view payment history for this order' });
+		}
+		
+		res.json({
+			orderId: order._id,
+			paymentStatusHistory: order.paymentStatusHistory.sort((a, b) => b.timestamp - a.timestamp)
+		});
+		
+	} catch (error) {
+		console.error('Error getting payment history:', error);
+		res.status(500).json({ error: 'Failed to get payment history' });
+	}
+});
+
+// Auto-initialize payment flows for orders that need them
+router.post('/payment/auto-initialize', authCid, async (req, res) => {
+	const session = await mongoose.startSession();
+	
+	try {
+		session.startTransaction();
+		
+		const userCid = req.user.cid;
+		
+		// Find orders that are shipped or delivered but don't have payment flows
+		const ordersNeedingPaymentFlow = await Order.find({
+			$and: [
+				{
+					$or: [
+						{ userCid },
+						{ 'transporter.cid': userCid },
+						{ tshogpasCid: userCid },
+						{ 'product.sellerCid': userCid }
+					]
+				},
+				{
+					status: { $in: ['shipped', 'delivered', 'out for delivery'] }
+				},
+				{
+					$or: [
+						{ paymentFlow: { $exists: false } },
+						{ paymentFlow: { $size: 0 } }
+					]
+				}
+			]
+		}).session(session);
+		
+		let initializedCount = 0;
+		const results = [];
+		
+		for (const order of ordersNeedingPaymentFlow) {
+			try {
+				await order.initializePaymentFlow();
+				initializedCount++;
+				results.push({
+					orderId: order._id,
+					status: 'initialized',
+					paymentStatus: order.getPaymentStatus()
+				});
+			} catch (error) {
+				console.warn(`Failed to initialize payment flow for order ${order._id}:`, error.message);
+				results.push({
+					orderId: order._id,
+					status: 'failed',
+					error: error.message
+				});
+			}
+		}
+		
+		await session.commitTransaction();
+		
+		res.json({
+			message: `Auto-initialized payment flows for ${initializedCount} orders`,
+			totalProcessed: ordersNeedingPaymentFlow.length,
+			initializedCount,
+			results
+		});
+		
+	} catch (error) {
+		await session.abortTransaction();
+		console.error('Error auto-initializing payment flows:', error);
+		res.status(500).json({ error: 'Failed to auto-initialize payment flows' });
+	} finally {
+		session.endSession();
+	}
+});
+
+// Transporter payment confirmation endpoint
+router.post('/:orderId/payment/transporter-confirm', authCid, async (req, res) => {
+	const session = await mongoose.startSession();
+	
+	try {
+		session.startTransaction();
+		
+		const { orderId } = req.params;
+		const userCid = req.user.cid;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const order = await Order.findById(orderId).session(session);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		// Validate order status is 'delivered'
+		if (order.status !== 'delivered') {
+			return res.status(400).json({ error: 'Order has not been delivered yet' });
+		}
+		
+		// Verify user is the transporter
+		if (userCid !== order.transporter?.cid) {
+			return res.status(403).json({ error: 'Only the assigned transporter can confirm payment' });
+		}
+		
+		// Initialize payment flow if not exists
+		if (order.paymentFlow.length === 0) {
+			await order.initializePaymentFlow();
+		}
+		
+		// Find the consumer_to_transporter step
+		const step = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+		if (!step) {
+			return res.status(400).json({ error: 'Transporter payment step not found in flow' });
+		}
+		
+		if (step.status === 'completed') {
+			return res.status(400).json({ error: 'Payment already confirmed' });
+		}
+		
+		// Get user details for tracking
+		const user = await User.findOne({ cid: userCid }).select('name').session(session);
+		const changedBy = {
+			cid: userCid,
+			role: 'transporter',
+			name: user?.name || ''
+		};
+		
+		await order.updatePaymentStep('consumer_to_transporter', 'completed', changedBy, 'Payment confirmed by transporter');
+		await session.commitTransaction();
+		
+		res.json({
+			message: 'Payment confirmed successfully',
+			paymentStatus: order.getPaymentStatus()
+		});
+		
+	} catch (error) {
+		await session.abortTransaction();
+		console.error('Error confirming transporter payment:', error);
+		
+		if (error.message.includes('Order has not been delivered') || 
+		    error.message.includes('Payment already confirmed')) {
+			return res.status(400).json({ error: error.message });
+		}
+		
+		res.status(500).json({ error: 'Failed to confirm payment' });
+	} finally {
+		session.endSession();
+	}
+});
+
+// Tshogpa payment confirmation endpoint
+router.post('/:orderId/payment/tshogpa-confirm', authCid, async (req, res) => {
+	const session = await mongoose.startSession();
+	
+	try {
+		session.startTransaction();
+		
+		const { orderId } = req.params;
+		const userCid = req.user.cid;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const order = await Order.findById(orderId).session(session);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		// Validate order status is 'delivered'
+		if (order.status !== 'delivered') {
+			return res.status(400).json({ error: 'Order has not been delivered yet' });
+		}
+		
+		// Verify user is the tshogpa
+		if (userCid !== order.tshogpasCid) {
+			return res.status(403).json({ error: 'Only the assigned tshogpa can confirm payment' });
+		}
+		
+		// Initialize payment flow if not exists
+		if (order.paymentFlow.length === 0) {
+			await order.initializePaymentFlow();
+		}
+		
+		// Check if tshogpa is also the seller
+		const tshogpaIsSeller = order.tshogpasCid === order.product.sellerCid;
+		
+		// Get user details for tracking
+		const user = await User.findOne({ cid: userCid }).select('name').session(session);
+		const changedBy = {
+			cid: userCid,
+			role: 'tshogpa',
+			name: user?.name || ''
+		};
+		
+		if (tshogpaIsSeller) {
+			// Special case: tshogpa is also the seller
+			await order.completePaymentForTshogpaSeller(changedBy, 'Payment completed - tshogpa is also the seller');
+		} else {
+			// Normal case: update transporter_to_tshogpa or consumer_to_tshogpa step
+			const stepToUpdate = order.paymentFlow.find(s => 
+				s.step === 'transporter_to_tshogpa' || s.step === 'consumer_to_tshogpa'
+			);
+			
+			if (!stepToUpdate) {
+				return res.status(400).json({ error: 'Tshogpa payment step not found in flow' });
+			}
+			
+			if (stepToUpdate.status === 'completed') {
+				return res.status(400).json({ error: 'Payment already confirmed' });
+			}
+			
+			await order.updatePaymentStep(stepToUpdate.step, 'completed', changedBy, 'Payment confirmed by tshogpa');
+		}
+		
+		await session.commitTransaction();
+		
+		res.json({
+			message: 'Payment confirmed successfully',
+			paymentStatus: order.getPaymentStatus()
+		});
+		
+	} catch (error) {
+		await session.abortTransaction();
+		console.error('Error confirming tshogpa payment:', error);
+		
+		if (error.message.includes('Order has not been delivered') || 
+		    error.message.includes('Payment already confirmed')) {
+			return res.status(400).json({ error: error.message });
+		}
+		
+		res.status(500).json({ error: 'Failed to confirm payment' });
+	} finally {
+		session.endSession();
+	}
+});
+
+// Farmer payment confirmation endpoint
+router.post('/:orderId/payment/farmer-confirm', authCid, async (req, res) => {
+	const session = await mongoose.startSession();
+	
+	try {
+		session.startTransaction();
+		
+		const { orderId } = req.params;
+		const userCid = req.user.cid;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const order = await Order.findById(orderId).session(session);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		// Validate order status is 'delivered'
+		if (order.status !== 'delivered') {
+			return res.status(400).json({ error: 'Order has not been delivered yet' });
+		}
+		
+		// Verify user is the farmer (product seller)
+		if (userCid !== order.product.sellerCid) {
+			return res.status(403).json({ error: 'Only the product seller can confirm final payment' });
+		}
+		
+		// Initialize payment flow if not exists
+		if (order.paymentFlow.length === 0) {
+			await order.initializePaymentFlow();
+		}
+		
+		// Find the final payment step (to farmer)
+		const finalSteps = ['tshogpa_to_farmer', 'transporter_to_farmer', 'consumer_to_farmer'];
+		const step = order.paymentFlow.find(s => finalSteps.includes(s.step));
+		
+		if (!step) {
+			return res.status(400).json({ error: 'Farmer payment step not found in flow' });
+		}
+		
+		if (step.status === 'completed') {
+			return res.status(400).json({ error: 'Payment already confirmed' });
+		}
+		
+		// Get user details for tracking
+		const user = await User.findOne({ cid: userCid }).select('name').session(session);
+		const changedBy = {
+			cid: userCid,
+			role: 'farmer',
+			name: user?.name || ''
+		};
+		
+		await order.updatePaymentStep(step.step, 'completed', changedBy, 'Final payment confirmed by farmer');
+		await session.commitTransaction();
+		
+		res.json({
+			message: 'Payment confirmed successfully',
+			paymentStatus: order.getPaymentStatus()
+		});
+		
+	} catch (error) {
+		await session.abortTransaction();
+		console.error('Error confirming farmer payment:', error);
+		
+		if (error.message.includes('Order has not been delivered') || 
+		    error.message.includes('Payment already confirmed')) {
+			return res.status(400).json({ error: error.message });
+		}
+		
+		res.status(500).json({ error: 'Failed to confirm payment' });
+	} finally {
+		session.endSession();
+	}
+});
+
+// Helper function to determine user role in the order context
+function getUserRole(userCid, order) {
+	if (userCid === order.userCid) return 'consumer';
+	if (userCid === order.transporter?.cid) return 'transporter';
+	if (userCid === order.tshogpasCid) return 'tshogpa';
+	if (userCid === order.product.sellerCid) return 'farmer';
+	return 'unknown';
+}
+
+// Batch endpoint to get payment status for multiple orders
+router.post('/payment/batch-status', authCid, async (req, res) => {
+	try {
+		const { orderIds } = req.body;
+		const userCid = req.user.cid;
+		
+		if (!Array.isArray(orderIds) || orderIds.length === 0) {
+			return res.status(400).json({ error: 'orderIds must be a non-empty array' });
+		}
+		
+		// Validate all order IDs
+		const invalidIds = orderIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+		if (invalidIds.length > 0) {
+			return res.status(400).json({ error: 'Invalid order IDs', invalidIds });
+		}
+		
+		const orders = await Order.find({ _id: { $in: orderIds } });
+		
+		const results = orders
+			.filter(order => {
+				// Filter orders user has permission to view
+				const allowedCids = [
+					order.userCid,
+					order.transporter?.cid,
+					order.tshogpasCid,
+					order.product.sellerCid
+				].filter(Boolean);
+				return allowedCids.includes(userCid);
+			})
+			.map(order => ({
+				orderId: order._id,
+				paymentStatus: order.getPaymentStatus()
+			}));
+		
+		res.json({ results });
+		
+	} catch (error) {
+		console.error('Error getting batch payment status:', error);
+		res.status(500).json({ error: 'Failed to get batch payment status' });
+	}
+});
+
+// Get orders pending payment action for a specific user
+router.get('/payment/pending-actions', authCid, async (req, res) => {
+	try {
+		const userCid = req.user.cid;
+		
+		// Find orders where user has pending payment actions
+		const orders = await Order.find({
+			$or: [
+				{ userCid }, // Consumer orders
+				{ 'transporter.cid': userCid }, // Transporter orders
+				{ tshogpasCid: userCid }, // Tshogpa orders
+				{ 'product.sellerCid': userCid } // Farmer orders
+			],
+			'paymentFlow.0': { $exists: true } // Has payment flow initialized
+		});
+		
+		const pendingActions = [];
+		
+		for (const order of orders) {
+			const userRole = getUserRole(userCid, order);
+			
+			// Find steps where user can take action
+			for (const step of order.paymentFlow) {
+				// User can complete if they are the receiver and step is pending
+				if (step.toCid === userCid && step.status === 'pending') {
+					pendingActions.push({
+						orderId: order._id,
+						step: step.step,
+						action: 'complete',
+						role: userRole,
+						amount: step.amount,
+						fromCid: step.fromCid,
+						product: {
+							name: order.product.productName,
+							seller: order.product.sellerCid
+						},
+						timestamp: step.timestamp
+					});
+				}
+				
+				// User can mark as failed if they are sender or receiver and step is pending
+				if ([step.fromCid, step.toCid].includes(userCid) && step.status === 'pending') {
+					pendingActions.push({
+						orderId: order._id,
+						step: step.step,
+						action: 'fail',
+						role: userRole,
+						amount: step.amount,
+						fromCid: step.fromCid,
+						toCid: step.toCid,
+						product: {
+							name: order.product.productName,
+							seller: order.product.sellerCid
+						},
+						timestamp: step.timestamp
+					});
+				}
+			}
+		}
+		
+		// Remove duplicates and sort by timestamp
+		const uniqueActions = pendingActions
+			.filter((action, index, arr) => 
+				arr.findIndex(a => 
+					a.orderId.toString() === action.orderId.toString() && 
+					a.step === action.step && 
+					a.action === action.action
+				) === index
+			)
+			.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+		
+		res.json({
+			pendingActions: uniqueActions,
+			count: uniqueActions.length
+		});
+		
+	} catch (error) {
+		console.error('Error getting pending payment actions:', error);
+		res.status(500).json({ error: 'Failed to get pending payment actions' });
+	}
+});
 
 module.exports = router

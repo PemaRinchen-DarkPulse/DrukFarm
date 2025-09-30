@@ -25,7 +25,7 @@ import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { ensureMediaLibraryImagePermission } from '../utils/imageDownloadSimple';
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts, fetchCategories, createCategory, fetchTshogpasOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, fetchUserDispatchAddresses, updateOrderStatus } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory, fetchTshogpasOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, fetchUserDispatchAddresses, updateOrderStatus, confirmTshogpaPayment, getPaymentStatus, autoInitializePaymentFlows } from '../lib/api';
 import { downloadOrderImageToGallery } from '../utils/imageDownloadSimple';
 
 import { resolveProductImage } from '../lib/image';
@@ -185,6 +185,14 @@ export default function TshogpasDashboard({ navigation }) {
   const [paymentOrders, setPaymentOrders] = useState([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
 
+  // Debug: Log when paymentFilter changes
+  useEffect(() => {
+    console.log('PaymentFilter changed to:', paymentFilter);
+    if (paymentFilter === "Dispatched") {
+      console.log('Dispatched filter active - should show all shipped orders');
+    }
+  }, [paymentFilter]);
+
   const getProducts = async () => {
     try {
       setLoading(true);
@@ -238,6 +246,20 @@ export default function TshogpasDashboard({ navigation }) {
       if (fetched?.orders && fetched.orders.length > 0) {
         console.log('Sample raw order from API:', JSON.stringify(fetched.orders[0], null, 2));
         console.log('All order statuses:', fetched.orders.map(o => o.status));
+        console.log('Sample buyer data:', {
+          buyer: fetched.orders[0]?.buyer,
+          userSnapshot: fetched.orders[0]?.userSnapshot,
+          totalPrice: fetched.orders[0]?.totalPrice,
+          quantity: fetched.orders[0]?.quantity,
+          createdAt: fetched.orders[0]?.createdAt
+        });
+        
+        // Check for specific shipped orders
+        const shippedOrders = fetched.orders.filter(o => o.status?.toLowerCase() === 'shipped');
+        console.log('Found shipped orders:', shippedOrders.length);
+        if (shippedOrders.length > 0) {
+          console.log('Sample shipped order:', JSON.stringify(shippedOrders[0], null, 2));
+        }
       }
       
       const normalized = Array.isArray(fetched?.orders) ? fetched.orders
@@ -253,27 +275,30 @@ export default function TshogpasDashboard({ navigation }) {
             orderId: String(o.orderId || o._id || ''),
             _id: String(o._id || o.orderId || ''),
             id: String(o.orderId || o._id || ''),
-            customerName: o.customerName || o.buyer?.name || 'Unknown',
-            customerCid: o.customerCid || o.buyer?.cid,
+            customerName: o.buyer?.name || 'Unknown',
+            customerCid: o.buyer?.cid,
             product: {
-              name: o.product?.name || o.product?.productName || 'Unknown Product',
+              name: o.product?.name || 'Unknown Product',
               price: o.product?.price || 0,
               productImageBase64: o.product?.productImageBase64,
               productImageUrl: o.product?.productImageUrl,
-              sellerCid: o.product?.sellerCid || o.product?.createdBy,
+              sellerCid: o.product?.sellerCid,
               sellerName: o.product?.sellerName || 'Unknown Seller'
             },
             buyer: {
-              name: o.buyer?.name || o.customerName || 'Unknown',
-              cid: o.buyer?.cid || o.customerCid,
-              phone: o.buyer?.phone || o.buyer?.phoneNumber,
-              address: o.buyer?.address
+              name: o.buyer?.name || 'Unknown',
+              cid: o.buyer?.cid,
+              phone: o.buyer?.phoneNumber, // Backend sends phoneNumber
+              phoneNumber: o.buyer?.phoneNumber, // Keep original field too
+              address: o.buyer?.location // Backend sends location
             },
             quantity: o.quantity || 1,
-            totalAmount: o.totalAmount || (o.product?.price * o.quantity) || 0,
+            totalAmount: o.totalPrice || 0, // Backend sends totalPrice
+            totalPrice: o.totalPrice || 0, // Keep original field too
             status: o.status || 'unknown',
-            orderDate: o.orderDate || o.createdAt,
-            deliveryAddress: o.deliveryAddress,
+            orderDate: o.createdAt, // Backend sends createdAt
+            createdAt: o.createdAt, // Keep original field too
+            deliveryAddress: o.deliveryAddress || o.buyer?.location, // Fallback to buyer location
             qrCodeDataUrl: o.qrCodeDataUrl
           };
         }) : [];
@@ -302,47 +327,143 @@ export default function TshogpasDashboard({ navigation }) {
     try {
       setPaymentLoading(true);
       const cid = getCurrentCid();
+      console.log('getPaymentOrders called with CID:', cid, 'type:', typeof cid);
       if (!cid) {
         console.log('No CID available, skipping payment order fetch');
         setPaymentOrders([]);
         return;
       }
       
+      // Auto-initialize payment flows for orders that need them
+      try {
+        await autoInitializePaymentFlows({ cid });
+        console.log('Auto-initialized payment flows');
+      } catch (error) {
+        console.warn('Failed to auto-initialize payment flows:', error);
+      }
+      
       // Fetch orders for payment dashboard
+      console.log('Fetching payment orders...');
       const fetched = await fetchTshogpasOrders({ cid });
+      console.log('Payment orders API response:', {
+        success: fetched?.success,
+        ordersCount: fetched?.orders?.length || 0
+      });
+      
       const ordersList = fetched?.orders || [];
+      console.log('Raw payment orders:', ordersList.length);
       
-      // Filter to only show orders that are in payment-relevant states
-      const paymentRelevantOrders = ordersList.filter(order => 
-        ['shipped', 'delivered', 'completed', 'payment pending', 'out for delivery'].includes(order.status?.toLowerCase())
-      ).map(o => ({
-        orderId: String(o.orderId || o._id || ''),
-        product: {
-          name: o.product?.name || o.product?.productName || 'Unknown Product',
-          price: o.product?.price || 0,
-          sellerCid: o.product?.sellerCid || o.product?.createdBy,
-          sellerName: o.product?.sellerName || 'Unknown Seller'
-        },
-        buyer: {
-          name: o.buyer?.name || o.customerName || 'Unknown',
-          cid: o.buyer?.cid || o.customerCid
-        },
-        farmer: {
-          name: o.product?.sellerName || 'Unknown Farmer',
-          cid: o.product?.sellerCid || o.product?.createdBy
-        },
-        transporter: {
-          name: o.transporter?.name || 'Unknown Transporter',
-          cid: o.transporter?.cid
-        },
-        totalPrice: o.totalAmount || (o.product?.price * o.quantity) || 0,
-        status: o.status || 'unknown',
-        settlementDate: o.settlementDate,
-        transporterSettlementDate: o.transporterSettlementDate,
-        farmerSettlementDate: o.farmerSettlementDate
-      }));
+      if (ordersList.length > 0) {
+        console.log('Sample payment order from backend:', JSON.stringify(ordersList[0], null, 2));
+        console.log('Backend order field mapping check:', {
+          hasSellerName: !!ordersList[0]?.product?.sellerName,
+          hasDeliveryAddress: !!ordersList[0]?.deliveryAddress,
+          buyerLocation: ordersList[0]?.buyer?.location,
+          productFields: Object.keys(ordersList[0]?.product || {}),
+          buyerFields: Object.keys(ordersList[0]?.buyer || {})
+        });
+        console.log('Payment order statuses:', ordersList.map(o => o.status));
+        console.log('Shipped payment orders:', ordersList.filter(o => o.status?.toLowerCase() === 'shipped').length);
+      }
       
-      setPaymentOrders(paymentRelevantOrders);
+      // Show ALL orders that were shipped by this Tshogpa (regardless of current status)
+      // This includes orders that have been shipped, delivered, completed, etc.
+      const allOrders = ordersList.map(o => {
+        const currentCid = String(cid); // Ensure string comparison
+        const productSellerCid = String(o.product?.sellerCid || '');
+        const tshogpasCid = String(o.tshogpasCid || '');
+        const isOwnProduct = productSellerCid === currentCid;
+        const isDispatched = tshogpasCid === currentCid;
+        
+        console.log(`Processing payment order ${o.orderId || o._id}:`, {
+          currentCid,
+          productSellerCid,
+          tshogpasCid,
+          isOwnProduct,
+          isDispatched,
+          status: o.status,
+          productName: o.product?.name
+        });
+        
+        return {
+          orderId: String(o.orderId || o._id || ''),
+          product: {
+            name: o.product?.name || 'Unknown Product',
+            price: o.product?.price || 0,
+            sellerCid: productSellerCid,
+            sellerName: o.product?.sellerName || 'Unknown Seller'
+          },
+          buyer: {
+            name: o.buyer?.name || 'Unknown',
+            cid: o.buyer?.cid
+          },
+          farmer: {
+            name: o.product?.sellerName || 'Unknown Farmer',
+            cid: productSellerCid
+          },
+          transporter: {
+            name: o.transporter?.name || 'Unknown Transporter',
+            cid: o.transporter?.cid
+          },
+          totalPrice: o.totalPrice || 0, // Backend sends totalPrice
+          status: o.status || 'unknown',
+          quantity: o.quantity || 1,
+          orderDate: o.createdAt, // Backend sends createdAt
+          deliveryAddress: o.deliveryAddress || o.buyer?.location,
+          settlementDate: o.settlementDate,
+          transporterSettlementDate: o.transporterSettlementDate,
+          farmerSettlementDate: o.farmerSettlementDate,
+          tshogpasCid: tshogpasCid, // Track who shipped this order
+          isOwnProduct: isOwnProduct, // Is this their own product
+          isDispatched: isDispatched // Did this Tshogpa dispatch this order
+        };
+      });
+      
+      console.log('Mapped payment orders:', allOrders.length);
+      if (allOrders.length > 0) {
+        console.log('Sample mapped payment order:', JSON.stringify(allOrders[0], null, 2));
+        console.log('Mapped payment order statuses:', allOrders.map(o => o.status));
+        console.log('Orders dispatched by this Tshogpa:', allOrders.filter(o => o.isDispatched).length);
+        console.log('Orders for this Tshogpa\'s own products:', allOrders.filter(o => o.isOwnProduct).length);
+        
+        // Debug: Show which orders are own products
+        const ownProductOrders = allOrders.filter(o => o.isOwnProduct);
+        console.log('Own product orders details:', ownProductOrders.map(o => ({
+          orderId: o.orderId,
+          status: o.status,
+          productName: o.product.name,
+          productSellerCid: o.product.sellerCid,
+          currentCid: String(cid)
+        })));
+        
+        // Debug: Show ALL orders and their relationship to current user
+        console.log('All order relationships:', allOrders.map(o => ({
+          orderId: o.orderId,
+          isOwnProduct: o.isOwnProduct,
+          isDispatched: o.isDispatched,
+          status: o.status,
+          productSellerCid: o.product.sellerCid,
+          tshogpasCid: o.tshogpasCid,
+          currentCid: String(cid)
+        })));
+        
+        // Debug: Check if there are any orders that should be own products
+        const shouldBeOwnProducts = allOrders.filter(o => {
+          const match = String(o.product.sellerCid) === String(cid);
+          if (match && !o.isOwnProduct) {
+            console.warn('Order should be own product but isOwnProduct is false:', {
+              orderId: o.orderId,
+              productSellerCid: o.product.sellerCid,
+              currentCid: String(cid),
+              match
+            });
+          }
+          return match;
+        });
+        console.log('Orders that should be own products:', shouldBeOwnProducts.length);
+      }
+      
+      setPaymentOrders(allOrders);
     } catch (error) {
       console.error('Error fetching payment orders:', error);
       Alert.alert('Error', 'Failed to fetch payment orders.');
@@ -381,6 +502,7 @@ export default function TshogpasDashboard({ navigation }) {
         console.log('Loading orders for tshogpas...');
         getOrders();
       } else if (activeTab === "Payments") {
+        console.log('Loading payment orders for tshogpas...');
         getPaymentOrders();
       }
       getCategories();
@@ -417,8 +539,8 @@ export default function TshogpasDashboard({ navigation }) {
             text: 'Confirm',
             onPress: async () => {
               try {
-                // Update order status to indicate payment received
-                await updateOrderStatus({ orderId, status: 'payment received', cid: user?.cid });
+                // Use the new payment workflow API
+                await confirmTshogpaPayment({ orderId, cid: user?.cid });
                 
                 // Update local state
                 setPaymentOrders(prevOrders => 
@@ -429,9 +551,18 @@ export default function TshogpasDashboard({ navigation }) {
                   )
                 );
                 
-                Alert.alert('Success', 'Payment marked as received');
+                Alert.alert('Success', 'Payment confirmed successfully');
               } catch (error) {
-                Alert.alert('Error', 'Failed to mark payment as received');
+                console.error('Payment confirmation error:', error);
+                
+                // Handle specific error messages
+                if (error.body?.error?.includes('Order has not been delivered')) {
+                  Alert.alert('Error', 'Order must be delivered before payment can be confirmed');
+                } else if (error.body?.error?.includes('Payment already confirmed')) {
+                  Alert.alert('Info', 'Payment has already been confirmed');
+                } else {
+                  Alert.alert('Error', 'Failed to confirm payment');
+                }
               }
             }
           }
@@ -716,68 +847,143 @@ export default function TshogpasDashboard({ navigation }) {
     console.log('getFilteredOrders called with:', {
       orderSubTab,
       totalOrders: orders.length,
-      orders: orders.map(o => ({ orderId: o.orderId, status: o.status }))
+      orders: orders.map(o => ({ orderId: o.orderId, status: o.status, isOwnProduct: o.product?.sellerCid === user?.cid }))
     });
+    
+    // First filter to only show orders for Tshogpa's own products
+    const ownProductOrders = orders.filter(o => {
+      const isOwnProduct = String(o.product?.sellerCid) === String(user?.cid);
+      console.log(`Order ${o.orderId} - isOwnProduct: ${isOwnProduct} (sellerCid: ${o.product?.sellerCid}, userCid: ${user?.cid})`);
+      return isOwnProduct;
+    });
+    
+    console.log('Own product orders:', ownProductOrders.length);
     
     let filtered;
     switch (orderSubTab) {
       case "Pending":
         // Show orders that are placed but not yet confirmed/shipped
-        filtered = orders.filter(o => {
+        filtered = ownProductOrders.filter(o => {
           const status = o.status?.toLowerCase();
           return status === 'order placed';
         });
         break;
       case "Confirmed":
         // Show orders that are shipped
-        filtered = orders.filter(o => {
+        filtered = ownProductOrders.filter(o => {
           const status = o.status?.toLowerCase();
           return status === 'shipped';
         });
         break;
       case "All":
       default:
-        // Show ALL orders regardless of status
-        filtered = orders;
+        // Show ALL own product orders regardless of status
+        filtered = ownProductOrders;
     }
     
     console.log('Filtered orders for tab', orderSubTab + ':', {
       count: filtered.length,
-      orders: filtered.map(o => ({ orderId: o.orderId, status: o.status }))
+      orders: filtered.map(o => ({ orderId: o.orderId, status: o.status, productName: o.product?.name }))
     });
     
     return filtered;
   };
 
   const getFilteredPaymentOrders = () => {
-    if (!paymentOrders) return [];
+    console.log('getFilteredPaymentOrders called with:', {
+      paymentFilter,
+      paymentTab,
+      paymentOrdersCount: paymentOrders?.length || 0
+    });
+    
+    if (!paymentOrders) {
+      console.log('No payment orders available');
+      return [];
+    }
+    
+    console.log('All payment orders statuses:', paymentOrders.map(o => o.status));
+    console.log('All payment orders detail:', paymentOrders.map(o => ({
+      orderId: o.orderId,
+      status: o.status,
+      isOwnProduct: o.isOwnProduct,
+      isDispatched: o.isDispatched,
+      productSellerCid: o.product?.sellerCid,
+      tshogpasCid: o.tshogpasCid,
+      productSellerName: o.product?.sellerName,
+      farmerName: o.farmer?.name
+    })));
     
     let filtered = paymentOrders;
     
     // Filter by view type (Earning vs Dispatched)
     if (paymentFilter === "Earning") {
-      // Show orders for Tshogpas' own earning (same as farmer dashboard)
-      // This is for when Tshogpas acts as a seller
-      filtered = paymentOrders;
+      // Show orders for Tshogpas' own products only (where they are the seller)
+      // Apply both product ownership and payment status filtering
+      filtered = paymentOrders.filter(order => {
+        const isOwnProduct = order.isOwnProduct === true;
+        const hasPaymentRelevantStatus = ['shipped', 'delivered', 'completed', 'payment pending', 'out for delivery', 'payment received'].includes(order.status?.toLowerCase());
+        
+        console.log(`Earning - Order ${order.orderId}:`, {
+          status: order.status,
+          isOwnProduct,
+          hasPaymentRelevantStatus,
+          productSellerCid: order.product?.sellerCid,
+          currentUserCid: getCurrentCid(),
+          productSellerName: order.product?.sellerName,
+          willShow: isOwnProduct && hasPaymentRelevantStatus
+        });
+        
+        // Show orders for own products that have payment-relevant statuses
+        return isOwnProduct && hasPaymentRelevantStatus;
+      });
+      console.log('Earning view filtered orders (own products with payment status):', filtered.length);
+      console.log('Earning view orders detail:', filtered.map(o => ({
+        orderId: o.orderId,
+        productName: o.product?.name,
+        status: o.status,
+        sellerName: o.product?.sellerName
+      })));
     } else if (paymentFilter === "Dispatched") {
-      // Show orders that Tshogpas dispatched for farmers
-      // This shows the transporter and farmer payment tracking
-      filtered = paymentOrders;
+      // Show ONLY orders that were actually dispatched/shipped by this Tshogpa
+      // Filter by isDispatched flag and shipped status
+      const dispatchedOrders = paymentOrders.filter(order => {
+        const status = order.status?.toLowerCase();
+        const wasDispatchedByThisTshogpa = order.isDispatched === true;
+        const hasShippedStatus = ['shipped', 'delivered', 'completed', 'payment pending', 'out for delivery', 'payment received'].includes(status);
+        
+        console.log(`Dispatched - Order ${order.orderId}:`, {
+          status,
+          isDispatched: order.isDispatched,
+          tshogpasCid: order.tshogpasCid,
+          wasDispatchedByThisTshogpa,
+          hasShippedStatus,
+          willShow: wasDispatchedByThisTshogpa && hasShippedStatus
+        });
+        
+        return wasDispatchedByThisTshogpa && hasShippedStatus;
+      });
+      console.log('Dispatched view filtered orders:', dispatchedOrders.length);
+      return dispatchedOrders;
     }
     
-    // Filter by payment status
+    // Filter by payment status (only applies to Earning view)
     if (paymentTab === "Pending") {
-      return filtered.filter(order => 
+      const pendingFiltered = filtered.filter(order => 
         ['shipped', 'delivered', 'payment pending', 'out for delivery'].includes(order.status?.toLowerCase()) && 
         !order.settlementDate
       );
+      console.log('Pending payment filtered orders:', pendingFiltered.length);
+      return pendingFiltered;
     } else if (paymentTab === "Completed") {
-      return filtered.filter(order => 
+      const completedFiltered = filtered.filter(order => 
         ['payment received', 'completed'].includes(order.status?.toLowerCase()) || 
         order.settlementDate
       );
+      console.log('Completed payment filtered orders:', completedFiltered.length);
+      return completedFiltered;
     }
     
+    console.log('Final filtered result:', filtered.length);
     return filtered;
   };
 
@@ -898,6 +1104,7 @@ export default function TshogpasDashboard({ navigation }) {
   const renderPaymentTableRow = ({ item, index }) => {
     const isPending = paymentTab === "Pending";
     const isEarningView = paymentFilter === "Earning";
+    const isDispatchedView = paymentFilter === "Dispatched";
     const isEvenRow = index % 2 === 0;
     
     return (
@@ -905,7 +1112,33 @@ export default function TshogpasDashboard({ navigation }) {
         <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 4 }]}>
           <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
         </View>
-        {isEarningView ? (
+        {isDispatchedView ? (
+          <>
+            <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
+              <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Customer'}</Text>
+            </View>
+            <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
+              <Text style={styles.paymentCellText} numberOfLines={1}>{item.product?.name || 'Unknown Product'}</Text>
+            </View>
+            <View style={[styles.paymentTableCell, { flex: 0.8 }]}>
+              <Text style={styles.paymentCellText}>{item.quantity || '1'}</Text>
+            </View>
+            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 8 }]}>
+              <Text style={styles.paymentCellText}>Nu.{item.totalPrice || '0'}</Text>
+            </View>
+            <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
+              <Text style={[styles.paymentCellText, { 
+                color: item.status?.toLowerCase() === 'completed' ? '#059669' : 
+                       item.status?.toLowerCase() === 'delivered' ? '#0EA5E9' : 
+                       item.status?.toLowerCase() === 'shipped' ? '#F59E0B' : '#6B7280',
+                fontSize: 12,
+                textTransform: 'capitalize'
+              }]} numberOfLines={1}>
+                {item.status || 'Unknown'}
+              </Text>
+            </View>
+          </>
+        ) : isEarningView ? (
           <>
             <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
               <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
@@ -980,13 +1213,32 @@ export default function TshogpasDashboard({ navigation }) {
   const renderPaymentTableHeader = () => {
     const isPending = paymentTab === "Pending";
     const isEarningView = paymentFilter === "Earning";
+    const isDispatchedView = paymentFilter === "Dispatched";
     
     return (
       <View style={styles.paymentTableHeader}>
         <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 4 }]}>
           <Text style={styles.paymentHeaderText}>Order ID</Text>
         </View>
-        {isEarningView ? (
+        {isDispatchedView ? (
+          <>
+            <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
+              <Text style={styles.paymentHeaderText}>Customer</Text>
+            </View>
+            <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
+              <Text style={styles.paymentHeaderText}>Product</Text>
+            </View>
+            <View style={[styles.paymentTableCell, { flex: 0.8 }]}>
+              <Text style={styles.paymentHeaderText}>Qty</Text>
+            </View>
+            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 8 }]}>
+              <Text style={styles.paymentHeaderText}>Amount</Text>
+            </View>
+            <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
+              <Text style={styles.paymentHeaderText}>Status</Text>
+            </View>
+          </>
+        ) : isEarningView ? (
           <>
             <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
               <Text style={styles.paymentHeaderText}>Tshogpa</Text>
@@ -1099,28 +1351,30 @@ export default function TshogpasDashboard({ navigation }) {
       case "Payments":
         return (
           <>
-            {/* Payment Tabs */}
-            <View style={styles.paymentTabs}>
-              {["Pending", "Completed"].map((tab) => (
-                <TouchableOpacity 
-                  key={tab} 
-                  onPress={() => setPaymentTab(tab)}
-                  style={[
-                    styles.paymentTab,
-                    paymentTab === tab && styles.activePaymentTab
-                  ]}
-                >
-                  <Text
+            {/* Payment Tabs - Hide when Dispatched filter is selected */}
+            {paymentFilter !== "Dispatched" && (
+              <View style={styles.paymentTabs}>
+                {["Pending", "Completed"].map((tab) => (
+                  <TouchableOpacity 
+                    key={tab} 
+                    onPress={() => setPaymentTab(tab)}
                     style={[
-                      styles.paymentTabText,
-                      paymentTab === tab && styles.activePaymentTabText
+                      styles.paymentTab,
+                      paymentTab === tab && styles.activePaymentTab
                     ]}
                   >
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                    <Text
+                      style={[
+                        styles.paymentTabText,
+                        paymentTab === tab && styles.activePaymentTabText
+                      ]}
+                    >
+                      {tab}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* Filter Dropdown for Earning/Dispatched */}
             <View style={styles.filterContainer}>
@@ -1155,10 +1409,17 @@ export default function TshogpasDashboard({ navigation }) {
                 }
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
-                    <Icon name="credit-card" size={64} color="#D1D5DB" />
-                    <Text style={styles.emptyText}>No {paymentTab.toLowerCase()} {paymentFilter.toLowerCase()} payments found</Text>
+                    <Icon name={paymentFilter === "Dispatched" ? "truck-delivery-outline" : "credit-card"} size={64} color="#D1D5DB" />
+                    <Text style={styles.emptyText}>
+                      {paymentFilter === "Dispatched" 
+                        ? "No dispatched orders found"
+                        : `No ${paymentTab.toLowerCase()} ${paymentFilter.toLowerCase()} payments found`
+                      }
+                    </Text>
                     <Text style={styles.emptySubtext}>
-                      {paymentTab === "Pending" 
+                      {paymentFilter === "Dispatched"
+                        ? "All orders you have shipped will appear here"
+                        : paymentTab === "Pending" 
                         ? `Your pending ${paymentFilter.toLowerCase()} payments will show here`
                         : `Your completed ${paymentFilter.toLowerCase()} payment history will show here`
                       }
@@ -1213,16 +1474,21 @@ export default function TshogpasDashboard({ navigation }) {
       {activeTab === "Orders" && (
         <View style={styles.subTabs}>
           {["All", "Pending", "Confirmed"].map((subTab) => {
+            // Filter to only count orders for Tshogpa's own products
+            const ownProductOrders = orders.filter(o => 
+              String(o.product?.sellerCid) === String(user?.cid)
+            );
+            
             let count = 0;
             if (subTab === "All") {
-              count = orders.length;
+              count = ownProductOrders.length;
             } else if (subTab === "Pending") {
-              count = orders.filter(o => {
+              count = ownProductOrders.filter(o => {
                 const status = o.status?.toLowerCase();
                 return status === 'order placed';
               }).length;
             } else if (subTab === "Confirmed") {
-              count = orders.filter(o => {
+              count = ownProductOrders.filter(o => {
                 const status = o.status?.toLowerCase();
                 return status === 'shipped';
               }).length;

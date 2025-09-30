@@ -59,6 +59,61 @@ const StatusHistorySchema = new mongoose.Schema(
 	{ _id: false }
 )
 
+// Payment flow step schema for 3-step payment process
+const PaymentFlowStepSchema = new mongoose.Schema(
+	{
+		step: { 
+			type: String, 
+			enum: [
+				'consumer_to_transporter', 
+				'transporter_to_tshogpa', 
+				'tshogpa_to_farmer',
+				'transporter_to_farmer',  // For when tshogpa is skipped
+				'consumer_to_tshogpa',    // For when transporter is skipped
+				'consumer_to_farmer'      // For direct transactions
+			], 
+			required: true 
+		},
+		fromCid: { type: String, required: true },
+		toCid: { type: String, required: true },
+		amount: { type: Number, required: true, min: 0 },
+		status: { 
+			type: String, 
+			enum: ['pending', 'completed', 'failed'], 
+			default: 'pending' 
+		},
+		timestamp: { type: Date, default: Date.now }
+	},
+	{ _id: false }
+)
+
+// Payment status history tracking
+const PaymentStatusHistorySchema = new mongoose.Schema(
+	{
+		step: { 
+			type: String, 
+			enum: [
+				'consumer_to_transporter', 
+				'transporter_to_tshogpa', 
+				'tshogpa_to_farmer',
+				'transporter_to_farmer',
+				'consumer_to_tshogpa',
+				'consumer_to_farmer'
+			] 
+		},
+		previousStatus: { type: String },
+		newStatus: { type: String, required: true },
+		changedBy: {
+			cid: { type: String, required: true },
+			role: { type: String, required: true },
+			name: { type: String, default: '' }
+		},
+		timestamp: { type: Date, default: Date.now },
+		notes: { type: String, default: '' }
+	},
+	{ _id: false }
+)
+
 const OrderSchema = new mongoose.Schema(
 	{
 		userCid: {
@@ -85,6 +140,10 @@ const OrderSchema = new mongoose.Schema(
 			gewog: { type: String, default: null },
 			place: { type: String, default: null }
 		},
+		// Payment workflow fields
+		paymentFlow: { type: [PaymentFlowStepSchema], default: [] },
+		paymentCompletedAt: { type: Date, default: null },
+		paymentStatusHistory: { type: [PaymentStatusHistorySchema], default: [] },
 		statusHistory: { type: [StatusHistorySchema], default: [] },
 	},
 	{ timestamps: true, versionKey: false }
@@ -113,6 +172,248 @@ OrderSchema.pre('validate', function (next) {
 		next(e)
 	}
 })
+
+// Middleware to auto-update isPaid and paymentCompletedAt when final payment step is completed
+OrderSchema.pre('save', function(next) {
+	try {
+		// Check if any final step is completed
+		const finalSteps = ['tshogpa_to_farmer', 'transporter_to_farmer', 'consumer_to_farmer'];
+		const finalStep = this.paymentFlow.find(step => 
+			finalSteps.includes(step.step) && step.status === 'completed'
+		);
+		
+		// Special case: If tshogpa is seller and transporter_to_tshogpa is completed
+		const tshogpaIsSeller = this.tshogpasCid === this.product.sellerCid;
+		const tshogpaStep = this.paymentFlow.find(step => 
+			step.step === 'transporter_to_tshogpa' && step.status === 'completed'
+		);
+		const consumerToTshogpaStep = this.paymentFlow.find(step => 
+			step.step === 'consumer_to_tshogpa' && step.status === 'completed'
+		);
+		
+		const isPaymentComplete = finalStep || 
+			(tshogpaIsSeller && (tshogpaStep || consumerToTshogpaStep));
+		
+		if (isPaymentComplete && !this.isPaid) {
+			this.isPaid = true;
+			this.paymentCompletedAt = new Date();
+		} else if (!isPaymentComplete && this.isPaid) {
+			// If no final step is completed but isPaid is true, reset it
+			this.isPaid = false;
+			this.paymentCompletedAt = null;
+		}
+		
+		next();
+	} catch (e) {
+		next(e);
+	}
+});
+
+// Method to initialize payment flow
+OrderSchema.methods.initializePaymentFlow = function() {
+	if (this.paymentFlow.length > 0) {
+		throw new Error('Payment flow already initialized');
+	}
+	
+	const totalAmount = this.totalPrice;
+	const flow = this.detectPaymentFlow();
+	
+	this.paymentFlow = flow.map(step => ({
+		step: step.step,
+		fromCid: step.fromCid,
+		toCid: step.toCid,
+		amount: totalAmount,
+		status: 'pending'
+	}));
+	
+	return this.save();
+};
+
+// Method to detect which payment flow applies based on order fields
+OrderSchema.methods.detectPaymentFlow = function() {
+	const hasTransporter = this.transporter && this.transporter.cid;
+	const hasTshogpa = this.tshogpasCid;
+	const farmer = this.product.sellerCid;
+	const consumer = this.userCid;
+	
+	// Special case: If tshogpa is also the seller (farmer)
+	const tshogpaIsSeller = hasTshogpa && this.tshogpasCid === farmer;
+	
+	let flow = [];
+	
+	if (hasTransporter && hasTshogpa) {
+		// Flow 1: Buyer → Transporter → Tshogpa → Seller (or skip if tshogpa is seller)
+		flow.push({
+			step: 'consumer_to_transporter',
+			fromCid: consumer,
+			toCid: this.transporter.cid
+		});
+		
+		flow.push({
+			step: 'transporter_to_tshogpa',
+			fromCid: this.transporter.cid,
+			toCid: this.tshogpasCid
+		});
+		
+		if (!tshogpaIsSeller) {
+			flow.push({
+				step: 'tshogpa_to_farmer',
+				fromCid: this.tshogpasCid,
+				toCid: farmer
+			});
+		}
+	} else if (hasTransporter && !hasTshogpa) {
+		// Flow 4: Buyer → Transporter → Seller (skip tshogpa)
+		flow.push({
+			step: 'consumer_to_transporter',
+			fromCid: consumer,
+			toCid: this.transporter.cid
+		});
+		
+		flow.push({
+			step: 'transporter_to_farmer',
+			fromCid: this.transporter.cid,
+			toCid: farmer
+		});
+	} else if (!hasTransporter && hasTshogpa) {
+		// Flow 2: Buyer → Tshogpa → Seller (or skip if tshogpa is seller)
+		flow.push({
+			step: 'consumer_to_tshogpa',
+			fromCid: consumer,
+			toCid: this.tshogpasCid
+		});
+		
+		if (!tshogpaIsSeller) {
+			flow.push({
+				step: 'tshogpa_to_farmer',
+				fromCid: this.tshogpasCid,
+				toCid: farmer
+			});
+		}
+	} else {
+		// Flow 3: Buyer → Seller (direct, no intermediaries)
+		flow.push({
+			step: 'consumer_to_farmer',
+			fromCid: consumer,
+			toCid: farmer
+		});
+	}
+	
+	return flow;
+};
+
+// Method to update payment step status
+OrderSchema.methods.updatePaymentStep = function(stepName, newStatus, changedBy, notes = '') {
+	const stepIndex = this.paymentFlow.findIndex(step => step.step === stepName);
+	
+	if (stepIndex === -1) {
+		throw new Error(`Payment step '${stepName}' not found`);
+	}
+	
+	const step = this.paymentFlow[stepIndex];
+	const previousStatus = step.status;
+	
+	// Validate status transition
+	if (previousStatus === 'completed' && newStatus !== 'completed') {
+		throw new Error('Cannot change status of completed payment step');
+	}
+	
+	if (previousStatus === 'failed' && newStatus === 'completed') {
+		throw new Error('Cannot complete a failed payment step without resetting first');
+	}
+	
+	// Update step status
+	step.status = newStatus;
+	step.timestamp = new Date();
+	
+	// Add to payment status history
+	this.paymentStatusHistory.push({
+		step: stepName,
+		previousStatus,
+		newStatus,
+		changedBy,
+		timestamp: new Date(),
+		notes
+	});
+	
+	return this.save();
+};
+
+// Method to handle special case where tshogpa is also the seller
+OrderSchema.methods.completePaymentForTshogpaSeller = function(changedBy, notes = '') {
+	const tshogpaIsSeller = this.tshogpasCid === this.product.sellerCid;
+	
+	if (!tshogpaIsSeller) {
+		throw new Error('This method can only be used when tshogpa is also the seller');
+	}
+	
+	// Find the relevant step to complete
+	const stepToComplete = this.paymentFlow.find(step => 
+		step.step === 'transporter_to_tshogpa' || step.step === 'consumer_to_tshogpa'
+	);
+	
+	if (!stepToComplete) {
+		throw new Error('No relevant payment step found for tshogpa-seller completion');
+	}
+	
+	if (stepToComplete.status === 'completed') {
+		throw new Error('Payment step already completed');
+	}
+	
+	// Complete the step
+	stepToComplete.status = 'completed';
+	stepToComplete.timestamp = new Date();
+	
+	// Add to payment status history
+	this.paymentStatusHistory.push({
+		step: stepToComplete.step,
+		previousStatus: 'pending',
+		newStatus: 'completed',
+		changedBy,
+		timestamp: new Date(),
+		notes: notes || 'Payment completed - tshogpa is also the seller'
+	});
+	
+	return this.save();
+};
+
+// Method to get current payment status
+OrderSchema.methods.getPaymentStatus = function() {
+	const steps = this.paymentFlow.map(step => ({
+		step: step.step,
+		status: step.status,
+		fromCid: step.fromCid,
+		toCid: step.toCid,
+		amount: step.amount,
+		timestamp: step.timestamp
+	}));
+	
+	const completedSteps = this.paymentFlow.filter(step => step.status === 'completed').length;
+	const failedSteps = this.paymentFlow.filter(step => step.status === 'failed').length;
+	const pendingSteps = this.paymentFlow.filter(step => step.status === 'pending').length;
+	
+	let overallStatus = 'pending';
+	if (failedSteps > 0) {
+		overallStatus = 'failed';
+	} else if (completedSteps === this.paymentFlow.length) {
+		overallStatus = 'completed';
+	} else if (completedSteps > 0) {
+		overallStatus = 'in_progress';
+	}
+	
+	return {
+		overallStatus,
+		isPaid: this.isPaid,
+		paymentCompletedAt: this.paymentCompletedAt,
+		steps,
+		summary: {
+			total: this.paymentFlow.length,
+			completed: completedSteps,
+			pending: pendingSteps,
+			failed: failedSteps
+		}
+	};
+};
 
 module.exports = mongoose.model('Order', OrderSchema)
 
