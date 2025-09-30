@@ -235,6 +235,14 @@ export default function FarmerDashboard({ navigation }) {
       // Fetch ALL orders for payment dashboard (show all orders related to farmer's products)
       const response = await fetchSellerOrders({ cid: user?.cid });
       const ordersList = response?.orders || [];
+      console.log('Fetched payment orders with payment fields:', ordersList.map(o => ({
+        orderId: o.orderId,
+        status: o.status,
+        isPaid: o.isPaid,
+        paymentCompletedAt: o.paymentCompletedAt,
+        settlementDate: o.settlementDate,
+        paymentConfirmedBy: o.paymentConfirmedBy
+      })));
       // Show ALL orders, not just payment-relevant ones
       setPaymentOrders(ordersList);
     } catch (error) {
@@ -247,50 +255,156 @@ export default function FarmerDashboard({ navigation }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    if (activeTab === "Products") {
-      await getProducts();
-    } else if (activeTab === "Orders") {
-      await getOrders();
-    } else if (activeTab === "Payments") {
-      await getPaymentOrders();
+    try {
+      if (activeTab === "Products") {
+        console.log('[Farmer] Refreshing products...');
+        await getProducts();
+      } else if (activeTab === "Orders") {
+        console.log('[Farmer] Refreshing orders...');
+        await getOrders();
+      } else if (activeTab === "Payments") {
+        console.log('[Farmer] Refreshing payment orders...');
+        await getPaymentOrders();
+      }
+    } catch (error) {
+      console.error('[Farmer] Refresh error:', error);
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
   }, [activeTab, getOrders, getPaymentOrders]);
 
   const handleMarkPaymentReceived = async (orderId) => {
     try {
+      // Find the specific order to validate
+      const order = paymentOrders.find(o => o.orderId === orderId || o.id === orderId);
+      if (!order) {
+        Alert.alert('Error', 'Order not found');
+        return;
+      }
+
+      // Enhanced validation for order status
+      if (order.status?.toLowerCase() !== 'delivered') {
+        Alert.alert(
+          'Cannot Confirm Payment', 
+          `Order must be delivered before payment can be confirmed.\n\nCurrent status: ${order.status || 'Unknown'}`
+        );
+        return;
+      }
+
+      // FRONTEND HIERARCHY VALIDATION: Check if all previous steps are completed
+      if (order.paymentFlow && order.paymentFlow.length > 0) {
+        // Find the farmer's step (final step)
+        const finalSteps = ['tshogpa_to_farmer', 'transporter_to_farmer', 'consumer_to_farmer'];
+        const farmerStep = order.paymentFlow.find(s => finalSteps.includes(s.step));
+        
+        if (farmerStep) {
+          const allSteps = order.paymentFlow;
+          const currentStepIndex = allSteps.findIndex(s => s.step === farmerStep.step);
+          
+          // Check ALL previous steps are completed
+          for (let i = 0; i < currentStepIndex; i++) {
+            const previousStep = allSteps[i];
+            if (previousStep.status !== 'completed') {
+              let contactPerson = 'the previous level';
+              if (previousStep.step.includes('transporter')) {
+                contactPerson = 'the transporter';
+              } else if (previousStep.step.includes('tshogpa')) {
+                contactPerson = 'the tshogpa';
+              }
+              
+              Alert.alert(
+                'Cannot Confirm Payment',
+                `Payment workflow must be completed in order. Please contact ${contactPerson} to confirm their payment first.\n\nPending step: ${previousStep.step.replace(/_/g, ' → ')}`,
+                [{ text: 'OK' }]
+              );
+              return;
+            }
+          }
+        }
+      }
+
       Alert.alert(
-        'Payment Received',
-        'Mark this payment as received?',
+        'Confirm Final Payment',
+        `Confirm that you have received the final payment for Order #${(orderId || '').slice(-6)}?\n\nThis will complete the entire payment workflow and mark the order as fully paid.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Confirm',
+            text: 'Confirm Final Payment',
+            style: 'default',
             onPress: async () => {
               try {
-                // Use the new payment workflow API
+                // Show loading state
+                console.log(`[Farmer Payment] Confirming final payment for order: ${orderId}`);
+                
+                // Use the payment workflow API with enhanced error handling
                 await confirmFarmerPayment({ orderId, cid: user?.cid });
                 
-                // Update local state
+                console.log(`[Farmer Payment] Final payment confirmed successfully for order: ${orderId}`);
+                
+                // Refresh payment data from server to get latest status
+                await getPaymentOrders();
+                
+                // Update local state to move from Pending to Completed tab
                 setPaymentOrders(prevOrders => 
                   prevOrders.map(order => 
-                    order.orderId === orderId 
-                      ? { ...order, status: 'payment received', settlementDate: new Date().toISOString() }
+                    (order.orderId === orderId || order.id === orderId)
+                      ? { 
+                          ...order, 
+                          status: 'completed', 
+                          settlementDate: new Date().toISOString(),
+                          paymentConfirmedBy: 'farmer',
+                          paymentConfirmedAt: new Date().toISOString(),
+                          isPaid: true, // Mark as fully paid (final step)
+                          paymentCompletedAt: new Date().toISOString()
+                        }
                       : order
                   )
                 );
                 
-                Alert.alert('Success', 'Payment confirmed successfully');
-              } catch (error) {
-                console.error('Payment confirmation error:', error);
+                // Switch to Completed tab to show the result
+                setPaymentTab('Completed');
                 
-                // Handle specific error messages
-                if (error.body?.error?.includes('Order has not been delivered')) {
-                  Alert.alert('Error', 'Order must be delivered before payment can be confirmed');
-                } else if (error.body?.error?.includes('Payment already confirmed')) {
-                  Alert.alert('Info', 'Payment has already been confirmed');
+                Alert.alert(
+                  'Payment Workflow Complete!', 
+                  'Final payment has been confirmed. The entire payment workflow is now complete and the order is marked as fully paid.',
+                  [{ text: 'OK' }]
+                );
+              } catch (error) {
+                console.error('[Farmer Payment] Confirmation error:', error);
+                
+                // Enhanced error handling with specific messages
+                const errorMessage = error.body?.error || error.message || 'Unknown error occurred';
+                
+                if (errorMessage.includes('Order has not been delivered')) {
+                  Alert.alert(
+                    'Cannot Confirm Payment',
+                    'Order status indicates it has not been delivered yet. Please ensure the order is marked as delivered before confirming payment.'
+                  );
+                } else if (errorMessage.includes('Payment already confirmed')) {
+                  Alert.alert(
+                    'Already Confirmed',
+                    'This payment has already been confirmed. Check the Completed tab to see the status.'
+                  );
+                } else if (errorMessage.includes('Only the product seller')) {
+                  Alert.alert(
+                    'Permission Denied',
+                    'You are not authorized to confirm payment for this order.'
+                  );
+                } else if (errorMessage.includes('Farmer payment step not found')) {
+                  Alert.alert(
+                    'Payment Step Not Found',
+                    'The final payment step for this order could not be found. The payment flow may not be properly initialized.'
+                  );
+                } else if (errorMessage.includes('Previous step') && errorMessage.includes('must be completed first')) {
+                  Alert.alert(
+                    'Payment Step Order Error',
+                    'The payment workflow must be completed in order. Previous payment steps are still pending.'
+                  );
                 } else {
-                  Alert.alert('Error', 'Failed to confirm payment');
+                  Alert.alert(
+                    'Payment Confirmation Failed',
+                    `Unable to confirm final payment: ${errorMessage}`
+                  );
                 }
               }
             }
@@ -298,7 +412,8 @@ export default function FarmerDashboard({ navigation }) {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to process payment');
+      console.error('[Farmer Payment] Unexpected error:', error);
+      Alert.alert('Error', 'An unexpected error occurred while processing payment confirmation.');
     }
   };
 
@@ -1165,17 +1280,35 @@ export default function FarmerDashboard({ navigation }) {
   const getFilteredPaymentOrders = () => {
     if (!paymentOrders) return [];
     
+    // Only show delivered orders in payment tabs (payment is only relevant after delivery)
+    const deliveredOrders = paymentOrders.filter(order => {
+      const status = order.status?.toLowerCase() || '';
+      return status === 'delivered';
+    });
+    
     if (paymentTab === "Pending") {
-      // Show all orders that don't have settlement date (not yet completed payments)
-      return paymentOrders.filter(order => !order.settlementDate);
+      // Show delivered orders where final payment is still pending
+      return deliveredOrders.filter(order => {
+        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
+        const isPaid = order.isPaid === true;
+        const paymentCompletedAt = order.paymentCompletedAt;
+        
+        // Order is pending if it's delivered but final payment not yet confirmed by farmer
+        return !hasSettlementDate && !isPaid && !paymentCompletedAt;
+      });
     } else if (paymentTab === "Completed") {
-      // Show all orders that have settlement date (completed payments)
-      return paymentOrders.filter(order => 
-        ['payment received', 'completed'].includes(order.status?.toLowerCase()) || 
-        order.settlementDate
-      );
+      // Show delivered orders where final payment has been received/completed
+      return deliveredOrders.filter(order => {
+        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
+        const isPaid = order.isPaid === true;
+        const paymentConfirmedBy = order.paymentConfirmedBy;
+        const paymentCompletedAt = order.paymentCompletedAt;
+        
+        // Order is completed if final payment confirmed or has settlement date or is marked as paid
+        return hasSettlementDate || isPaid || paymentConfirmedBy || paymentCompletedAt;
+      });
     }
-    return paymentOrders; // Return all orders if no specific tab
+    return deliveredOrders; // Return all delivered orders if no specific tab
   };
 
   const renderPaymentTableRow = ({ item, index }) => {
@@ -1205,10 +1338,31 @@ export default function FarmerDashboard({ navigation }) {
         ) : (
           <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
             <Text style={styles.paymentCellText}>
-              {item.settlementDate 
-                ? new Date(item.settlementDate).toLocaleDateString() 
-                : 'N/A'
-              }
+              {(() => {
+                // Get settlement date from payment flow or fallback to legacy fields
+                if (item.paymentFlow && item.paymentFlow.length > 0) {
+                  const finalSteps = ['tshogpa_to_farmer', 'transporter_to_farmer', 'consumer_to_farmer'];
+                  const farmerStep = item.paymentFlow.find(s => finalSteps.includes(s.step));
+                  if (farmerStep && farmerStep.status === 'completed' && farmerStep.timestamp) {
+                    return new Date(farmerStep.timestamp).toLocaleDateString();
+                  }
+                }
+                
+                // Fallback to legacy settlement date fields
+                if (item.settlementDate) {
+                  return new Date(item.settlementDate).toLocaleDateString();
+                }
+                
+                if (item.paymentConfirmedAt) {
+                  return new Date(item.paymentConfirmedAt).toLocaleDateString();
+                }
+                
+                if (item.paymentCompletedAt) {
+                  return new Date(item.paymentCompletedAt).toLocaleDateString();
+                }
+                
+                return 'N/A';
+              })()}
             </Text>
           </View>
         )}

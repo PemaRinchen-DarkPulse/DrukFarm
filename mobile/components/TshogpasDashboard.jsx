@@ -518,50 +518,223 @@ export default function TshogpasDashboard({ navigation }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    if (activeTab === "Products") {
-      await getProducts();
-    } else if (activeTab === "Orders") {
-      await getOrders();
-    } else if (activeTab === "Payments") {
-      await getPaymentOrders();
+    try {
+      if (activeTab === "Products") {
+        console.log('[Tshogpa] Refreshing products...');
+        await getProducts();
+      } else if (activeTab === "Orders") {
+        console.log('[Tshogpa] Refreshing orders...');
+        await getOrders();
+      } else if (activeTab === "Payments") {
+        console.log('[Tshogpa] Refreshing payment orders...');
+        await getPaymentOrders();
+      }
+    } catch (error) {
+      console.error('[Tshogpa] Refresh error:', error);
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
   }, [activeTab]);
+
+  const forceRefreshPaymentOrders = async () => {
+    try {
+      console.log('[Payment Refresh] Force refreshing payment orders...');
+      await getPaymentOrders();
+      console.log('[Payment Refresh] Payment orders refreshed successfully');
+    } catch (error) {
+      console.error('[Payment Refresh] Failed to refresh payment orders:', error);
+      Alert.alert('Refresh Failed', 'Failed to refresh payment data. Please try again.');
+    }
+  };
 
   const handleMarkPaymentReceived = async (orderId) => {
     try {
+      // Find the specific order to validate
+      const order = paymentOrders.find(o => o.orderId === orderId || o.id === orderId);
+      if (!order) {
+        Alert.alert('Error', 'Order not found');
+        return;
+      }
+
+      // Enhanced validation for order status
+      if (order.status?.toLowerCase() !== 'delivered') {
+        Alert.alert(
+          'Cannot Confirm Payment', 
+          `Order must be delivered before payment can be confirmed.\n\nCurrent status: ${order.status || 'Unknown'}`
+        );
+        return;
+      }
+
+      // Check if tshogpa is also the seller (special case)
+      const isTshogpaSeller = order.product?.sellerCid === user?.cid;
+      
+      // FRONTEND HIERARCHY VALIDATION: Check if prerequisites are met
+      if (!isTshogpaSeller && order.transporter?.cid && order.paymentFlow) {
+        // If there's a transporter and tshogpa is not the seller, check hierarchy
+        const transporterStep = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+        if (transporterStep && transporterStep.status !== 'completed') {
+          Alert.alert(
+            'Cannot Confirm Payment',
+            'The transporter must confirm their payment first before you can confirm yours. Please contact the transporter to complete their payment step.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+      
+      const paymentStepDescription = isTshogpaSeller 
+        ? 'This will complete the payment workflow since you are both the tshogpa and seller.'
+        : 'This will complete the transporter → tshogpa payment step.';
+
       Alert.alert(
-        'Payment Received',
-        'Mark this payment as received?',
+        'Confirm Payment Receipt',
+        `Confirm that you have received payment for Order #${(orderId || '').slice(-6)}?\n\n${paymentStepDescription}`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Confirm',
+            text: 'Confirm Payment',
+            style: 'default',
             onPress: async () => {
               try {
-                // Use the new payment workflow API
-                await confirmTshogpaPayment({ orderId, cid: user?.cid });
+                // Show loading state
+                console.log(`[Tshogpa Payment] Confirming payment for order: ${orderId}`, {
+                  isTshogpaSeller,
+                  tshogpasCid: user?.cid,
+                  sellerCid: order.product?.sellerCid
+                });
                 
-                // Update local state
+                // Use the payment workflow API with enhanced error handling
+                console.log(`[Frontend] About to call confirmTshogpaPayment for order: ${orderId}`);
+                const confirmationResult = await confirmTshogpaPayment({ orderId, cid: user?.cid });
+                console.log(`[Frontend] confirmTshogpaPayment result:`, confirmationResult);
+                
+                // Check if payment was already completed
+                if (confirmationResult.alreadyCompleted) {
+                  console.log(`[Tshogpa Payment] Payment was already completed for order: ${orderId}`);
+                  
+                  // Update local state to ensure it shows in completed tab
+                  setPaymentOrders(prevOrders => 
+                    prevOrders.map(order => 
+                      (order.orderId === orderId || order.id === orderId)
+                        ? { 
+                            ...order, 
+                            paymentConfirmedBy: 'tshogpa',
+                            paymentConfirmedAt: new Date().toISOString(),
+                            settlementDate: new Date().toISOString(),
+                            // Ensure paymentFlow shows completion
+                            paymentFlow: (order.paymentFlow || []).map(step => {
+                              if (step.step === 'transporter_to_tshogpa' || step.step === 'consumer_to_tshogpa') {
+                                return { ...step, status: 'completed', timestamp: step.timestamp || new Date().toISOString() };
+                              }
+                              return step;
+                            })
+                          }
+                        : order
+                    )
+                  );
+                  
+                  // Switch to Completed tab to show the result
+                  setPaymentTab('Completed');
+                  
+                  Alert.alert(
+                    'Payment Already Confirmed', 
+                    'This payment was already confirmed previously. You can view it in the Completed tab.',
+                    [{ text: 'OK' }]
+                  );
+                  return;
+                }
+                
+                console.log(`[Tshogpa Payment] Payment confirmed successfully for order: ${orderId}`);
+                
+                // Update local state FIRST to ensure immediate UI update
                 setPaymentOrders(prevOrders => 
                   prevOrders.map(order => 
-                    order.orderId === orderId 
-                      ? { ...order, status: 'payment received', settlementDate: new Date().toISOString() }
+                    (order.orderId === orderId || order.id === orderId)
+                      ? { 
+                          ...order, 
+                          status: isTshogpaSeller ? 'completed' : 'payment received', 
+                          settlementDate: new Date().toISOString(),
+                          paymentConfirmedBy: 'tshogpa',
+                          paymentConfirmedAt: new Date().toISOString(),
+                          isPaid: isTshogpaSeller, // Mark as fully paid if tshogpa is seller
+                          // Update paymentFlow to mark tshogpa step as completed
+                          paymentFlow: (order.paymentFlow || []).map(step => {
+                            if (step.step === 'transporter_to_tshogpa' || step.step === 'consumer_to_tshogpa') {
+                              return { ...step, status: 'completed', timestamp: new Date().toISOString() };
+                            }
+                            return step;
+                          })
+                        }
                       : order
                   )
                 );
                 
-                Alert.alert('Success', 'Payment confirmed successfully');
-              } catch (error) {
-                console.error('Payment confirmation error:', error);
+                // Switch to Completed tab to show the result immediately
+                setPaymentTab('Completed');
                 
-                // Handle specific error messages
-                if (error.body?.error?.includes('Order has not been delivered')) {
-                  Alert.alert('Error', 'Order must be delivered before payment can be confirmed');
-                } else if (error.body?.error?.includes('Payment already confirmed')) {
-                  Alert.alert('Info', 'Payment has already been confirmed');
+                  // Then refresh payment data from server to get latest status (but don't overwrite local state)
+                try {
+                  await getPaymentOrders();
+                  console.log('[Tshogpa Payment] Successfully refreshed payment orders after confirmation');
+                } catch (refreshError) {
+                  console.warn('Failed to refresh payment orders after confirmation:', refreshError);
+                  // Continue with local state - don't fail the whole operation
+                }
+                
+                const successMessage = isTshogpaSeller
+                  ? 'Payment workflow completed! Since you are both the tshogpa and seller, the entire payment flow is now complete.'
+                  : 'Payment has been successfully confirmed and recorded in the system.';
+                
+                Alert.alert(
+                  'Payment Confirmed', 
+                  successMessage,
+                  [{ text: 'OK' }]
+                );
+              } catch (error) {
+                console.error('[Tshogpa Payment] Confirmation error:', error);
+                console.error('[Tshogpa Payment] Error details:', {
+                  message: error.message,
+                  body: error.body,
+                  status: error.status,
+                  response: error.response
+                });
+                
+                // Enhanced error handling with specific messages
+                let errorMessage = 'Unknown error occurred';
+                
+                if (error.body && typeof error.body === 'object') {
+                  errorMessage = error.body.error || error.body.message || JSON.stringify(error.body);
+                } else if (error.message) {
+                  errorMessage = error.message;
+                }
+                
+                console.log('[Tshogpa Payment] Parsed error message:', errorMessage);
+                
+                if (errorMessage.includes('Order has not been delivered')) {
+                  Alert.alert(
+                    'Cannot Confirm Payment',
+                    'Order status indicates it has not been delivered yet. Please ensure the order is marked as delivered before confirming payment.'
+                  );
+                } else if (errorMessage.includes('Payment already confirmed')) {
+                  Alert.alert(
+                    'Already Confirmed',
+                    'This payment has already been confirmed. Check the Completed tab to see the status.'
+                  );
+                } else if (errorMessage.includes('Only the assigned tshogpa')) {
+                  Alert.alert(
+                    'Permission Denied',
+                    'You are not authorized to confirm payment for this order.'
+                  );
+                } else if (errorMessage.includes('Previous step') && errorMessage.includes('must be completed first')) {
+                  Alert.alert(
+                    'Payment Step Order Error',
+                    'The payment workflow must be completed in order. A previous payment step is still pending.'
+                  );
                 } else {
-                  Alert.alert('Error', 'Failed to confirm payment');
+                  Alert.alert(
+                    'Payment Confirmation Failed',
+                    `Unable to confirm payment: ${errorMessage}`
+                  );
                 }
               }
             }
@@ -569,7 +742,8 @@ export default function TshogpasDashboard({ navigation }) {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to process payment');
+      console.error('[Tshogpa Payment] Unexpected error:', error);
+      Alert.alert('Error', 'An unexpected error occurred while processing payment confirmation.');
     }
   };
 
@@ -963,23 +1137,85 @@ export default function TshogpasDashboard({ navigation }) {
         return wasDispatchedByThisTshogpa && hasShippedStatus;
       });
       console.log('Dispatched view filtered orders:', dispatchedOrders.length);
-      return dispatchedOrders;
+      filtered = dispatchedOrders;
     }
     
-    // Filter by payment status (only applies to Earning view)
+    // Enhanced filter by payment status (Pending vs Completed) - Apply to both Earning and Dispatched
+    console.log(`[Filter Debug] Filtering for ${paymentTab} tab, ${paymentFilter} view`);
+    console.log(`[Filter Debug] Orders before status filtering:`, filtered.map(o => ({
+      orderId: o.orderId,
+      status: o.status,
+      paymentConfirmedBy: o.paymentConfirmedBy,
+      paymentConfirmedAt: o.paymentConfirmedAt,
+      settlementDate: o.settlementDate,
+      isPaid: o.isPaid,
+      paymentFlow: o.paymentFlow ? o.paymentFlow.map(s => `${s.step}:${s.status}`) : []
+    })));
+    
     if (paymentTab === "Pending") {
-      const pendingFiltered = filtered.filter(order => 
-        ['shipped', 'delivered', 'payment pending', 'out for delivery'].includes(order.status?.toLowerCase()) && 
-        !order.settlementDate
-      );
-      console.log('Pending payment filtered orders:', pendingFiltered.length);
+      // Show orders where payment is still pending
+      const pendingFiltered = filtered.filter(order => {
+        const status = order.status?.toLowerCase() || '';
+        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
+        const isPaymentCompleted = ['payment received', 'completed', 'settled'].includes(status);
+        const isPaid = order.isPaid === true;
+        const paymentConfirmedBy = order.paymentConfirmedBy;
+        
+        // Check payment flow for tshogpa payment completion
+        const hasTshogpaPaymentCompleted = order.paymentFlow && order.paymentFlow.find(step => 
+          (step.step === 'transporter_to_tshogpa' || step.step === 'consumer_to_tshogpa') && 
+          step.status === 'completed'
+        );
+        
+        // Order is pending if payment is NOT completed and no settlement date and not paid and not confirmed AND paymentFlow doesn't show completion
+        const isPending = !isPaymentCompleted && !hasSettlementDate && !isPaid && !paymentConfirmedBy && !hasTshogpaPaymentCompleted;
+        
+        console.log(`Pending check for order ${order.orderId}:`, {
+          status,
+          hasSettlementDate: !!hasSettlementDate,
+          isPaymentCompleted,
+          isPaid,
+          paymentConfirmedBy,
+          hasTshogpaPaymentCompleted: !!hasTshogpaPaymentCompleted,
+          paymentFlowSteps: order.paymentFlow ? order.paymentFlow.map(s => `${s.step}:${s.status}`) : [],
+          isPending
+        });
+        
+        return isPending;
+      });
+      console.log(`${paymentFilter} - Pending payment filtered orders:`, pendingFiltered.length);
       return pendingFiltered;
     } else if (paymentTab === "Completed") {
-      const completedFiltered = filtered.filter(order => 
-        ['payment received', 'completed'].includes(order.status?.toLowerCase()) || 
-        order.settlementDate
-      );
-      console.log('Completed payment filtered orders:', completedFiltered.length);
+      // Show orders where payment has been received/completed
+      const completedFiltered = filtered.filter(order => {
+        const status = order.status?.toLowerCase() || '';
+        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
+        const isPaymentCompleted = ['payment received', 'completed', 'settled'].includes(status);
+        const isPaid = order.isPaid === true;
+        const paymentConfirmedBy = order.paymentConfirmedBy;
+        
+        // Check payment flow for tshogpa payment completion
+        const hasTshogpaPaymentCompleted = order.paymentFlow && order.paymentFlow.find(step => 
+          (step.step === 'transporter_to_tshogpa' || step.step === 'consumer_to_tshogpa') && 
+          step.status === 'completed'
+        );
+        
+        // Order is completed if payment confirmed or has settlement date or is marked as paid or payment flow shows completion
+        const isCompleted = isPaymentCompleted || hasSettlementDate || isPaid || paymentConfirmedBy || hasTshogpaPaymentCompleted;
+        
+        console.log(`Completed check for order ${order.orderId}:`, {
+          status,
+          hasSettlementDate: !!hasSettlementDate,
+          isPaymentCompleted,
+          isPaid,
+          paymentConfirmedBy,
+          hasTshogpaPaymentCompleted: !!hasTshogpaPaymentCompleted,
+          isCompleted
+        });
+        
+        return isCompleted;
+      });
+      console.log(`${paymentFilter} - Completed payment filtered orders:`, completedFiltered.length);
       return completedFiltered;
     }
     
@@ -1109,34 +1345,44 @@ export default function TshogpasDashboard({ navigation }) {
     
     return (
       <View style={[styles.paymentTableRow, { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' }]}>
-        <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 4 }]}>
-          <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
+        <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 8, marginLeft: -4 }]}>
+          <Text style={styles.paymentCellText}>
+            {item.orderId ? `#${item.orderId.slice(-4)}` : 'N/A'}
+          </Text>
         </View>
         {isDispatchedView ? (
           <>
-            <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-              <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Customer'}</Text>
+            <View style={[styles.paymentTableCell, { flex: 1.8, marginLeft: 4, marginRight: 4 }]}>
+              <Text style={styles.paymentCellText}>{item.transporter?.name || item.transporterName || 'No Transporter'}</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-              <Text style={styles.paymentCellText} numberOfLines={1}>{item.product?.name || 'Unknown Product'}</Text>
+            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 6, marginLeft: 2 }]}>
+              <Text style={styles.paymentCellText}>{item.totalPrice || '0'}</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 0.8 }]}>
-              <Text style={styles.paymentCellText}>{item.quantity || '1'}</Text>
+            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 16 }]}>
+              <Text style={styles.paymentCellText}>{item.farmer?.name || item.sellerName || 'Unknown Farmer'}</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 8 }]}>
-              <Text style={styles.paymentCellText}>Nu.{item.totalPrice || '0'}</Text>
-            </View>
-            <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-              <Text style={[styles.paymentCellText, { 
-                color: item.status?.toLowerCase() === 'completed' ? '#059669' : 
-                       item.status?.toLowerCase() === 'delivered' ? '#0EA5E9' : 
-                       item.status?.toLowerCase() === 'shipped' ? '#F59E0B' : '#6B7280',
-                fontSize: 12,
-                textTransform: 'capitalize'
-              }]} numberOfLines={1}>
-                {item.status || 'Unknown'}
-              </Text>
-            </View>
+            {isPending ? (
+              <View style={[styles.paymentTableCell, { flex: 1.2, alignItems: 'flex-end', paddingRight: 8, marginLeft: 4 }]}>
+                <TouchableOpacity 
+                  style={styles.receivedButton}
+                  onPress={() => handleMarkPaymentReceived(item.orderId)}
+                >
+                  <Icon name="check" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={[styles.paymentTableCell, { flex: 1.2, marginLeft: 4 }]}>
+                <Text style={[styles.paymentCellText, { 
+                  color: item.status?.toLowerCase() === 'completed' ? '#059669' : 
+                         item.status?.toLowerCase() === 'delivered' ? '#0EA5E9' : 
+                         item.status?.toLowerCase() === 'shipped' ? '#F59E0B' : '#6B7280',
+                  fontSize: 12,
+                  textTransform: 'capitalize'
+                }]} numberOfLines={1}>
+                  {item.status || 'Unknown'}
+                </Text>
+              </View>
+            )}
           </>
         ) : isEarningView ? (
           <>
@@ -1158,10 +1404,28 @@ export default function TshogpasDashboard({ navigation }) {
             ) : (
               <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
                 <Text style={styles.paymentCellText}>
-                  {item.settlementDate 
-                    ? new Date(item.settlementDate).toLocaleDateString() 
-                    : 'N/A'
-                  }
+                  {(() => {
+                    // Get settlement date from payment flow or fallback to legacy fields
+                    if (item.paymentFlow && item.paymentFlow.length > 0) {
+                      const tshogpaStep = item.paymentFlow.find(s => 
+                        s.step === 'transporter_to_tshogpa' || s.step === 'consumer_to_tshogpa'
+                      );
+                      if (tshogpaStep && tshogpaStep.status === 'completed' && tshogpaStep.timestamp) {
+                        return new Date(tshogpaStep.timestamp).toLocaleDateString();
+                      }
+                    }
+                    
+                    // Fallback to legacy settlement date fields
+                    if (item.settlementDate) {
+                      return new Date(item.settlementDate).toLocaleDateString();
+                    }
+                    
+                    if (item.paymentConfirmedAt) {
+                      return new Date(item.paymentConfirmedAt).toLocaleDateString();
+                    }
+                    
+                    return 'N/A';
+                  })()}
                 </Text>
               </View>
             )}
@@ -1217,25 +1481,24 @@ export default function TshogpasDashboard({ navigation }) {
     
     return (
       <View style={styles.paymentTableHeader}>
-        <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 4 }]}>
+        <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 8, marginLeft: -4 }]}>
           <Text style={styles.paymentHeaderText}>Order ID</Text>
         </View>
         {isDispatchedView ? (
           <>
-            <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-              <Text style={styles.paymentHeaderText}>Customer</Text>
+            <View style={[styles.paymentTableCell, { flex: 1.8, marginLeft: 4, marginRight: 4 }]}>
+              <Text style={styles.paymentHeaderText}>Transporter</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-              <Text style={styles.paymentHeaderText}>Product</Text>
+            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 6, marginLeft: 2 }]}>
+              <Text style={styles.paymentHeaderText}>Price</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 0.8 }]}>
-              <Text style={styles.paymentHeaderText}>Qty</Text>
+            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 16 }]}>
+              <Text style={styles.paymentHeaderText}>Farmer</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 8 }]}>
-              <Text style={styles.paymentHeaderText}>Amount</Text>
-            </View>
-            <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-              <Text style={styles.paymentHeaderText}>Status</Text>
+            <View style={[styles.paymentTableCell, { flex: 1.2, marginLeft: 4 }]}>
+              <Text style={styles.paymentHeaderText}>
+                {isPending ? 'Action' : 'Status'}
+              </Text>
             </View>
           </>
         ) : isEarningView ? (
@@ -1351,30 +1614,28 @@ export default function TshogpasDashboard({ navigation }) {
       case "Payments":
         return (
           <>
-            {/* Payment Tabs - Hide when Dispatched filter is selected */}
-            {paymentFilter !== "Dispatched" && (
-              <View style={styles.paymentTabs}>
-                {["Pending", "Completed"].map((tab) => (
-                  <TouchableOpacity 
-                    key={tab} 
-                    onPress={() => setPaymentTab(tab)}
+            {/* Payment Tabs - Show for both Earning and Dispatched filters */}
+            <View style={styles.paymentTabs}>
+              {["Pending", "Completed"].map((tab) => (
+                <TouchableOpacity 
+                  key={tab} 
+                  onPress={() => setPaymentTab(tab)}
+                  style={[
+                    styles.paymentTab,
+                    paymentTab === tab && styles.activePaymentTab
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.paymentTab,
-                      paymentTab === tab && styles.activePaymentTab
+                      styles.paymentTabText,
+                      paymentTab === tab && styles.activePaymentTabText
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.paymentTabText,
-                        paymentTab === tab && styles.activePaymentTabText
-                      ]}
-                    >
-                      {tab}
-                    </Text>
-                  </TouchableOpacity>
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
                 ))}
-              </View>
-            )}
+            </View>
 
             {/* Filter Dropdown for Earning/Dispatched */}
             <View style={styles.filterContainer}>
@@ -2414,7 +2675,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 4,
+    marginRight: 1,
     shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,

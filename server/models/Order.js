@@ -98,7 +98,8 @@ const PaymentStatusHistorySchema = new mongoose.Schema(
 				'tshogpa_to_farmer',
 				'transporter_to_farmer',
 				'consumer_to_tshogpa',
-				'consumer_to_farmer'
+				'consumer_to_farmer',
+				'workflow_completed'
 			] 
 		},
 		previousStatus: { type: String },
@@ -143,6 +144,9 @@ const OrderSchema = new mongoose.Schema(
 		// Payment workflow fields
 		paymentFlow: { type: [PaymentFlowStepSchema], default: [] },
 		paymentCompletedAt: { type: Date, default: null },
+		paymentConfirmedBy: { type: String, default: null }, // Who confirmed the payment (e.g., 'tshogpa', 'farmer')
+		paymentConfirmedAt: { type: Date, default: null }, // When payment was confirmed
+		settlementDate: { type: Date, default: null }, // When payment was settled
 		paymentStatusHistory: { type: [PaymentStatusHistorySchema], default: [] },
 		statusHistory: { type: [StatusHistorySchema], default: [] },
 	},
@@ -302,7 +306,7 @@ OrderSchema.methods.detectPaymentFlow = function() {
 	return flow;
 };
 
-// Method to update payment step status
+// Method to update payment step status with strict hierarchy validation
 OrderSchema.methods.updatePaymentStep = function(stepName, newStatus, changedBy, notes = '') {
 	const stepIndex = this.paymentFlow.findIndex(step => step.step === stepName);
 	
@@ -320,6 +324,25 @@ OrderSchema.methods.updatePaymentStep = function(stepName, newStatus, changedBy,
 	
 	if (previousStatus === 'failed' && newStatus === 'completed') {
 		throw new Error('Cannot complete a failed payment step without resetting first');
+	}
+	
+	// STRICT HIERARCHY VALIDATION: Ensure all previous steps are completed
+	if (newStatus === 'completed') {
+		for (let i = 0; i < stepIndex; i++) {
+			const previousStep = this.paymentFlow[i];
+			if (previousStep.status !== 'completed') {
+				let contactPerson = 'the previous level';
+				if (previousStep.step.includes('transporter')) {
+					contactPerson = 'the transporter';
+				} else if (previousStep.step.includes('tshogpa')) {
+					contactPerson = 'the tshogpa';
+				} else if (previousStep.step.includes('consumer')) {
+					contactPerson = 'the buyer';
+				}
+				
+				throw new Error(`Payment failed. Please contact ${contactPerson} to confirm their payment first. Pending step: ${previousStep.step}`);
+			}
+		}
 	}
 	
 	// Update step status
@@ -347,7 +370,7 @@ OrderSchema.methods.completePaymentForTshogpaSeller = function(changedBy, notes 
 		throw new Error('This method can only be used when tshogpa is also the seller');
 	}
 	
-	// Find the relevant step to complete
+	// Find the relevant step to complete (the one TO the tshogpa)
 	const stepToComplete = this.paymentFlow.find(step => 
 		step.step === 'transporter_to_tshogpa' || step.step === 'consumer_to_tshogpa'
 	);
@@ -360,18 +383,43 @@ OrderSchema.methods.completePaymentForTshogpaSeller = function(changedBy, notes 
 		throw new Error('Payment step already completed');
 	}
 	
-	// Complete the step
+	// STRICT HIERARCHY VALIDATION for special case - CANNOT mark if higher level hasn't marked
+	if (stepToComplete.step === 'transporter_to_tshogpa') {
+		// HIERARCHY ENFORCEMENT: Transporter MUST have marked their payment first
+		const transporterStep = this.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+		if (!transporterStep || transporterStep.status !== 'completed') {
+			throw new Error('Payment failed. Please contact the transporter to confirm their payment first.');
+		}
+	}
+	// For consumer_to_tshogpa (direct): No higher level exists, so this can be marked
+	
+	// Complete the step to tshogpa
 	stepToComplete.status = 'completed';
 	stepToComplete.timestamp = new Date();
 	
-	// Add to payment status history
+	// Add to payment status history for the completed step
 	this.paymentStatusHistory.push({
 		step: stepToComplete.step,
 		previousStatus: 'pending',
 		newStatus: 'completed',
 		changedBy,
 		timestamp: new Date(),
-		notes: notes || 'Payment completed - tshogpa is also the seller'
+		notes: notes || 'Payment completed - tshogpa is also the seller (step 1 of 2)'
+	});
+	
+	// Since tshogpa is seller, this completes the ENTIRE payment workflow
+	// Mark as fully paid and set completion timestamp
+	this.isPaid = true;
+	this.paymentCompletedAt = new Date();
+	
+	// Add completion entry to history
+	this.paymentStatusHistory.push({
+		step: 'workflow_completed',
+		previousStatus: 'in_progress',
+		newStatus: 'completed',
+		changedBy,
+		timestamp: new Date(),
+		notes: 'Payment workflow completed - tshogpa is also the seller (final completion)'
 	});
 	
 	return this.save();

@@ -162,9 +162,11 @@ export default function TransporterDashboard({ navigation }) {
         return isAssignedToTransporter || isPaymentRelevant;
       }).map(o => ({
         orderId: String(o.orderId || o._id || ''),
+        id: String(o.id || o._id || ''),
         product: {
           name: o.product?.name || o.product?.productName || 'Unknown Product',
           price: o.product?.price || 0,
+          sellerCid: o.product?.sellerCid
         },
         buyer: {
           name: o.buyer?.name || o.customerName || 'Unknown Buyer',
@@ -173,8 +175,19 @@ export default function TransporterDashboard({ navigation }) {
         quantity: o.quantity || 1,
         totalPrice: o.totalAmount || (o.product?.price * (o.quantity || 1)) || 0,
         status: o.status || 'unknown',
-        settlementDate: o.settlementDate,
-        transporterSettlementDate: o.transporterSettlementDate,
+        
+        // Preserve all payment-related fields from server response
+        paymentFlow: o.paymentFlow || [],
+        isPaid: o.isPaid || false,
+        paymentCompletedAt: o.paymentCompletedAt,
+        paymentStatusHistory: o.paymentStatusHistory || [],
+        paymentConfirmedBy: o.paymentConfirmedBy,
+        paymentConfirmedAt: o.paymentConfirmedAt,
+        settlementDate: o.settlementDate || o.transporterSettlementDate,
+        tshogpasCid: o.tshogpasCid,
+        transporter: o.transporter,
+        
+        // Keep legacy fields for compatibility
         paymentStatus: o.paymentStatus || 'pending collection',
         deliveryMethod: o.deliveryMethod || 'Cash on Delivery'
       }));
@@ -200,16 +213,52 @@ export default function TransporterDashboard({ navigation }) {
     if (!paymentOrders) return [];
     
     if (paymentTab === "Pending") {
-      // Show orders where payment is still pending collection or delivery
+      // Show orders where transporter payment is still pending
       return paymentOrders.filter(order => {
         const status = order.status?.toLowerCase() || '';
-        return !['payment received', 'completed', 'settled'].includes(status);
+        
+        // Must be delivered to be eligible for payment
+        if (status !== 'delivered') return false;
+        
+        // Check payment flow for transporter step completion
+        if (order.paymentFlow && order.paymentFlow.length > 0) {
+          const transporterStep = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+          if (transporterStep) {
+            // Pending if transporter step exists but not completed
+            return transporterStep.status !== 'completed';
+          }
+        }
+        
+        // Fallback to legacy field checks
+        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
+        const isPaymentCompleted = ['payment received', 'completed', 'settled'].includes(status);
+        const isPaid = order.isPaid === true;
+        const paymentConfirmedBy = order.paymentConfirmedBy;
+        
+        // Order is pending if delivered but payment not yet confirmed
+        return !isPaymentCompleted && !hasSettlementDate && !isPaid && !paymentConfirmedBy;
       });
     } else if (paymentTab === "Completed") {
-      // Show orders where payment has been received/completed
+      // Show orders where transporter payment has been completed
       return paymentOrders.filter(order => {
+        // Check payment flow for transporter step completion
+        if (order.paymentFlow && order.paymentFlow.length > 0) {
+          const transporterStep = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+          if (transporterStep) {
+            // Completed if transporter step is completed
+            return transporterStep.status === 'completed';
+          }
+        }
+        
+        // Fallback to legacy field checks
         const status = order.status?.toLowerCase() || '';
-        return ['payment received', 'completed', 'settled'].includes(status) || order.settlementDate;
+        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
+        const isPaymentCompleted = ['payment received', 'completed', 'settled'].includes(status);
+        const isPaid = order.isPaid === true;
+        const paymentConfirmedBy = order.paymentConfirmedBy;
+        
+        // Order is completed if payment confirmed or has settlement date or is marked as paid
+        return isPaymentCompleted || hasSettlementDate || isPaid || paymentConfirmedBy;
       });
     }
     return paymentOrders; // Return all orders if no specific tab
@@ -217,48 +266,128 @@ export default function TransporterDashboard({ navigation }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    if (activeTab === "Payments") {
-      await loadPaymentOrders();
-    } else {
-      await loadOrders();
+    try {
+      if (activeTab === "Payments") {
+        console.log('[Transporter] Refreshing payment orders...');
+        await loadPaymentOrders();
+      } else {
+        console.log('[Transporter] Refreshing orders...');
+        await loadOrders();
+      }
+    } catch (error) {
+      console.error('[Transporter] Refresh error:', error);
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
   }, [loadOrders, loadPaymentOrders, activeTab]);
 
   const handleMarkPaymentReceived = async (orderId) => {
     try {
+      // Find the specific order to validate
+      const order = paymentOrders.find(o => o.orderId === orderId || o.id === orderId);
+      if (!order) {
+        Alert.alert('Error', 'Order not found');
+        return;
+      }
+
+      // Enhanced validation for order status
+      if (order.status?.toLowerCase() !== 'delivered') {
+        Alert.alert(
+          'Cannot Confirm Payment', 
+          `Order must be delivered before payment can be confirmed.\n\nCurrent status: ${order.status || 'Unknown'}`
+        );
+        return;
+      }
+
+      // HIERARCHY VALIDATION: Transporter is at the TOP of the hierarchy
+      // No prerequisites needed - transporter can always mark if order is delivered
+      // This is the first step in the payment workflow
+
       Alert.alert(
-        'Payment Received',
-        'Mark this payment as received?',
+        'Confirm Payment Receipt',
+        `Confirm that you have received payment for Order #${(orderId || '').slice(-6)}?\n\nThis will complete the consumer → transporter payment step.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Confirm',
+            text: 'Confirm Payment',
+            style: 'default',
             onPress: async () => {
               try {
-                // Use the new payment workflow API
+                // Show loading state
+                console.log(`[Transporter Payment] Confirming payment for order: ${orderId}`);
+                
+                // Use the payment workflow API with enhanced error handling
                 await confirmTransporterPayment({ orderId, cid: user?.cid });
                 
-                // Update local state
-                setPaymentOrders(prevOrders => 
-                  prevOrders.map(order => 
-                    order.orderId === orderId 
-                      ? { ...order, status: 'payment received', settlementDate: new Date().toISOString() }
+                console.log(`[Transporter Payment] Payment confirmed successfully for order: ${orderId}`);
+                
+                // Refresh payment data from server to get latest status
+                await loadPaymentOrders();
+                
+                console.log('[Transporter Payment] Payment orders after refresh:', paymentOrders?.length || 0);
+                
+                // Update local state to move from Pending to Completed tab
+                setPaymentOrders(prevOrders => {
+                  const updatedOrders = prevOrders.map(order => 
+                    (order.orderId === orderId || order.id === orderId)
+                      ? { 
+                          ...order, 
+                          status: 'payment received', 
+                          settlementDate: new Date().toISOString(),
+                          paymentConfirmedBy: 'transporter',
+                          paymentConfirmedAt: new Date().toISOString(),
+                          // Update payment flow to mark transporter step as completed
+                          paymentFlow: (order.paymentFlow || []).map(step => 
+                            step.step === 'consumer_to_transporter' 
+                              ? { ...step, status: 'completed', timestamp: new Date().toISOString() }
+                              : step
+                          )
+                        }
                       : order
-                  )
+                  );
+                  console.log('[Transporter Payment] Updated orders count:', updatedOrders.length);
+                  return updatedOrders;
+                });
+                
+                // Switch to Completed tab to show the result
+                setPaymentTab('Completed');
+                
+                Alert.alert(
+                  'Payment Confirmed', 
+                  'Payment has been successfully confirmed and recorded in the system.',
+                  [{ text: 'OK' }]
                 );
-                
-                Alert.alert('Success', 'Payment confirmed successfully');
               } catch (error) {
-                console.error('Payment confirmation error:', error);
+                console.error('[Transporter Payment] Confirmation error:', error);
                 
-                // Handle specific error messages
-                if (error.body?.error?.includes('Order has not been delivered')) {
-                  Alert.alert('Error', 'Order must be delivered before payment can be confirmed');
-                } else if (error.body?.error?.includes('Payment already confirmed')) {
-                  Alert.alert('Info', 'Payment has already been confirmed');
+                // Enhanced error handling with specific messages
+                const errorMessage = error.body?.error || error.message || 'Unknown error occurred';
+                
+                if (errorMessage.includes('Order has not been delivered')) {
+                  Alert.alert(
+                    'Cannot Confirm Payment',
+                    'Order status indicates it has not been delivered yet. Please ensure the order is marked as delivered before confirming payment.'
+                  );
+                } else if (errorMessage.includes('Payment already confirmed')) {
+                  Alert.alert(
+                    'Already Confirmed',
+                    'This payment has already been confirmed. Check the Completed tab to see the status.'
+                  );
+                } else if (errorMessage.includes('Only the assigned transporter')) {
+                  Alert.alert(
+                    'Permission Denied',
+                    'You are not authorized to confirm payment for this order.'
+                  );
+                } else if (errorMessage.includes('Previous step') && errorMessage.includes('must be completed first')) {
+                  Alert.alert(
+                    'Payment Step Order Error',
+                    'The payment workflow must be completed in order. A previous payment step is still pending.'
+                  );
                 } else {
-                  Alert.alert('Error', 'Failed to confirm payment');
+                  Alert.alert(
+                    'Payment Confirmation Failed',
+                    `Unable to confirm payment: ${errorMessage}`
+                  );
                 }
               }
             }
@@ -266,7 +395,8 @@ export default function TransporterDashboard({ navigation }) {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to process payment');
+      console.error('[Transporter Payment] Unexpected error:', error);
+      Alert.alert('Error', 'An unexpected error occurred while processing payment confirmation.');
     }
   };
 
@@ -719,6 +849,28 @@ export default function TransporterDashboard({ navigation }) {
     const isDelivered = status === 'delivered';
     const isEvenRow = index % 2 === 0;
     
+    // Get settlement date from payment flow or fallback to legacy fields
+    const getSettlementDate = () => {
+      // First check payment flow for transporter step completion
+      if (item.paymentFlow && item.paymentFlow.length > 0) {
+        const transporterStep = item.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+        if (transporterStep && transporterStep.status === 'completed' && transporterStep.timestamp) {
+          return new Date(transporterStep.timestamp).toLocaleDateString();
+        }
+      }
+      
+      // Fallback to legacy settlement date fields
+      if (item.settlementDate) {
+        return new Date(item.settlementDate).toLocaleDateString();
+      }
+      
+      if (item.paymentConfirmedAt) {
+        return new Date(item.paymentConfirmedAt).toLocaleDateString();
+      }
+      
+      return 'N/A';
+    };
+    
     return (
       <View style={[styles.paymentTableRow, { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' }]}>
         <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
@@ -742,10 +894,7 @@ export default function TransporterDashboard({ navigation }) {
         ) : (
           <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
             <Text style={styles.paymentCellText}>
-              {item.settlementDate 
-                ? new Date(item.settlementDate).toLocaleDateString() 
-                : 'N/A'
-              }
+              {getSettlementDate()}
             </Text>
           </View>
         )}

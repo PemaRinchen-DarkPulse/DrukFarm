@@ -740,6 +740,14 @@ router.get('/seller', authCid, async (req, res) => {
 			totalPrice: o.totalPrice,
 			quantity: o.quantity,
 			qrCodeDataUrl: o.qrCodeDataUrl, // Include QR code for downloading
+			// Payment-related fields for farmer dashboard
+			isPaid: o.isPaid,
+			paymentCompletedAt: o.paymentCompletedAt,
+			paymentConfirmedBy: o.paymentConfirmedBy,
+			paymentConfirmedAt: o.paymentConfirmedAt,
+			settlementDate: o.settlementDate,
+			paymentFlow: o.paymentFlow,
+			paymentStatusHistory: o.paymentStatusHistory,
 			product: {
 				productId: String(o.product.productId),
 				name: o.product.productName,
@@ -1169,6 +1177,7 @@ router.get('/transporter', authCid, async (req, res) => {
 				orderNumber: String(order._id).slice(-6),
 				status: getTransporterStatus(order.status, order.transporter, transporterId),
 				customerName: order.userSnapshot?.name || buyer?.name || 'Unknown',
+				customerCid: order.userSnapshot?.cid || buyer?.cid,
 				pickupLocation: seller?.location || 'Unknown',
 				deliveryLocation: order.deliveryAddress?.place || buyer?.location || 'Unknown',
 				totalAmount: order.totalPrice || 0,
@@ -1179,8 +1188,18 @@ router.get('/transporter', authCid, async (req, res) => {
 				product: {
 					name: order.product?.productName || 'Unknown Product',
 					quantity: order.quantity || 0,
-					unit: order.product?.unit || 'piece'
-				}
+					unit: order.product?.unit || 'piece',
+					sellerCid: order.product?.sellerCid
+				},
+				// Include payment flow data for proper tab filtering
+				paymentFlow: order.paymentFlow || [],
+				isPaid: order.isPaid || false,
+				paymentCompletedAt: order.paymentCompletedAt,
+				paymentStatusHistory: order.paymentStatusHistory || [],
+				paymentConfirmedBy: order.paymentConfirmedBy,
+				paymentConfirmedAt: order.paymentConfirmedAt,
+				settlementDate: order.settlementDate,
+				tshogpasCid: order.tshogpasCid
 			}
 		})
 		
@@ -1383,6 +1402,8 @@ router.get('/tshogpas', authCid, async (req, res) => {
 			return acc;
 		}, {});
 
+		// Use transporter names directly from order objects (no need to fetch from User collection)
+
 		const mapped = docs.map(o => ({
 			orderId: String(o._id),
 			status: o.status,
@@ -1406,6 +1427,26 @@ router.get('/tshogpas', authCid, async (req, res) => {
 				location: o.userSnapshot?.location,
 				phoneNumber: o.userSnapshot?.phoneNumber,
 			},
+			// Include transporter information for dispatched view (use name from transporter object)
+			transporter: o.transporter ? {
+				cid: o.transporter.cid,
+				name: o.transporter.name || 'Unknown Transporter'
+			} : null,
+			transporterName: o.transporter?.name || null,
+			// Include farmer information (same as seller for most cases)
+			farmer: {
+				cid: o.product.sellerCid,
+				name: sellerMap[o.product.sellerCid] || 'Unknown Farmer'
+			},
+			sellerName: sellerMap[o.product.sellerCid] || 'Unknown Seller',
+			// Include payment flow data for proper tab filtering
+			paymentFlow: o.paymentFlow || [],
+			isPaid: o.isPaid || false,
+			paymentCompletedAt: o.paymentCompletedAt,
+			paymentStatusHistory: o.paymentStatusHistory || [],
+			paymentConfirmedBy: o.paymentConfirmedBy,
+			paymentConfirmedAt: o.paymentConfirmedAt,
+			settlementDate: o.settlementDate,
 			// Map buyer location to deliveryAddress for frontend compatibility
 			deliveryAddress: o.userSnapshot?.location,
 		}))
@@ -1843,7 +1884,7 @@ router.post('/payment/auto-initialize', authCid, async (req, res) => {
 	}
 });
 
-// Transporter payment confirmation endpoint
+// Transporter payment confirmation endpoint - Buyer-Transporter step
 router.post('/:orderId/payment/transporter-confirm', authCid, async (req, res) => {
 	const session = await mongoose.startSession();
 	
@@ -1862,12 +1903,12 @@ router.post('/:orderId/payment/transporter-confirm', authCid, async (req, res) =
 			return res.status(404).json({ error: 'Order not found' });
 		}
 		
-		// Validate order status is 'delivered'
+		// STRICT REQUIREMENT: Payments can only be triggered if order status is 'delivered'
 		if (order.status !== 'delivered') {
 			return res.status(400).json({ error: 'Order has not been delivered yet' });
 		}
 		
-		// Verify user is the transporter
+		// Verify user is the assigned transporter
 		if (userCid !== order.transporter?.cid) {
 			return res.status(403).json({ error: 'Only the assigned transporter can confirm payment' });
 		}
@@ -1877,17 +1918,20 @@ router.post('/:orderId/payment/transporter-confirm', authCid, async (req, res) =
 			await order.initializePaymentFlow();
 		}
 		
-		// Find the consumer_to_transporter step
+		// Find the buyer_to_transporter step (first step in hierarchy)
 		const step = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
 		if (!step) {
 			return res.status(400).json({ error: 'Transporter payment step not found in flow' });
 		}
-		
+
 		if (step.status === 'completed') {
 			return res.status(400).json({ error: 'Payment already confirmed' });
 		}
+
+		// HIERARCHY VALIDATION: Transporter updates buyer-transporter step as complete
+		// This is always the FIRST step in the hierarchy - no prerequisites needed
 		
-		// Get user details for tracking
+		// Get user details for audit trail
 		const user = await User.findOne({ cid: userCid }).select('name').session(session);
 		const changedBy = {
 			cid: userCid,
@@ -1896,6 +1940,7 @@ router.post('/:orderId/payment/transporter-confirm', authCid, async (req, res) =
 		};
 		
 		await order.updatePaymentStep('consumer_to_transporter', 'completed', changedBy, 'Payment confirmed by transporter');
+		await order.save({ session });
 		await session.commitTransaction();
 		
 		res.json({
@@ -1907,7 +1952,7 @@ router.post('/:orderId/payment/transporter-confirm', authCid, async (req, res) =
 		await session.abortTransaction();
 		console.error('Error confirming transporter payment:', error);
 		
-		if (error.message.includes('Order has not been delivered') || 
+		if (error.message.includes('Order has not been delivered yet') || 
 		    error.message.includes('Payment already confirmed')) {
 			return res.status(400).json({ error: error.message });
 		}
@@ -1918,7 +1963,7 @@ router.post('/:orderId/payment/transporter-confirm', authCid, async (req, res) =
 	}
 });
 
-// Tshogpa payment confirmation endpoint
+// Tshogpa payment confirmation endpoint - Transporter-Tshogpa or Buyer-Tshogpa step
 router.post('/:orderId/payment/tshogpa-confirm', authCid, async (req, res) => {
 	const session = await mongoose.startSession();
 	
@@ -1927,6 +1972,8 @@ router.post('/:orderId/payment/tshogpa-confirm', authCid, async (req, res) => {
 		
 		const { orderId } = req.params;
 		const userCid = req.user.cid;
+		
+		console.log(`[Tshogpa Payment] Starting payment confirmation for order: ${orderId}, user: ${userCid}`);
 		
 		if (!mongoose.Types.ObjectId.isValid(orderId)) {
 			return res.status(400).json({ error: 'Invalid order ID' });
@@ -1937,12 +1984,21 @@ router.post('/:orderId/payment/tshogpa-confirm', authCid, async (req, res) => {
 			return res.status(404).json({ error: 'Order not found' });
 		}
 		
-		// Validate order status is 'delivered'
-		if (order.status !== 'delivered') {
-			return res.status(400).json({ error: 'Order has not been delivered yet' });
+		console.log(`[Tshogpa Payment] Found order ${orderId}:`, {
+			status: order.status,
+			tshogpasCid: order.tshogpasCid,
+			sellerCid: order.product?.sellerCid,
+			paymentFlow: order.paymentFlow.map(s => ({ step: s.step, status: s.status }))
+		});
+		
+		// STRICT REQUIREMENT: Payments can only be triggered if order status is 'delivered' or 'shipped'
+		console.log(`[Tshogpa Payment] Checking order status: ${order.status} (required: delivered or shipped)`);
+		if (!['delivered', 'shipped'].includes(order.status)) {
+			console.log(`[Tshogpa Payment] Payment blocked - order status is '${order.status}', not 'delivered' or 'shipped'`);
+			return res.status(400).json({ error: `Order has not been delivered yet. Current status: ${order.status}` });
 		}
 		
-		// Verify user is the tshogpa
+		// Verify user is the assigned tshogpa
 		if (userCid !== order.tshogpasCid) {
 			return res.status(403).json({ error: 'Only the assigned tshogpa can confirm payment' });
 		}
@@ -1952,10 +2008,10 @@ router.post('/:orderId/payment/tshogpa-confirm', authCid, async (req, res) => {
 			await order.initializePaymentFlow();
 		}
 		
-		// Check if tshogpa is also the seller
+		// Check if tshogpa is also the seller (special case)
 		const tshogpaIsSeller = order.tshogpasCid === order.product.sellerCid;
 		
-		// Get user details for tracking
+		// Get user details for audit trail
 		const user = await User.findOne({ cid: userCid }).select('name').session(session);
 		const changedBy = {
 			cid: userCid,
@@ -1964,10 +2020,7 @@ router.post('/:orderId/payment/tshogpa-confirm', authCid, async (req, res) => {
 		};
 		
 		if (tshogpaIsSeller) {
-			// Special case: tshogpa is also the seller
-			await order.completePaymentForTshogpaSeller(changedBy, 'Payment completed - tshogpa is also the seller');
-		} else {
-			// Normal case: update transporter_to_tshogpa or consumer_to_tshogpa step
+			// SPECIAL CASE: If seller is Tshogpas, step 2 and 3 are updated simultaneously
 			const stepToUpdate = order.paymentFlow.find(s => 
 				s.step === 'transporter_to_tshogpa' || s.step === 'consumer_to_tshogpa'
 			);
@@ -1977,25 +2030,156 @@ router.post('/:orderId/payment/tshogpa-confirm', authCid, async (req, res) => {
 			}
 			
 			if (stepToUpdate.status === 'completed') {
-				return res.status(400).json({ error: 'Payment already confirmed' });
+				// Payment is already completed - ensure all completion fields are set for frontend compatibility
+				console.log(`[Tshogpa Payment] Special case - Payment already completed for order ${orderId}, ensuring all fields are set`);
+				
+				// Ensure completion fields are set (for older records that might be missing them)
+				if (!order.paymentConfirmedBy || !order.paymentConfirmedAt || !order.settlementDate) {
+					console.log(`[Tshogpa Payment] Special case - Setting missing completion fields for order ${orderId}`);
+					order.paymentConfirmedBy = 'tshogpa';
+					order.paymentConfirmedAt = new Date();
+					order.settlementDate = new Date();
+					await order.save({ session });
+					console.log(`[Tshogpa Payment] Special case - Updated missing completion fields for order ${orderId}`);
+				}
+				
+				await session.commitTransaction();
+				return res.json({
+					message: 'Payment was already confirmed',
+					paymentStatus: order.getPaymentStatus(),
+					alreadyCompleted: true
+				});
 			}
 			
+			console.log(`[Tshogpa Payment] Special case - tshogpa is seller. Updating step: ${stepToUpdate.step}`);
+			
+			// HIERARCHY VALIDATION for special case
+			if (stepToUpdate.step === 'transporter_to_tshogpa') {
+				// Even when tshogpa is seller, transporter must complete their step first
+				const transporterStep = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+				if (!transporterStep || transporterStep.status !== 'completed') {
+					return res.status(400).json({ 
+						error: 'Payment failed. Please contact the transporter to confirm their payment first.' 
+					});
+				}
+			}
+			
+			// Update the step AND simultaneously set isPaid = true (both steps at once)
+			await order.updatePaymentStep(stepToUpdate.step, 'completed', changedBy, 'Payment confirmed by tshogpa (seller)');
+			order.isPaid = true;
+			order.paymentCompletedAt = new Date();
+			order.paymentConfirmedBy = 'tshogpa';
+			order.paymentConfirmedAt = new Date();
+			order.settlementDate = new Date();
+			
+			console.log(`[Tshogpa Payment] Special case - Updated order fields:`, {
+				isPaid: order.isPaid,
+				paymentConfirmedBy: order.paymentConfirmedBy,
+				paymentCompletedAt: order.paymentCompletedAt
+			});
+			
+			// Add completion entry to history
+			order.paymentStatusHistory.push({
+				step: 'workflow_completed',
+				previousStatus: 'in_progress',
+				newStatus: 'completed',
+				changedBy,
+				timestamp: new Date(),
+				notes: 'Payment workflow completed - tshogpa is also the seller (simultaneous completion)'
+			});
+		} else {
+			// NORMAL CASE: Tshogpa updates transporter-tshogpa step only if step 1 is complete
+			const stepToUpdate = order.paymentFlow.find(s => 
+				s.step === 'transporter_to_tshogpa' || s.step === 'consumer_to_tshogpa'
+			);
+			
+			if (!stepToUpdate) {
+				return res.status(400).json({ error: 'Tshogpa payment step not found in flow' });
+			}
+			
+			if (stepToUpdate.status === 'completed') {
+				// Payment is already completed - but ensure all completion fields are set for frontend compatibility
+				console.log(`[Tshogpa Payment] Payment already completed for order ${orderId}, ensuring all fields are set`);
+				
+				// Ensure completion fields are set (for older records that might be missing them)
+				if (!order.paymentConfirmedBy || !order.paymentConfirmedAt || !order.settlementDate) {
+					console.log(`[Tshogpa Payment] Setting missing completion fields for order ${orderId}`);
+					order.paymentConfirmedBy = 'tshogpa';
+					order.paymentConfirmedAt = new Date(); // Fixed: Always set new date, don't preserve null
+					order.settlementDate = new Date(); // Fixed: Always set new date, don't preserve null
+					await order.save({ session });
+					console.log(`[Tshogpa Payment] Updated missing completion fields for order ${orderId}`);
+				}
+				
+				await session.commitTransaction();
+				return res.json({
+					message: 'Payment was already confirmed',
+					paymentStatus: order.getPaymentStatus(),
+					alreadyCompleted: true
+				});
+			}
+			
+			// STRICT HIERARCHY VALIDATION
+			if (stepToUpdate.step === 'transporter_to_tshogpa') {
+				// Transporter must have completed their step first
+				const transporterStep = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+				if (!transporterStep || transporterStep.status !== 'completed') {
+					return res.status(400).json({ 
+						error: 'Payment failed. Please contact the transporter to confirm their payment first.' 
+					});
+				}
+			}
+			// For consumer_to_tshogpa (direct): No higher level exists, so this can be marked
+			
+			console.log(`[Tshogpa Payment] Normal case - Updating step: ${stepToUpdate.step}`);
+			
 			await order.updatePaymentStep(stepToUpdate.step, 'completed', changedBy, 'Payment confirmed by tshogpa');
+			
+			// Set payment confirmation fields for proper frontend filtering
+			order.paymentConfirmedBy = 'tshogpa';
+			order.paymentConfirmedAt = new Date();
+			order.settlementDate = new Date();
+			
+			console.log(`[Tshogpa Payment] Normal case - Updated order fields:`, {
+				paymentConfirmedBy: order.paymentConfirmedBy,
+				paymentConfirmedAt: order.paymentConfirmedAt,
+				settlementDate: order.settlementDate
+			});
 		}
 		
+		console.log(`[Tshogpa Payment] About to save order ${orderId} with updated fields`);
+		console.log(`[Tshogpa Payment] Order before save:`, {
+			paymentConfirmedBy: order.paymentConfirmedBy,
+			paymentConfirmedAt: order.paymentConfirmedAt,
+			settlementDate: order.settlementDate,
+			isPaid: order.isPaid,
+			paymentFlow: order.paymentFlow.map(s => ({ step: s.step, status: s.status }))
+		});
+		
+		await order.save({ session });
+		console.log(`[Tshogpa Payment] Order saved successfully`);
+		
 		await session.commitTransaction();
+		console.log(`[Tshogpa Payment] Transaction committed successfully`);
 		
 		res.json({
 			message: 'Payment confirmed successfully',
-			paymentStatus: order.getPaymentStatus()
+			paymentStatus: order.getPaymentStatus(),
+			updatedFields: {
+				paymentConfirmedBy: order.paymentConfirmedBy,
+				paymentConfirmedAt: order.paymentConfirmedAt,
+				settlementDate: order.settlementDate,
+				isPaid: order.isPaid
+			}
 		});
 		
 	} catch (error) {
 		await session.abortTransaction();
 		console.error('Error confirming tshogpa payment:', error);
 		
-		if (error.message.includes('Order has not been delivered') || 
-		    error.message.includes('Payment already confirmed')) {
+		if (error.message.includes('Order has not been delivered yet') || 
+		    error.message.includes('Payment already confirmed') ||
+		    error.message.includes('Payment failed. Please contact')) {
 			return res.status(400).json({ error: error.message });
 		}
 		
@@ -2005,7 +2189,7 @@ router.post('/:orderId/payment/tshogpa-confirm', authCid, async (req, res) => {
 	}
 });
 
-// Farmer payment confirmation endpoint
+// Farmer payment confirmation endpoint - Final payment step with isPaid update
 router.post('/:orderId/payment/farmer-confirm', authCid, async (req, res) => {
 	const session = await mongoose.startSession();
 	
@@ -2024,7 +2208,7 @@ router.post('/:orderId/payment/farmer-confirm', authCid, async (req, res) => {
 			return res.status(404).json({ error: 'Order not found' });
 		}
 		
-		// Validate order status is 'delivered'
+		// STRICT REQUIREMENT: Payments can only be triggered if order status is 'delivered'
 		if (order.status !== 'delivered') {
 			return res.status(400).json({ error: 'Order has not been delivered yet' });
 		}
@@ -2051,7 +2235,29 @@ router.post('/:orderId/payment/farmer-confirm', authCid, async (req, res) => {
 			return res.status(400).json({ error: 'Payment already confirmed' });
 		}
 		
-		// Get user details for tracking
+		// STRICT HIERARCHY VALIDATION: Seller updates final step only if ALL previous steps are complete
+		const allSteps = order.paymentFlow;
+		const currentStepIndex = allSteps.findIndex(s => s.step === step.step);
+		
+		// ENFORCE HIERARCHY: Check ALL previous steps are completed (no one can skip levels)
+		for (let i = 0; i < currentStepIndex; i++) {
+			const previousStep = allSteps[i];
+			if (previousStep.status !== 'completed') {
+				// Determine who to contact based on the step
+				let contactPerson = 'the previous level';
+				if (previousStep.step.includes('transporter')) {
+					contactPerson = 'the transporter';
+				} else if (previousStep.step.includes('tshogpa')) {
+					contactPerson = 'the tshogpa';
+				}
+				
+				return res.status(400).json({
+					error: `Payment failed. Please contact ${contactPerson} to confirm their payment first.`
+				});
+			}
+		}
+		
+		// Get user details for audit trail
 		const user = await User.findOne({ cid: userCid }).select('name').session(session);
 		const changedBy = {
 			cid: userCid,
@@ -2059,7 +2265,22 @@ router.post('/:orderId/payment/farmer-confirm', authCid, async (req, res) => {
 			name: user?.name || ''
 		};
 		
+		// Complete the final step AND simultaneously set isPaid = true
 		await order.updatePaymentStep(step.step, 'completed', changedBy, 'Final payment confirmed by farmer');
+		order.isPaid = true;
+		order.paymentCompletedAt = new Date();
+		
+		// Add completion entry to history
+		order.paymentStatusHistory.push({
+			step: 'workflow_completed',
+			previousStatus: 'in_progress',
+			newStatus: 'completed',
+			changedBy,
+			timestamp: new Date(),
+			notes: 'Payment workflow completed - final payment confirmed by farmer'
+		});
+		
+		await order.save({ session });
 		await session.commitTransaction();
 		
 		res.json({
@@ -2071,8 +2292,9 @@ router.post('/:orderId/payment/farmer-confirm', authCid, async (req, res) => {
 		await session.abortTransaction();
 		console.error('Error confirming farmer payment:', error);
 		
-		if (error.message.includes('Order has not been delivered') || 
-		    error.message.includes('Payment already confirmed')) {
+		if (error.message.includes('Order has not been delivered yet') || 
+		    error.message.includes('Payment already confirmed') ||
+		    error.message.includes('Payment failed. Please contact')) {
 			return res.status(400).json({ error: error.message });
 		}
 		
@@ -2212,6 +2434,220 @@ router.get('/payment/pending-actions', authCid, async (req, res) => {
 	} catch (error) {
 		console.error('Error getting pending payment actions:', error);
 		res.status(500).json({ error: 'Failed to get pending payment actions' });
+	}
+});
+
+// Direct database update endpoint for specific order
+router.post('/:orderId/fix-payment-fields', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const order = await Order.findById(orderId);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		// Find the completed tshogpa payment step
+		const completedStep = order.paymentFlow.find(step => 
+			(step.step === 'transporter_to_tshogpa' || step.step === 'consumer_to_tshogpa') && 
+			step.status === 'completed'
+		);
+		
+		if (!completedStep) {
+			return res.json({ message: 'No completed tshogpa payment step found' });
+		}
+		
+		console.log(`[Fix] Order ${orderId} before update:`, {
+			paymentConfirmedBy: order.paymentConfirmedBy,
+			paymentConfirmedAt: order.paymentConfirmedAt,
+			settlementDate: order.settlementDate
+		});
+		
+		// Force set the completion fields
+		order.paymentConfirmedBy = 'tshogpa';
+		order.paymentConfirmedAt = completedStep.timestamp || new Date();
+		order.settlementDate = completedStep.timestamp || new Date();
+		
+		await order.save();
+		
+		console.log(`[Fix] Order ${orderId} after update:`, {
+			paymentConfirmedBy: order.paymentConfirmedBy,
+			paymentConfirmedAt: order.paymentConfirmedAt,
+			settlementDate: order.settlementDate
+		});
+		
+		res.json({
+			message: 'Payment fields updated successfully',
+			updatedFields: {
+				paymentConfirmedBy: order.paymentConfirmedBy,
+				paymentConfirmedAt: order.paymentConfirmedAt,
+				settlementDate: order.settlementDate
+			}
+		});
+		
+	} catch (error) {
+		console.error('[Fix] Error updating payment fields:', error);
+		res.status(500).json({ error: 'Failed to update payment fields' });
+	}
+});
+
+// Debug endpoint to check payment completion fields for a specific order
+router.get('/:orderId/debug/payment-fields', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const order = await Order.findById(orderId);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		res.json({
+			orderId: order._id,
+			status: order.status,
+			paymentConfirmedBy: order.paymentConfirmedBy,
+			paymentConfirmedAt: order.paymentConfirmedAt,
+			settlementDate: order.settlementDate,
+			isPaid: order.isPaid,
+			paymentCompletedAt: order.paymentCompletedAt,
+			paymentFlow: order.paymentFlow.map(step => ({
+				step: step.step,
+				status: step.status,
+				timestamp: step.timestamp
+			}))
+		});
+		
+	} catch (error) {
+		console.error('Error getting payment debug fields:', error);
+		res.status(500).json({ error: 'Failed to get payment debug fields' });
+	}
+});
+
+// Migration endpoint to fix existing completed payments that are missing completion fields
+router.post('/migration/fix-completed-payments', authCid, async (req, res) => {
+	try {
+		console.log('[Migration] Starting fix for completed payments missing completion fields');
+		
+		// Find orders where tshogpa payment step is completed but completion fields are missing
+		const ordersToFix = await Order.find({
+			'paymentFlow': {
+				$elemMatch: {
+					'step': { $in: ['transporter_to_tshogpa', 'consumer_to_tshogpa'] },
+					'status': 'completed'
+				}
+			}
+		});
+		
+		console.log(`[Migration] Found ${ordersToFix.length} orders with completed tshogpa payment steps`);
+		
+		let fixedCount = 0;
+		for (const order of ordersToFix) {
+			// Find the completed tshogpa payment step
+			const completedStep = order.paymentFlow.find(step => 
+				(step.step === 'transporter_to_tshogpa' || step.step === 'consumer_to_tshogpa') && 
+				step.status === 'completed'
+			);
+			
+			if (completedStep) {
+				let needsUpdate = false;
+				
+				// Check what fields are missing and set them
+				if (!order.paymentConfirmedBy) {
+					order.paymentConfirmedBy = 'tshogpa';
+					needsUpdate = true;
+					console.log(`[Migration] Setting paymentConfirmedBy for order ${order._id}`);
+				}
+				
+				if (!order.paymentConfirmedAt) {
+					order.paymentConfirmedAt = completedStep.timestamp || new Date();
+					needsUpdate = true;
+					console.log(`[Migration] Setting paymentConfirmedAt for order ${order._id}`);
+				}
+				
+				if (!order.settlementDate) {
+					order.settlementDate = completedStep.timestamp || new Date();
+					needsUpdate = true;
+					console.log(`[Migration] Setting settlementDate for order ${order._id}`);
+				}
+				
+				if (needsUpdate) {
+					await order.save();
+					fixedCount++;
+					console.log(`[Migration] Fixed order ${order._id} - added missing completion fields`);
+				} else {
+					console.log(`[Migration] Order ${order._id} already has all completion fields`);
+				}
+			}
+		}
+		
+		res.json({
+			message: `Migration completed successfully`,
+			ordersFound: ordersToFix.length,
+			ordersFixed: fixedCount
+		});
+		
+	} catch (error) {
+		console.error('[Migration] Error fixing completed payments:', error);
+		res.status(500).json({ error: 'Migration failed' });
+	}
+});
+
+// Simple test endpoint to manually set completion fields
+router.post('/:orderId/test/set-completion-fields', authCid, async (req, res) => {
+	try {
+		const { orderId } = req.params;
+		
+		if (!mongoose.Types.ObjectId.isValid(orderId)) {
+			return res.status(400).json({ error: 'Invalid order ID' });
+		}
+		
+		const order = await Order.findById(orderId);
+		if (!order) {
+			return res.status(404).json({ error: 'Order not found' });
+		}
+		
+		console.log('BEFORE setting completion fields for order:', orderId);
+		console.log('paymentConfirmedBy:', order.paymentConfirmedBy);
+		console.log('paymentConfirmedAt:', order.paymentConfirmedAt);
+		console.log('settlementDate:', order.settlementDate);
+		
+		// Set the completion fields
+		order.paymentConfirmedBy = 'tshogpa';
+		order.paymentConfirmedAt = new Date();
+		order.settlementDate = new Date();
+		
+		console.log('AFTER setting fields, before save:');
+		console.log('paymentConfirmedBy:', order.paymentConfirmedBy);
+		console.log('paymentConfirmedAt:', order.paymentConfirmedAt);
+		console.log('settlementDate:', order.settlementDate);
+		
+		await order.save();
+		
+		console.log('AFTER save:');
+		console.log('paymentConfirmedBy:', order.paymentConfirmedBy);
+		console.log('paymentConfirmedAt:', order.paymentConfirmedAt);
+		console.log('settlementDate:', order.settlementDate);
+		
+		res.json({
+			message: 'Completion fields set successfully',
+			orderId: orderId,
+			setFields: {
+				paymentConfirmedBy: order.paymentConfirmedBy,
+				paymentConfirmedAt: order.paymentConfirmedAt,
+				settlementDate: order.settlementDate
+			}
+		});
+		
+	} catch (error) {
+		console.error('Set completion fields error:', error);
+		res.status(500).json({ error: 'Failed to set completion fields', details: error.message });
 	}
 });
 
