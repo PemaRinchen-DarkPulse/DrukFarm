@@ -232,14 +232,11 @@ export default function FarmerDashboard({ navigation }) {
   const getPaymentOrders = useCallback(async () => {
     try {
       setPaymentLoading(true);
-      // Fetch orders for payment dashboard (same source as regular orders but for payment tracking)
+      // Fetch ALL orders for payment dashboard (show all orders related to farmer's products)
       const response = await fetchSellerOrders({ cid: user?.cid });
       const ordersList = response?.orders || [];
-      // Filter to only show orders that are in payment-relevant states
-      const paymentRelevantOrders = ordersList.filter(order => 
-        ['shipped', 'delivered', 'completed', 'payment pending'].includes(order.status?.toLowerCase())
-      );
-      setPaymentOrders(paymentRelevantOrders);
+      // Show ALL orders, not just payment-relevant ones
+      setPaymentOrders(ordersList);
     } catch (error) {
       console.log('Failed to fetch payment orders:', error);
       Alert.alert('Error', 'Failed to fetch payment orders.');
@@ -1029,6 +1026,26 @@ export default function FarmerDashboard({ navigation }) {
     // Special case: if consumer buys their own product, they can accept it directly
     const isSelfPurchase = item.buyer?.cid === item.product?.sellerCid;
 
+    // Check if order status should be displayed
+    const statusToShow = ['shipped', 'out for delivery', 'delivered', 'cancelled'];
+    const shouldShowStatus = statusToShow.includes(item.status?.toLowerCase());
+
+    // Get status display color
+    const getStatusColor = (status) => {
+      switch (status?.toLowerCase()) {
+        case 'shipped':
+          return '#009688'; // Teal
+        case 'out for delivery':
+          return '#FFA726'; // Orange
+        case 'delivered':
+          return '#4C7C59'; // Green
+        case 'cancelled':
+          return '#DC2626'; // Red
+        default:
+          return '#6B7280'; // Gray
+      }
+    };
+
     // Get product image - check multiple possible fields
     const getProductImage = () => {
       if (item.product?.productImageBase64) {
@@ -1088,6 +1105,15 @@ export default function FarmerDashboard({ navigation }) {
                 )}
               </TouchableOpacity>
             )}
+            
+            {/* Show status for specific statuses only in All tab */}
+            {shouldShowStatus && orderSubTab === "All" && (
+              <View style={[styles.statusButton, { backgroundColor: getStatusColor(item.status) }]}>
+                <Text style={[styles.statusButtonText, { color: '#FFFFFF' }]}>
+                  {item.status?.charAt(0).toUpperCase() + item.status?.slice(1).toLowerCase() || 'Unknown'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
         
@@ -1132,17 +1158,16 @@ export default function FarmerDashboard({ navigation }) {
     if (!paymentOrders) return [];
     
     if (paymentTab === "Pending") {
-      return paymentOrders.filter(order => 
-        ['shipped', 'delivered', 'payment pending'].includes(order.status?.toLowerCase()) && 
-        !order.settlementDate
-      );
+      // Show all orders that don't have settlement date (not yet completed payments)
+      return paymentOrders.filter(order => !order.settlementDate);
     } else if (paymentTab === "Completed") {
+      // Show all orders that have settlement date (completed payments)
       return paymentOrders.filter(order => 
         ['payment received', 'completed'].includes(order.status?.toLowerCase()) || 
         order.settlementDate
       );
     }
-    return [];
+    return paymentOrders; // Return all orders if no specific tab
   };
 
   const renderPaymentTableRow = ({ item, index }) => {
@@ -1154,20 +1179,14 @@ export default function FarmerDashboard({ navigation }) {
         <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
           <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
         </View>
-        <View style={[styles.paymentTableCell, { flex: 1.5 }]}>
-          <Text style={styles.paymentCellText}>{item.product?.name || 'Unknown Product'}</Text>
-        </View>
         <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
         </View>
         <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentCellText}>Nu.{item.totalPrice || '0'}</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={[styles.paymentCellText, styles.statusText]}>{item.status || 'Unknown'}</Text>
+          <Text style={styles.paymentCellText}>{item.totalPrice || '0'}</Text>
         </View>
         {isPending ? (
-          <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
+          <View style={[styles.paymentTableCell, { flex: 1.3, alignItems: 'flex-end', paddingRight: 8 }]}>
             <TouchableOpacity 
               style={styles.receivedButton}
               onPress={() => handleMarkPaymentReceived(item.orderId)}
@@ -1197,17 +1216,11 @@ export default function FarmerDashboard({ navigation }) {
         <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
           <Text style={styles.paymentHeaderText}>Order ID</Text>
         </View>
-        <View style={[styles.paymentTableCell, { flex: 1.5 }]}>
-          <Text style={styles.paymentHeaderText}>Product</Text>
-        </View>
         <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentHeaderText}>Tshogpa</Text>
         </View>
         <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentHeaderText}>Amount</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentHeaderText}>Status</Text>
+          <Text style={styles.paymentHeaderText}>Amount (NU)</Text>
         </View>
         <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentHeaderText}>
@@ -2052,6 +2065,22 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
+  statusButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignSelf: 'stretch',
+    minHeight: 34,
+    marginBottom: 8,
+  },
+  statusButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    textTransform: 'capitalize',
+  },
   confirmButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2464,7 +2493,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    marginRight: 4,
     shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,

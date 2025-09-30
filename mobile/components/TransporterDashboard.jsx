@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useAuth } from '../lib/auth';
-import { fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, fetchDzongkhags, fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, setOutForDelivery } from '../lib/api';
+import { fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, fetchDzongkhags, fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, fetchTownsByDzongkhag, setOutForDelivery } from '../lib/api';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -65,6 +65,7 @@ export default function TransporterDashboard({ navigation }) {
   // Payment-related state
   const [paymentOrders, setPaymentOrders] = useState([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentTab, setPaymentTab] = useState("Pending");
 
   const loadOrders = useCallback(async () => {
     // Don't load orders if user is not logged in or not a transporter
@@ -137,10 +138,21 @@ export default function TransporterDashboard({ navigation }) {
         transporterId: user?.id || user?.cid 
       });
       
-      // Filter to only show orders that are in payment-relevant states
-      const paymentRelevantOrders = (response?.orders || []).filter(order => 
-        ['delivered', 'completed', 'payment pending'].includes(order.status?.toLowerCase())
-      ).map(o => ({
+      // Show ALL orders assigned to this transporter regardless of status
+      // This allows transporters to see their complete order history and payment tracking
+      const paymentRelevantOrders = (response?.orders || []).filter(order => {
+        // Include orders assigned to this transporter
+        const isAssignedToTransporter = (
+          (order.transporterId && (order.transporterId === user?.id || order.transporterId === user?.cid)) ||
+          (order.transporter && (order.transporter.cid === user?.cid || order.transporter.cid === user?.id))
+        );
+        
+        // Also include orders with payment-relevant statuses that might not have transporter assigned yet
+        const status = order.status?.toLowerCase() || '';
+        const isPaymentRelevant = ['out for delivery', 'delivered', 'completed', 'payment pending', 'shipped'].includes(status);
+        
+        return isAssignedToTransporter || isPaymentRelevant;
+      }).map(o => ({
         orderId: String(o.orderId || o._id || ''),
         product: {
           name: o.product?.name || o.product?.productName || 'Unknown Product',
@@ -150,11 +162,22 @@ export default function TransporterDashboard({ navigation }) {
           name: o.buyer?.name || o.customerName || 'Unknown Buyer',
           cid: o.buyer?.cid || o.customerCid
         },
-        totalPrice: o.totalAmount || (o.product?.price * o.quantity) || 0,
+        quantity: o.quantity || 1,
+        totalPrice: o.totalAmount || (o.product?.price * (o.quantity || 1)) || 0,
         status: o.status || 'unknown',
         settlementDate: o.settlementDate,
-        transporterSettlementDate: o.transporterSettlementDate
+        transporterSettlementDate: o.transporterSettlementDate,
+        paymentStatus: o.paymentStatus || 'pending collection',
+        deliveryMethod: o.deliveryMethod || 'Cash on Delivery'
       }));
+      
+      console.log('Payment relevant orders found:', paymentRelevantOrders.length);
+      console.log('Sample payment orders:', paymentRelevantOrders.slice(0, 3).map(order => ({
+        orderId: order.orderId,
+        status: order.status,
+        totalPrice: order.totalPrice,
+        isAssigned: !!(order.transporterId || order.transporter)
+      })));
       
       setPaymentOrders(paymentRelevantOrders);
     } catch (error) {
@@ -164,6 +187,25 @@ export default function TransporterDashboard({ navigation }) {
       setPaymentLoading(false);
     }
   }, [user?.cid, user?.id]);
+
+  const getFilteredPaymentOrders = () => {
+    if (!paymentOrders) return [];
+    
+    if (paymentTab === "Pending") {
+      // Show orders where payment is still pending collection or delivery
+      return paymentOrders.filter(order => {
+        const status = order.status?.toLowerCase() || '';
+        return !['payment received', 'completed', 'settled'].includes(status);
+      });
+    } else if (paymentTab === "Completed") {
+      // Show orders where payment has been received/completed
+      return paymentOrders.filter(order => {
+        const status = order.status?.toLowerCase() || '';
+        return ['payment received', 'completed', 'settled'].includes(status) || order.settlementDate;
+      });
+    }
+    return paymentOrders; // Return all orders if no specific tab
+  };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -399,6 +441,13 @@ export default function TransporterDashboard({ navigation }) {
       loadPaymentOrders();
     }
   }, [activeTab, loadPaymentOrders]);
+
+  // Load payment orders when payment tab changes
+  useEffect(() => {
+    if (activeTab === "Payments") {
+      loadPaymentOrders();
+    }
+  }, [paymentTab, activeTab, loadPaymentOrders]);
 
   // Debug effect to track modal visibility
   useEffect(() => {
@@ -648,7 +697,9 @@ export default function TransporterDashboard({ navigation }) {
   };
 
   const renderPaymentTableRow = ({ item, index }) => {
-    const isPending = item.status !== 'payment received';
+    const status = item.status?.toLowerCase() || '';
+    const isPending = paymentTab === "Pending";
+    const isDelivered = status === 'delivered';
     const isEvenRow = index % 2 === 0;
     
     return (
@@ -656,59 +707,53 @@ export default function TransporterDashboard({ navigation }) {
         <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
           <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
         </View>
-        <View style={[styles.paymentTableCell, { flex: 1.5 }]}>
-          <Text style={styles.paymentCellText}>{item.product?.name || 'Unknown Product'}</Text>
-        </View>
         <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
         </View>
         <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentCellText}>Nu.{item.totalPrice || '0'}</Text>
+          <Text style={styles.paymentCellText}>{item.totalPrice || '0'}</Text>
         </View>
-        <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={[styles.paymentCellText, styles.statusText]}>{item.status || 'Unknown'}</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-          {isPending ? (
+        {isPending ? (
+          <View style={[styles.paymentTableCell, { flex: 1.3, alignItems: 'flex-end', paddingRight: 8 }]}>
             <TouchableOpacity 
               style={styles.receivedButton}
               onPress={() => handleMarkPaymentReceived(item.orderId)}
             >
               <Icon name="check" size={16} color="#FFFFFF" />
             </TouchableOpacity>
-          ) : (
+          </View>
+        ) : (
+          <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
             <Text style={styles.paymentCellText}>
               {item.settlementDate 
                 ? new Date(item.settlementDate).toLocaleDateString() 
                 : 'N/A'
               }
             </Text>
-          )}
-        </View>
+          </View>
+        )}
       </View>
     );
   };
 
   const renderPaymentTableHeader = () => {
+    const isPending = paymentTab === "Pending";
+    
     return (
       <View style={styles.paymentTableHeader}>
         <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
           <Text style={styles.paymentHeaderText}>Order ID</Text>
         </View>
-        <View style={[styles.paymentTableCell, { flex: 1.5 }]}>
-          <Text style={styles.paymentHeaderText}>Product</Text>
-        </View>
         <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentHeaderText}>Tshogpa</Text>
         </View>
         <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentHeaderText}>Amount</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentHeaderText}>Status</Text>
+          <Text style={styles.paymentHeaderText}>Amount (NU)</Text>
         </View>
         <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-          <Text style={styles.paymentHeaderText}>Action</Text>
+          <Text style={styles.paymentHeaderText}>
+            {isPending ? 'Action' : 'Settlement Date'}
+          </Text>
         </View>
       </View>
     );
@@ -716,37 +761,68 @@ export default function TransporterDashboard({ navigation }) {
 
   const renderContent = () => {
     if (activeTab === "Payments") {
-      return paymentLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#059669" />
-          <Text style={styles.loadingText}>Loading payments...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={paymentOrders}
-          renderItem={renderPaymentTableRow}
+      return (
+        <>
+          {/* Payment Tabs */}
+          <View style={styles.paymentTabs}>
+            {["Pending", "Completed"].map((tab) => (
+              <TouchableOpacity 
+                key={tab} 
+                onPress={() => setPaymentTab(tab)}
+                style={[
+                  styles.paymentTab,
+                  paymentTab === tab && styles.activePaymentTab
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.paymentTabText,
+                    paymentTab === tab && styles.activePaymentTabText
+                  ]}
+                >
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Payment Table */}
+          {paymentLoading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color="#059669" />
+              <Text style={styles.loadingText}>Loading payments...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={getFilteredPaymentOrders()}
+              renderItem={renderPaymentTableRow}
           keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
           contentContainerStyle={styles.listContainer}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Icon name="credit-card" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No payment orders found</Text>
-              <Text style={styles.emptySubtext}>
-                Your payment history will show here
-              </Text>
-            </View>
-          }
-          ListHeaderComponent={
-            paymentOrders.length > 0 ? (
-              <View style={styles.paymentTableContainer}>
-                {renderPaymentTableHeader()}
-              </View>
-            ) : null
-          }
-        />
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Icon name="credit-card" size={64} color="#D1D5DB" />
+                  <Text style={styles.emptyText}>No {paymentTab.toLowerCase()} payments found</Text>
+                  <Text style={styles.emptySubtext}>
+                    {paymentTab === "Pending" 
+                      ? "Orders requiring payment collection will appear here"
+                      : "Your completed payment history will show here"
+                    }
+                  </Text>
+                </View>
+              }
+              ListHeaderComponent={
+                getFilteredPaymentOrders().length > 0 ? (
+                  <View style={styles.paymentTableContainer}>
+                    {renderPaymentTableHeader()}
+                  </View>
+                ) : null
+              }
+            />
+          )}
+        </>
       );
     }
 
@@ -1655,6 +1731,32 @@ const styles = StyleSheet.create({
   },
 
   // Payment Styles
+  paymentTabs: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 4,
+  },
+  paymentTab: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  activePaymentTab: {
+    backgroundColor: '#059669',
+  },
+  paymentTabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  activePaymentTabText: {
+    color: '#FFFFFF',
+  },
   paymentTableContainer: {
     flex: 1,
     borderTopLeftRadius: 8,
@@ -1678,46 +1780,50 @@ const styles = StyleSheet.create({
   },
   paymentTableRow: {
     flexDirection: 'row',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    paddingVertical: 12,
+    borderColor: '#999999',
+    paddingVertical: 14,
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
   },
   paymentTableCell: {
     flex: 1,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     justifyContent: 'center',
   },
   paymentHeaderText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   paymentCellText: {
-    fontSize: 12,
-    color: '#1F2937',
+    fontSize: 13,
+    color: '#475569',
     textAlign: 'center',
+    lineHeight: 18,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
     textTransform: 'capitalize',
   },
   receivedButton: {
-    backgroundColor: '#059669',
+    backgroundColor: '#10B981',
     width: 32,
     height: 32,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
-  },
-  receivedButtonText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '500',
+    marginRight: 4,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
   },
   paymentListContainer: {
     flexGrow: 1,
