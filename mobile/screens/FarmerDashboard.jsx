@@ -1475,11 +1475,11 @@ export default function FarmerDashboard({ navigation }) {
     const isPending = paymentTab === "Pending";
     const isEvenRow = index % 2 === 0;
     
-    // Format order ID to show only last 4 digits with # prefix
+    // Format order ID to show only last 5 digits with # prefix
     const formatOrderId = (orderId) => {
       if (!orderId) return 'N/A';
-      const lastFour = orderId.slice(-4);
-      return `#${lastFour}`;
+      const lastFive = orderId.slice(-5);
+      return `#${lastFive}`;
     };
     
     return (
@@ -2735,6 +2735,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
     position: 'relative',
+    marginLeft: 'auto',
   },
   filterButtonActive: {
     backgroundColor: '#ECFDF5',

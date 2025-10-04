@@ -61,6 +61,11 @@ export default function TransporterDashboard({ navigation }) {
   const [showPickupVillageDropdown, setShowPickupVillageDropdown] = useState(false);
   const [showDropOffDzongkhagDropdown, setShowDropOffDzongkhagDropdown] = useState(false);
   const [showDropOffTownDropdown, setShowDropOffTownDropdown] = useState(false);
+  const [showDateFilterDropdown, setShowDateFilterDropdown] = useState(false);
+  
+  // Date filter state
+  const [dateFilter, setDateFilter] = useState("All");
+  const dateFilterOptions = ["All", "Today", "Last 7 Days", "Last 30 Days"];
 
   // Payment-related state
   const [paymentOrders, setPaymentOrders] = useState([]);
@@ -553,6 +558,7 @@ export default function TransporterDashboard({ navigation }) {
     setPickupVillage('');
     setDropOffDzongkhag('');
     setDropOffTown('');
+    setDateFilter('All');
     setPickupGewogs([]);
     setPickupVillages([]);
     setDropOffTowns([]);
@@ -565,6 +571,7 @@ export default function TransporterDashboard({ navigation }) {
     setShowPickupVillageDropdown(false);
     setShowDropOffDzongkhagDropdown(false);
     setShowDropOffTownDropdown(false);
+    setShowDateFilterDropdown(false);
   };
 
   // Authentication check - redirect if user is not logged in or not a transporter
@@ -687,12 +694,6 @@ export default function TransporterDashboard({ navigation }) {
               <Text style={styles.acceptButtonText}>Accept Order</Text>
             </TouchableOpacity>
           )}
-          {(item.status === 'delivered' || item.status === 'Delivered') && (
-            <View style={styles.completedBadge}>
-              <Icon name="check-circle" size={16} color="#10B981" />
-              <Text style={styles.completedText}>Completed</Text>
-            </View>
-          )}
         </View>
       </View>
     );
@@ -760,10 +761,9 @@ export default function TransporterDashboard({ navigation }) {
           });
           
           // Check if order has appropriate status for "My Delivery"
+          // Only show orders that are currently out for delivery
           const hasMyDeliveryStatus = (
-            order.status === 'Out for Delivery' ||
-            order.status === 'delivered' ||
-            order.status === 'Delivered'
+            order.status === 'Out for Delivery'
           );
           
           console.log('Status checks:', {
@@ -794,10 +794,9 @@ export default function TransporterDashboard({ navigation }) {
             order.transporter?.cid === user?.id
           );
           
-          // Check if order is completed
+          // Check if order is completed (delivered status only)
           const isCompleted = (
-            order.status === 'delivered' ||
-            order.status === 'Delivered'
+            order.status?.toLowerCase() === 'delivered'
           );
           
           return isCompletedByMe && isCompleted;
@@ -832,6 +831,35 @@ export default function TransporterDashboard({ navigation }) {
       });
     }
 
+    // Apply date filter for Completed tab
+    if (activeTab === "Completed" && dateFilter && dateFilter !== "All") {
+      filteredOrders = filteredOrders.filter(order => {
+        const orderDate = new Date(order.completedAt || order.updatedAt || order.createdAt);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        switch (dateFilter) {
+          case "Today":
+            const orderDay = new Date(orderDate);
+            orderDay.setHours(0, 0, 0, 0);
+            return orderDay.getTime() === today.getTime();
+          
+          case "Last 7 Days":
+            const sevenDaysAgo = new Date(today);
+            sevenDaysAgo.setDate(today.getDate() - 7);
+            return orderDate >= sevenDaysAgo;
+          
+          case "Last 30 Days":
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            return orderDate >= thirtyDaysAgo;
+          
+          default:
+            return true;
+        }
+      });
+    }
+
     console.log('Filtered orders for', activeTab, ':', filteredOrders.length);
     console.log('Sample filtered orders:', filteredOrders.slice(0, 3).map(o => ({
       orderId: o.orderId || o.id,
@@ -848,6 +876,13 @@ export default function TransporterDashboard({ navigation }) {
     const isPending = paymentTab === "Pending";
     const isDelivered = status === 'delivered';
     const isEvenRow = index % 2 === 0;
+    
+    // Format order ID to show only last 5 digits with # prefix
+    const formatOrderId = (orderId) => {
+      if (!orderId) return 'N/A';
+      const lastFive = orderId.slice(-5);
+      return `#${lastFive}`;
+    };
     
     // Get settlement date from payment flow or fallback to legacy fields
     const getSettlementDate = () => {
@@ -874,7 +909,7 @@ export default function TransporterDashboard({ navigation }) {
     return (
       <View style={[styles.paymentTableRow, { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' }]}>
         <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-          <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
+          <Text style={styles.paymentCellText}>{formatOrderId(item.orderId)}</Text>
         </View>
         <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
@@ -1104,7 +1139,52 @@ export default function TransporterDashboard({ navigation }) {
 
             {/* Content */}
             <ScrollView style={styles.bottomSheetContent} showsVerticalScrollIndicator={false}>
-              {/* Pickup Location Section */}
+              {/* Date Filter Section - Only show for Completed tab */}
+              {activeTab === "Completed" && (
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>Delivery Date</Text>
+                
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Filter by Date</Text>
+                  <TouchableOpacity 
+                    style={styles.dropdownButton}
+                    onPress={() => {
+                      closeAllDropdowns();
+                      setShowDateFilterDropdown(!showDateFilterDropdown);
+                    }}
+                  >
+                    <Icon name="calendar" size={20} color="#6B7280" style={styles.inputIcon} />
+                    <Text style={[styles.dropdownText, !dateFilter && styles.placeholderText]}>
+                      {dateFilter || "All"}
+                    </Text>
+                    <Icon name="chevron-down" size={20} color="#6B7280" />
+                  </TouchableOpacity>
+
+                  {showDateFilterDropdown && (
+                    <ScrollView style={styles.dropdownList} nestedScrollEnabled={true}>
+                      {dateFilterOptions.map((option) => (
+                        <TouchableOpacity
+                          key={option}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setDateFilter(option);
+                            setShowDateFilterDropdown(false);
+                          }}
+                        >
+                          <Text style={styles.dropdownItemText}>{option}</Text>
+                          {dateFilter === option && (
+                            <Icon name="check" size={20} color="#10B981" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              </View>
+              )}
+
+              {/* Pickup Location Section - Only show for Available tab */}
+              {activeTab === "Available" && (
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>Pickup Location</Text>
                 
@@ -1263,8 +1343,10 @@ export default function TransporterDashboard({ navigation }) {
                   )}
                 </View>
               </View>
+              )}
 
-              {/* Drop-off Location Section */}
+              {/* Drop-off Location Section - Show for Available, My Delivery, and Completed tabs */}
+              {(activeTab === "Available" || activeTab === "My Delivery" || activeTab === "Completed") && (
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>Drop-off Location</Text>
                 
@@ -1369,6 +1451,7 @@ export default function TransporterDashboard({ navigation }) {
                   )}
                 </View>
               </View>
+              )}
 
               {/* Action Buttons */}
               <View style={styles.buttonContainer}>
@@ -1414,6 +1497,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 8,
     position: 'relative',
+    marginLeft: 'auto',
   },
   filterButtonActive: {
     backgroundColor: '#ECFDF5',

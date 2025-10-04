@@ -17,6 +17,8 @@ import {
   Keyboard,
   Dimensions,
   ActivityIndicator,
+  Animated,
+  PanResponder,
 } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import * as FileSystem from 'expo-file-system';
@@ -185,6 +187,22 @@ export default function TshogpasDashboard({ navigation }) {
   const [paymentOrders, setPaymentOrders] = useState([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
 
+  // Filter state
+  const [isFilterVisible, setIsFilterVisible] = useState(false);
+  const [productCategoryFilter, setProductCategoryFilter] = useState("");
+  const [orderSearchText, setOrderSearchText] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("");
+  const [orderPriceFilter, setOrderPriceFilter] = useState("");
+  
+  // Animated value for bottom sheet
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  
+  // Dropdown visibility states for filter modal
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showPriceDropdown, setShowPriceDropdown] = useState(false);
+  const [showPaymentViewDropdown, setShowPaymentViewDropdown] = useState(false);
+
   // Debug: Log when paymentFilter changes
   useEffect(() => {
     console.log('PaymentFilter changed to:', paymentFilter);
@@ -192,6 +210,79 @@ export default function TshogpasDashboard({ navigation }) {
       console.log('Dispatched filter active - should show all shipped orders');
     }
   }, [paymentFilter]);
+
+  // Filter functions
+  const openBottomSheet = () => {
+    setIsFilterVisible(true);
+    Animated.spring(slideAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 8,
+    }).start();
+  };
+
+  const closeBottomSheet = () => {
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setIsFilterVisible(false);
+      closeAllDropdowns();
+    });
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (evt, gestureState) => {
+        if (gestureState.dy > 0) {
+          slideAnim.setValue(1 - gestureState.dy / 300);
+        }
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dy > 100) {
+          closeBottomSheet();
+        } else {
+          Animated.spring(slideAnim, {
+            toValue: 1,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  const closeAllDropdowns = () => {
+    setShowCategoryDropdown(false);
+    setShowStatusDropdown(false);
+    setShowPriceDropdown(false);
+    setShowPaymentViewDropdown(false);
+  };
+
+  const clearFilters = () => {
+    setProductCategoryFilter('');
+    setOrderSearchText('');
+    setOrderStatusFilter('');
+    setOrderPriceFilter('');
+    closeAllDropdowns();
+  };
+
+  const applyFilters = () => {
+    closeBottomSheet();
+  };
+
+  const hasActiveFilters = () => {
+    if (activeTab === "Products") {
+      return productCategoryFilter;
+    } else if (activeTab === "Orders") {
+      return orderSearchText || orderStatusFilter || orderPriceFilter;
+    } else if (activeTab === "Payments") {
+      return paymentFilter !== "Earning";
+    }
+    return false;
+  };
 
   const getProducts = async () => {
     try {
@@ -1017,6 +1108,15 @@ export default function TshogpasDashboard({ navigation }) {
     }
   };
 
+  const getFilteredProducts = () => {
+    if (!productCategoryFilter) {
+      return products;
+    }
+    return products.filter(product => 
+      product.categoryName?.toLowerCase() === productCategoryFilter.toLowerCase()
+    );
+  };
+
   const getFilteredOrders = () => {
     console.log('getFilteredOrders called with:', {
       orderSubTab,
@@ -1059,6 +1159,44 @@ export default function TshogpasDashboard({ navigation }) {
       count: filtered.length,
       orders: filtered.map(o => ({ orderId: o.orderId, status: o.status, productName: o.product?.name }))
     });
+    
+    // Apply search filter
+    if (orderSearchText) {
+      filtered = filtered.filter(order => {
+        const searchLower = orderSearchText.toLowerCase();
+        return (
+          order.orderId?.toLowerCase().includes(searchLower) ||
+          order.buyer?.name?.toLowerCase().includes(searchLower) ||
+          order.product?.name?.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+    
+    // Apply status filter
+    if (orderStatusFilter && orderStatusFilter !== 'All') {
+      filtered = filtered.filter(order => {
+        return order.status?.toLowerCase() === orderStatusFilter.toLowerCase();
+      });
+    }
+    
+    // Apply price filter
+    if (orderPriceFilter && orderPriceFilter !== 'All') {
+      filtered = filtered.filter(order => {
+        const price = parseFloat(order.totalPrice);
+        switch (orderPriceFilter) {
+          case 'Under Nu. 500':
+            return price < 500;
+          case 'Nu. 500 - Nu. 1000':
+            return price >= 500 && price <= 1000;
+          case 'Nu. 1000 - Nu. 2000':
+            return price > 1000 && price <= 2000;
+          case 'Above Nu. 2000':
+            return price > 2000;
+          default:
+            return true;
+        }
+      });
+    }
     
     return filtered;
   };
@@ -1347,7 +1485,7 @@ export default function TshogpasDashboard({ navigation }) {
       <View style={[styles.paymentTableRow, { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' }]}>
         <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 8, marginLeft: -4 }]}>
           <Text style={styles.paymentCellText}>
-            {item.orderId ? `#${item.orderId.slice(-4)}` : 'N/A'}
+            {item.orderId ? `#${item.orderId.slice(-5)}` : 'N/A'}
           </Text>
         </View>
         {isDispatchedView ? (
@@ -1551,7 +1689,7 @@ export default function TshogpasDashboard({ navigation }) {
               </TouchableOpacity>
             </View>
             <FlatList
-              data={products}
+              data={getFilteredProducts()}
               renderItem={renderProduct}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
@@ -1696,25 +1834,20 @@ export default function TshogpasDashboard({ navigation }) {
       {/* Hidden image renderer for download */}
       <HiddenOrderImage ref={hiddenImgRef} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="arrow-left" size={24} color="#111827" />
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Icon name="arrow-left" size={24} color="#111827" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Tshogpas Dashboard</Text>
+        </View>
+        <TouchableOpacity 
+          style={[styles.filterButton, hasActiveFilters() && styles.filterButtonActive]}
+          onPress={openBottomSheet}
+        >
+          <Text style={[styles.filterText, hasActiveFilters() && styles.filterTextActive]}>Filters</Text>
+          <Icon name="filter-variant" size={18} color={hasActiveFilters() ? "#059669" : "#111827"} />
+          {hasActiveFilters() && <View style={styles.filterIndicator} />}
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tshogpas Dashboard</Text>
-        {activeTab === "Payments" ? (
-          <View style={styles.headerDropdownWrapper}>
-            <CustomDropdown 
-              options={[
-                { label: "Earning", value: "Earning" },
-                { label: "Dispatched", value: "Dispatched" }
-              ]}
-              value={paymentFilter}
-              onChange={(option) => setPaymentFilter(option.value)}
-              placeholder="Select View"
-            />
-          </View>
-        ) : (
-          <View style={{ width: 24 }} />
-        )}
       </View>
 
       <View style={styles.tabs}>
@@ -1985,6 +2118,264 @@ export default function TshogpasDashboard({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Filter Bottom Sheet Modal */}
+      <Modal
+        transparent={true}
+        visible={isFilterVisible}
+        animationType="none"
+        onRequestClose={closeBottomSheet}
+      >
+        <View style={styles.filterModalOverlay}>
+          <TouchableOpacity
+            style={styles.filterOverlayBackground}
+            activeOpacity={1}
+            onPress={closeBottomSheet}
+          />
+          <Animated.View
+            style={[
+              styles.filterBottomSheet,
+              {
+                transform: [
+                  {
+                    translateY: slideAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [600, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+            {...panResponder.panHandlers}
+          >
+            {/* Handle bar */}
+            <View style={styles.filterHandleBar} />
+
+            {/* Header */}
+            <View style={styles.filterBottomSheetHeader}>
+              <Text style={styles.filterBottomSheetTitle}>Filter {activeTab}</Text>
+              <TouchableOpacity onPress={closeBottomSheet} style={styles.filterCloseButton}>
+                <Icon name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Content */}
+            <ScrollView style={styles.filterBottomSheetContent} showsVerticalScrollIndicator={false}>
+              {/* Products Tab Filters */}
+              {activeTab === "Products" && (
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Product Category</Text>
+                  <TouchableOpacity
+                    style={styles.filterDropdownButton}
+                    onPress={() => {
+                      setShowStatusDropdown(false);
+                      setShowPriceDropdown(false);
+                      setShowCategoryDropdown(!showCategoryDropdown);
+                    }}
+                  >
+                    <Icon name="tag" size={20} color="#6B7280" style={styles.filterInputIcon} />
+                    <Text style={[styles.filterDropdownText, !productCategoryFilter && styles.filterPlaceholderText]}>
+                      {productCategoryFilter || 'All Categories'}
+                    </Text>
+                    <Icon name={showCategoryDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6B7280" />
+                  </TouchableOpacity>
+
+                  {showCategoryDropdown && (
+                    <ScrollView style={styles.filterDropdownList} nestedScrollEnabled={true}>
+                      <TouchableOpacity
+                        style={styles.filterDropdownItem}
+                        onPress={() => {
+                          setProductCategoryFilter('');
+                          setShowCategoryDropdown(false);
+                        }}
+                      >
+                        <Text style={styles.filterDropdownItemText}>All Categories</Text>
+                        {!productCategoryFilter && (
+                          <Icon name="check" size={20} color="#10B981" />
+                        )}
+                      </TouchableOpacity>
+                      {categoryOptions.map((category) => {
+                        const categoryValue = typeof category === 'object' ? category.value : category;
+                        const categoryLabel = typeof category === 'object' ? category.label : category;
+                        return (
+                          <TouchableOpacity
+                            key={categoryValue}
+                            style={styles.filterDropdownItem}
+                            onPress={() => {
+                              setProductCategoryFilter(categoryValue);
+                              setShowCategoryDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.filterDropdownItemText}>{categoryLabel}</Text>
+                            {productCategoryFilter === categoryValue && (
+                              <Icon name="check" size={20} color="#10B981" />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
+                </View>
+              )}
+
+              {/* Orders Tab Filters */}
+              {activeTab === "Orders" && (
+                <>
+                  {/* Search Filter */}
+                  <View style={styles.filterSection}>
+                    <Text style={styles.filterSectionTitle}>Search Orders</Text>
+                    <View style={styles.filterSearchContainer}>
+                      <Icon name="magnify" size={20} color="#6B7280" style={styles.filterSearchIcon} />
+                      <TextInput
+                        style={styles.filterSearchInput}
+                        placeholder="Search by Order ID, Buyer, or Product"
+                        placeholderTextColor="#9CA3AF"
+                        value={orderSearchText}
+                        onChangeText={setOrderSearchText}
+                      />
+                      {orderSearchText ? (
+                        <TouchableOpacity onPress={() => setOrderSearchText('')}>
+                          <Icon name="close-circle" size={20} color="#6B7280" />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {/* Status Filter */}
+                  <View style={styles.filterSection}>
+                    <Text style={styles.filterSectionTitle}>Order Status</Text>
+                    <TouchableOpacity
+                      style={styles.filterDropdownButton}
+                      onPress={() => {
+                        setShowCategoryDropdown(false);
+                        setShowPriceDropdown(false);
+                        setShowStatusDropdown(!showStatusDropdown);
+                      }}
+                    >
+                      <Icon name="tag-outline" size={20} color="#6B7280" style={styles.filterInputIcon} />
+                      <Text style={[styles.filterDropdownText, !orderStatusFilter && styles.filterPlaceholderText]}>
+                        {orderStatusFilter || 'All Statuses'}
+                      </Text>
+                      <Icon name={showStatusDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6B7280" />
+                    </TouchableOpacity>
+
+                    {showStatusDropdown && (
+                      <ScrollView style={styles.filterDropdownList} nestedScrollEnabled={true}>
+                        {['All', 'Order Placed', 'Shipped', 'Out for Delivery', 'Delivered'].map((status) => (
+                          <TouchableOpacity
+                            key={status}
+                            style={styles.filterDropdownItem}
+                            onPress={() => {
+                              setOrderStatusFilter(status === 'All' ? '' : status);
+                              setShowStatusDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.filterDropdownItemText}>{status}</Text>
+                            {(status === 'All' ? !orderStatusFilter : orderStatusFilter === status) && (
+                              <Icon name="check" size={20} color="#10B981" />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    )}
+                  </View>
+
+                  {/* Price Range Filter */}
+                  <View style={styles.filterSection}>
+                    <Text style={styles.filterSectionTitle}>Price Range</Text>
+                    <TouchableOpacity
+                      style={styles.filterDropdownButton}
+                      onPress={() => {
+                        setShowCategoryDropdown(false);
+                        setShowStatusDropdown(false);
+                        setShowPriceDropdown(!showPriceDropdown);
+                      }}
+                    >
+                      <Icon name="currency-usd" size={20} color="#6B7280" style={styles.filterInputIcon} />
+                      <Text style={[styles.filterDropdownText, !orderPriceFilter && styles.filterPlaceholderText]}>
+                        {orderPriceFilter || 'All Prices'}
+                      </Text>
+                      <Icon name={showPriceDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6B7280" />
+                    </TouchableOpacity>
+
+                    {showPriceDropdown && (
+                      <ScrollView style={styles.filterDropdownList} nestedScrollEnabled={true}>
+                        {['All', 'Under Nu. 500', 'Nu. 500 - Nu. 1000', 'Nu. 1000 - Nu. 2000', 'Above Nu. 2000'].map((range) => (
+                          <TouchableOpacity
+                            key={range}
+                            style={styles.filterDropdownItem}
+                            onPress={() => {
+                              setOrderPriceFilter(range === 'All' ? '' : range);
+                              setShowPriceDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.filterDropdownItemText}>{range}</Text>
+                            {(range === 'All' ? !orderPriceFilter : orderPriceFilter === range) && (
+                              <Icon name="check" size={20} color="#10B981" />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    )}
+                  </View>
+                </>
+              )}
+
+              {/* Payments Tab Filters */}
+              {activeTab === "Payments" && (
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Payment View</Text>
+                  <TouchableOpacity
+                    style={styles.filterDropdownButton}
+                    onPress={() => {
+                      setShowCategoryDropdown(false);
+                      setShowStatusDropdown(false);
+                      setShowPriceDropdown(false);
+                      setShowPaymentViewDropdown(!showPaymentViewDropdown);
+                    }}
+                  >
+                    <Icon name="eye-outline" size={20} color="#6B7280" style={styles.filterInputIcon} />
+                    <Text style={[styles.filterDropdownText]}>
+                      {paymentFilter}
+                    </Text>
+                    <Icon name={showPaymentViewDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6B7280" />
+                  </TouchableOpacity>
+
+                  {showPaymentViewDropdown && (
+                    <ScrollView style={styles.filterDropdownList} nestedScrollEnabled={true}>
+                      {['Earning', 'Dispatched'].map((view) => (
+                        <TouchableOpacity
+                          key={view}
+                          style={styles.filterDropdownItem}
+                          onPress={() => {
+                            setPaymentFilter(view);
+                            setShowPaymentViewDropdown(false);
+                          }}
+                        >
+                          <Text style={styles.filterDropdownItemText}>{view}</Text>
+                          {paymentFilter === view && (
+                            <Icon name="check" size={20} color="#10B981" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              )}
+
+              {/* Action Buttons */}
+              <View style={styles.filterActionButtons}>
+                <TouchableOpacity style={styles.filterClearButton} onPress={clearFilters}>
+                  <Text style={styles.filterClearButtonText}>Clear</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.filterApplyButton} onPress={applyFilters}>
+                  <Text style={styles.filterApplyButtonText}>Apply Filters</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1998,7 +2389,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
+    justifyContent: "space-between",
+    marginBottom: 24,
     paddingHorizontal: 16,
     paddingTop: 16,
   },
@@ -2006,8 +2398,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#111827",
-    marginLeft: 12,
-    flex: 1,
+    marginLeft: 0,
   },
   headerDropdownWrapper: {
     minWidth: 120,
@@ -2696,5 +3087,206 @@ const styles = StyleSheet.create({
   },
   settlementDatesContainer: {
     alignItems: 'center',
+  },
+  // Filter Modal Styles
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    position: 'relative',
+    marginLeft: 'auto',
+  },
+  filterButtonActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  filterText: {
+    fontSize: 14,
+    color: '#111827',
+    marginRight: 6,
+    fontWeight: '500',
+  },
+  filterTextActive: {
+    color: '#059669',
+  },
+  filterIndicator: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#059669',
+  },
+  filterModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  filterOverlayBackground: {
+    flex: 1,
+  },
+  filterBottomSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 10,
+  },
+  filterHandleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  filterBottomSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  filterBottomSheetTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  filterCloseButton: {
+    padding: 4,
+  },
+  filterBottomSheetContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  filterSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  filterSearchIcon: {
+    marginRight: 12,
+  },
+  filterSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
+    padding: 0,
+  },
+  filterDropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  filterInputIcon: {
+    marginRight: 12,
+  },
+  filterDropdownText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
+  },
+  filterPlaceholderText: {
+    color: '#9CA3AF',
+  },
+  filterDropdownList: {
+    maxHeight: 200,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  filterDropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  filterDropdownItemText: {
+    fontSize: 15,
+    color: '#374151',
+  },
+  filterActionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  filterClearButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterClearButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  filterApplyButton: {
+    flex: 1,
+    backgroundColor: '#059669',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  filterApplyButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
