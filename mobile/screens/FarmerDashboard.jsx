@@ -16,7 +16,9 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Dimensions,
-  ActivityIndicator, // <-- Import added
+  ActivityIndicator,
+  Animated,
+  PanResponder, // <-- Imports added for bottom sheet
 } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import * as FileSystem from 'expo-file-system';
@@ -33,6 +35,7 @@ import { useAuth, getCurrentCid } from '../lib/auth';
 import TransporterDashboard from '../components/TransporterDashboard';
 import TshogpasDashboard from '../components/TshogpasDashboard';
 import HiddenOrderImage from '../components/ui/HiddenOrderImage';
+import FarmerFilterModal from '../components/FarmerFilterModal';
 
 // CustomDropdown component
 const LIST_MAX = 160;
@@ -132,6 +135,19 @@ export default function FarmerDashboard({ navigation }) {
   const [paymentTab, setPaymentTab] = useState("Pending");
   const [paymentOrders, setPaymentOrders] = useState([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  
+  // Filter state
+  const [isFilterVisible, setIsFilterVisible] = useState(false);
+  const [productCategoryFilter, setProductCategoryFilter] = useState("All Categories");
+  const [orderSearchText, setOrderSearchText] = useState("");
+  const [orderDateFilter, setOrderDateFilter] = useState("All Time");
+  const [orderPriceFilter, setOrderPriceFilter] = useState("All Prices");
+  const slideAnim = useState(new Animated.Value(screenDimensions.height))[0];
+  
+  // Dropdown visibility states
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const [showPriceDropdown, setShowPriceDropdown] = useState(false);
 
   // Helper function to request storage permissions on Android
   const requestStoragePermission = async () => {
@@ -253,6 +269,88 @@ export default function FarmerDashboard({ navigation }) {
     }
   }, [user?.cid]);
 
+  // Bottom sheet functions
+  const openBottomSheet = () => {
+    setIsFilterVisible(true);
+    Animated.spring(slideAnim, {
+      toValue: screenDimensions.height * 0.3,
+      useNativeDriver: false,
+      bounciness: 8,
+    }).start();
+  };
+
+  const closeBottomSheet = () => {
+    Animated.timing(slideAnim, {
+      toValue: screenDimensions.height,
+      duration: 250,
+      useNativeDriver: false,
+    }).start(() => {
+      setIsFilterVisible(false);
+      closeAllDropdowns();
+    });
+  };
+
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, gestureState) => {
+      return Math.abs(gestureState.dy) > 5;
+    },
+    onPanResponderMove: (_, gestureState) => {
+      const newValue = screenDimensions.height * 0.3 + gestureState.dy;
+      if (newValue >= screenDimensions.height * 0.3) {
+        slideAnim.setValue(newValue);
+      }
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      if (gestureState.dy > 100) {
+        closeBottomSheet();
+      } else {
+        Animated.timing(slideAnim, {
+          toValue: screenDimensions.height * 0.3,
+          duration: 300,
+          useNativeDriver: false,
+        }).start();
+      }
+    },
+  });
+
+  const closeAllDropdowns = () => {
+    setShowCategoryDropdown(false);
+    setShowDateDropdown(false);
+    setShowPriceDropdown(false);
+  };
+
+  const applyFilters = () => {
+    closeBottomSheet();
+  };
+
+  const clearFilters = () => {
+    setProductCategoryFilter("All Categories");
+    setOrderSearchText("");
+    setOrderDateFilter("All Time");
+    setOrderPriceFilter("All Prices");
+    closeAllDropdowns();
+  };
+  
+  const hasActiveFilters = () => {
+    return (
+      productCategoryFilter !== "All Categories" ||
+      orderSearchText.trim() !== "" ||
+      orderDateFilter !== "All Time" ||
+      orderPriceFilter !== "All Prices"
+    );
+  };
+
+  useEffect(() => {
+    if (isFilterVisible) {
+      Animated.spring(slideAnim, {
+        toValue: screenDimensions.height * 0.3,
+        useNativeDriver: false,
+        bounciness: 8,
+      }).start();
+    }
+  }, [isFilterVisible]);
+  
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -1264,19 +1362,81 @@ export default function FarmerDashboard({ navigation }) {
   const getFilteredOrders = () => {
     if (!orders) return [];
     
-    if (orderSubTab === "All") {
-      return orders;
-    } else if (orderSubTab === "Pending") {
-      return orders.filter(order => order.status?.toLowerCase() === 'order placed');
+    let filtered = orders;
+    
+    // Filter by status tab
+    if (orderSubTab === "Pending") {
+      filtered = filtered.filter(order => order.status?.toLowerCase() === 'order placed');
     } else if (orderSubTab === "Confirmed") {
-      return orders.filter(order => order.status?.toLowerCase() === 'order confirmed');
+      filtered = filtered.filter(order => order.status?.toLowerCase() === 'order confirmed');
     } else if (orderSubTab === "Shipped") {
-      return orders.filter(order => order.status?.toLowerCase() === 'shipped');
+      filtered = filtered.filter(order => order.status?.toLowerCase() === 'shipped');
     }
     
-    return [];
+    // Filter by search text (buyer name or order ID)
+    if (orderSearchText.trim()) {
+      const searchLower = orderSearchText.toLowerCase().trim();
+      filtered = filtered.filter(order => 
+        order.buyer?.name?.toLowerCase().includes(searchLower) ||
+        order.orderId?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Filter by date
+    if (orderDateFilter !== "All Time") {
+      const now = new Date();
+      filtered = filtered.filter(order => {
+        const orderDate = new Date(order.createdAt || order.orderDate);
+        const diffDays = (now - orderDate) / (1000 * 60 * 60 * 24);
+        
+        switch (orderDateFilter) {
+          case "Today":
+            return diffDays < 1;
+          case "Last 7 Days":
+            return diffDays <= 7;
+          case "Last 30 Days":
+            return diffDays <= 30;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    // Filter by price range
+    if (orderPriceFilter !== "All Prices") {
+      filtered = filtered.filter(order => {
+        const price = parseFloat(order.totalPrice || 0);
+        
+        switch (orderPriceFilter) {
+          case "Under Nu.500":
+            return price < 500;
+          case "Nu.500 - Nu.1000":
+            return price >= 500 && price <= 1000;
+          case "Nu.1000 - Nu.5000":
+            return price >= 1000 && price <= 5000;
+          case "Above Nu.5000":
+            return price > 5000;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    return filtered;
   };
 
+  const getFilteredProducts = () => {
+    if (!products) return [];
+    
+    if (productCategoryFilter === "All Categories") {
+      return products;
+    }
+    
+    return products.filter(product => 
+      product.categoryName === productCategoryFilter
+    );
+  };
+  
   const getFilteredPaymentOrders = () => {
     if (!paymentOrders) return [];
     
@@ -1315,10 +1475,17 @@ export default function FarmerDashboard({ navigation }) {
     const isPending = paymentTab === "Pending";
     const isEvenRow = index % 2 === 0;
     
+    // Format order ID to show only last 4 digits with # prefix
+    const formatOrderId = (orderId) => {
+      if (!orderId) return 'N/A';
+      const lastFour = orderId.slice(-4);
+      return `#${lastFour}`;
+    };
+    
     return (
       <View style={[styles.paymentTableRow, { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' }]}>
         <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-          <Text style={styles.paymentCellText}>{item.orderId || 'N/A'}</Text>
+          <Text style={styles.paymentCellText}>{formatOrderId(item.orderId)}</Text>
         </View>
         <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
           <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
@@ -1408,8 +1575,9 @@ export default function FarmerDashboard({ navigation }) {
                 <Text style={styles.addBtnText}>Add New</Text>
               </TouchableOpacity>
             </View>
+            
             <FlatList
-              data={products}
+              data={getFilteredProducts()}
               renderItem={renderProduct}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
@@ -1457,7 +1625,9 @@ export default function FarmerDashboard({ navigation }) {
                     <Icon name="package-variant-closed" size={64} color="#D1D5DB" />
                     <Text style={styles.emptyText}>No orders found</Text>
                     <Text style={styles.emptySubtext}>
-                      {orderSubTab === "All"
+                      {orderSearchText || orderDateFilter !== "All Time" || orderPriceFilter !== "All Prices"
+                        ? "No orders match your filters"
+                        : orderSubTab === "All"
                         ? "You don't have any orders yet"
                         : orderSubTab === "Pending"
                         ? "No pending orders at the moment"
@@ -1645,11 +1815,20 @@ export default function FarmerDashboard({ navigation }) {
       {/* Hidden image renderer for download */}
       <HiddenOrderImage ref={hiddenImgRef} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="arrow-left" size={24} color="#111827" />
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Icon name="arrow-left" size={24} color="#111827" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Farmer Dashboard</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.filterButton, hasActiveFilters() && styles.filterButtonActive]}
+          onPress={openBottomSheet}
+        >
+          <Text style={[styles.filterText, hasActiveFilters() && styles.filterTextActive]}>Filters</Text>
+          <Icon name="filter-variant" size={18} color={hasActiveFilters() ? "#059669" : "#111827"} />
+          {hasActiveFilters() && <View style={styles.filterIndicator} />}
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Farmer Dashboard</Text>
-        <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.tabs}>
@@ -1900,6 +2079,33 @@ export default function FarmerDashboard({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Filter Bottom Sheet Modal */}
+      <FarmerFilterModal
+        visible={isFilterVisible}
+        onClose={closeBottomSheet}
+        slideAnim={slideAnim}
+        panResponder={panResponder}
+        activeTab={activeTab}
+        orderSearchText={orderSearchText}
+        setOrderSearchText={setOrderSearchText}
+        productCategoryFilter={productCategoryFilter}
+        setProductCategoryFilter={setProductCategoryFilter}
+        categoryOptions={categoryOptions}
+        showCategoryDropdown={showCategoryDropdown}
+        setShowCategoryDropdown={setShowCategoryDropdown}
+        orderDateFilter={orderDateFilter}
+        setOrderDateFilter={setOrderDateFilter}
+        showDateDropdown={showDateDropdown}
+        setShowDateDropdown={setShowDateDropdown}
+        orderPriceFilter={orderPriceFilter}
+        setOrderPriceFilter={setOrderPriceFilter}
+        showPriceDropdown={showPriceDropdown}
+        setShowPriceDropdown={setShowPriceDropdown}
+        onApply={applyFilters}
+        onClear={clearFilters}
+        closeAllDropdowns={closeAllDropdowns}
+      />
     </View>
   );
 }
@@ -1913,15 +2119,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 30,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#111827",
-    marginLeft: 12,
   },
   tabs: {
     flexDirection: "row",
@@ -2506,6 +2717,47 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  
+  // --- FILTER STYLES ---
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    position: 'relative',
+  },
+  filterButtonActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  filterText: {
+    fontSize: 14,
+    color: '#111827',
+    marginRight: 6,
+    fontWeight: '500',
+  },
+  filterTextActive: {
+    color: '#059669',
+    fontWeight: '600',
+  },
+  filterIndicator: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#059669',
   },
 
   // --- DROPDOWN STYLES ---

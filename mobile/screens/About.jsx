@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
   Linking,
   StyleSheet,
+  Image,
 } from "react-native";
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 function Stat({ label, value }) {
   return (
@@ -20,11 +22,11 @@ function Stat({ label, value }) {
 export default function About({ navigation }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* About Section */}
-      <View style={styles.card}>
-        <Text style={styles.title}>About DrukFarm</Text>
-        <Text style={styles.paragraph}>
-          DrukFarm connects Bhutanese farmers directly to local buyers and
+      {/* Hero Section */}
+      <View style={styles.heroCard}>
+        <Text style={styles.heroTitle}>About Druk Farm</Text>
+        <Text style={styles.heroParagraph}>
+          Druk Farm connects Bhutanese farmers directly to local buyers and
           marketplaces. We make it easier to sell fresh produce, get fair
           prices, and build sustainable farm businesses through simple digital
           tools and community support.
@@ -39,7 +41,7 @@ export default function About({ navigation }) {
 
       {/* Mission & Vision */}
       <View style={styles.row}>
-        <View style={styles.card}>
+        <View style={styles.featureCard}>
           <Text style={styles.subtitle}>Our Mission</Text>
           <Text style={styles.paragraph}>
             To empower smallholder farmers in Bhutan with simple, reliable
@@ -48,7 +50,7 @@ export default function About({ navigation }) {
           </Text>
         </View>
 
-        <View style={styles.card}>
+        <View style={styles.featureCard}>
           <Text style={styles.subtitle}>Our Vision</Text>
           <Text style={styles.paragraph}>
             A thriving, resilient Bhutanese agricultural sector where farmers
@@ -59,81 +61,103 @@ export default function About({ navigation }) {
       </View>
 
       {/* Values */}
-      <View style={styles.card}>
+      <View style={styles.valuesCard}>
         <Text style={styles.subtitle}>Our Values</Text>
         <View style={styles.list}>
-          <Text style={styles.listItem}>
-            • Community-first: we prioritize farmer and consumer needs.
-          </Text>
-          <Text style={styles.listItem}>
-            • Transparency: fair pricing and clear processes.
-          </Text>
-          <Text style={styles.listItem}>
-            • Sustainability: supporting practices that protect land and water.
-          </Text>
-          <Text style={styles.listItem}>
-            • Simplicity: tools that are easy to use and maintain.
-          </Text>
-        </View>
-      </View>
-
-      {/* Team */}
-      <View style={styles.card}>
-        <Text style={styles.subtitle}>Meet the Team</Text>
-        <View style={styles.teamMember}>
-          <TouchableOpacity
-            style={styles.avatar}
-            onPress={() =>
-              Linking.openURL("https://pemarinchen.vercel.app")
-            }
-          >
-            <Text style={styles.avatarText}>PR</Text>
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.memberName}>
-              Pema Rinchen{" "}
-              <Text
-                style={styles.link}
-                onPress={() =>
-                  Linking.openURL("https://pemarinchen.vercel.app")
-                }
-              >
-                Portfolio
-              </Text>
-            </Text>
-            <Text style={styles.memberRole}>
-              Founder · Developer · Operator
-            </Text>
-            <Text style={styles.memberDesc}>
-              I build and run DrukFarm — from the product to partnerships — to
-              help Bhutanese farmers reach local markets.
-            </Text>
+          <View style={styles.valueItem}>
+            <View style={styles.valueText}>
+              <Text style={styles.valueTitle}>Community-first</Text>
+              <Text style={styles.valueDesc}>We prioritize farmer and consumer needs</Text>
+            </View>
+          </View>
+          <View style={styles.valueItem}>
+            <View style={styles.valueText}>
+              <Text style={styles.valueTitle}>Transparency</Text>
+              <Text style={styles.valueDesc}>Fair pricing and clear processes</Text>
+            </View>
+          </View>
+          <View style={styles.valueItem}>
+            <View style={styles.valueText}>
+              <Text style={styles.valueTitle}>Sustainability</Text>
+              <Text style={styles.valueDesc}>Supporting practices that protect land and water</Text>
+            </View>
+          </View>
+          <View style={styles.valueItem}>
+            <View style={styles.valueText}>
+              <Text style={styles.valueTitle}>Simplicity</Text>
+              <Text style={styles.valueDesc}>Tools that are easy to use and maintain</Text>
+            </View>
           </View>
         </View>
       </View>
 
-      {/* Contact */}
-      <View style={styles.card}>
-        <Text style={styles.subtitle}>Get Involved / Contact</Text>
-        <Text style={styles.paragraph}>
-          Want to partner, buy produce, or learn how to list your farm? Reach
-          out — we’re happy to help.
-        </Text>
+      {/* Team */}
+      <View style={styles.teamSection}>
+        <Text style={styles.subtitle}>Meet the Team</Text>
+        
+        <View style={styles.teamGrid}>
+          {/* Team Member 1 */}
+          <View style={styles.teamMemberCard}>
+            <View style={styles.avatar}>
+              <Image 
+                source={require('../assets/pema.jpg')} 
+                style={styles.avatarImage}
+              />
+            </View>
+            <Text style={styles.memberName}>Pema Rinchen</Text>
+            <Text style={styles.memberRole}>Co-Founder & CEO</Text>
+            
+            <View style={styles.socialIcons}>
+              <TouchableOpacity 
+                style={styles.socialIcon}
+                onPress={() => Linking.openURL("https://facebook.com")}
+              >
+                <Icon name="facebook" size={20} color="#10b981" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.socialIcon}
+                onPress={() => Linking.openURL("https://instagram.com")}
+              >
+                <Icon name="instagram" size={20} color="#10b981" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.socialIcon}
+                onPress={() => Linking.openURL("https://wa.me/")}
+              >
+                <Icon name="whatsapp" size={20} color="#10b981" />
+              </TouchableOpacity>
+            </View>
+          </View>
 
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
-            onPress={() => navigation.navigate("Contact")}
-          >
-            <Text style={styles.primaryButtonText}>Contact Us</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.outlineButton]}
-            onPress={() => navigation.navigate("Register")}
-          >
-            <Text style={styles.outlineButtonText}>Register Your Farm</Text>
-          </TouchableOpacity>
+          {/* Team Member 2 */}
+          <View style={styles.teamMemberCard}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>CP</Text>
+            </View>
+            <Text style={styles.memberName}>Chablop Passang Tshinring</Text>
+            <Text style={styles.memberRole}>Co-Founder & Advisor</Text>
+            
+            <View style={styles.socialIcons}>
+              <TouchableOpacity 
+                style={styles.socialIcon}
+                onPress={() => Linking.openURL("https://facebook.com")}
+              >
+                <Icon name="facebook" size={20} color="#10b981" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.socialIcon}
+                onPress={() => Linking.openURL("https://instagram.com")}
+              >
+                <Icon name="instagram" size={20} color="#10b981" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.socialIcon}
+                onPress={() => Linking.openURL("https://wa.me/")}
+              >
+                <Icon name="whatsapp" size={20} color="#10b981" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -146,128 +170,247 @@ export default function About({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
+    backgroundColor: '#f9fafb',
+  },
+  // Hero Card
+  heroCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  heroParagraph: {
+    fontSize: 15,
+    color: '#6B7280',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  // Feature Cards
+  featureCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: 'transparent',
+    padding: 0,
     marginBottom: 16,
-    elevation: 2,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: "600",
-    marginBottom: 8,
+  valuesCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  teamSection: {
+    backgroundColor: 'transparent',
+    padding: 0,
+    marginBottom: 16,
   },
   subtitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 6,
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 12,
   },
   paragraph: {
-    fontSize: 14,
-    color: "#444",
-    marginBottom: 8,
+    fontSize: 15,
+    color: '#6B7280',
+    lineHeight: 22,
   },
   statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    backgroundColor: "rgba(0,122,255,0.08)",
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#ecfdf5',
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
   },
   statBox: {
     flex: 1,
-    alignItems: "center",
+    alignItems: 'center',
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#007AFF",
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#10b981',
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: "#666",
+    color: '#6B7280',
+    textAlign: 'center',
   },
   row: {
-    flexDirection: "column",
+    flexDirection: 'column',
     gap: 12,
   },
   list: {
-    marginTop: 8,
-  },
-  listItem: {
-    fontSize: 14,
-    color: "#444",
-    marginBottom: 6,
-  },
-  teamMember: {
-    flexDirection: "row",
     gap: 12,
-    alignItems: "flex-start",
+  },
+  valueItem: {
+    marginBottom: 12,
+  },
+  valueText: {
+  },
+  valueTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  valueDesc: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  teamGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  teamMemberCard: {
+    flex: 1,
+    maxWidth: '49%',
+    minHeight: 200,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 12,
+    paddingTop: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#007AFF",
-    justifyContent: "center",
-    alignItems: "center",
+    marginBottom: 3,
+    width: 75,
+    height: 75,
+    borderRadius: 75,
+    backgroundColor: '#10b981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   avatarText: {
-    color: "#fff",
-    fontWeight: "700",
+    color: '#fff',
+    fontWeight: 'bold',
     fontSize: 16,
+  },
+  avatarImage: {
+    width: 75,
+    height: 75,
+    resizeMode: 'cover',
   },
   memberName: {
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  link: {
-    color: "#007AFF",
+    fontWeight: 'bold',
     fontSize: 13,
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 3,
   },
   memberRole: {
-    fontSize: 13,
-    color: "#666",
+    fontSize: 11,
+    color: '#10b981',
+    textAlign: 'center',
+    marginBottom: 6,
+    fontWeight: '600',
+  },
+  socialIcons: {
+    flexDirection: 'row',
+    gap: 6,
     marginTop: 2,
   },
-  memberDesc: {
-    fontSize: 13,
-    color: "#666",
-    marginTop: 4,
+  socialIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#ecfdf5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaCard: {
+    backgroundColor: '#10b981',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 16,
+    elevation: 4,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    alignItems: 'center',
+  },
+  ctaTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  ctaParagraph: {
+    fontSize: 15,
+    color: '#ecfdf5',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
   },
   buttonRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 8,
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
   },
   button: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: '#fff',
   },
   primaryButtonText: {
-    color: "#fff",
-    fontWeight: "600",
+    color: '#10b981',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   outlineButton: {
-    borderWidth: 1,
-    borderColor: "#007AFF",
+    borderWidth: 2,
+    borderColor: '#fff',
+    backgroundColor: 'transparent',
   },
   outlineButtonText: {
-    color: "#007AFF",
-    fontWeight: "600",
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   footer: {
-    fontSize: 12,
-    color: "#666",
-    textAlign: "center",
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
     marginBottom: 24,
+    fontStyle: 'italic',
   },
 });

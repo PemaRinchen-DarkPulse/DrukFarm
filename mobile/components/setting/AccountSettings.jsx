@@ -84,55 +84,6 @@ export default function AccountSettings({ navigation }) {
           )}
         </View>
 
-        {/* Support */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SUPPORT</Text>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate("About")}
-          >
-            <Text style={styles.rowText}>About Us</Text>
-            <Icon name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate("Contact")}
-          >
-            <Text style={styles.rowText}>Contact</Text>
-            <Icon name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate("Help Center")}
-          >
-            <Text style={styles.rowText}>Help Center</Text>
-            <Icon name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate("Terms of Service")}
-          >
-            <Text style={styles.rowText}>Terms of Service</Text>
-            <Icon name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate("Privacy Policy")}
-          >
-            <Text style={styles.rowText}>Privacy Policy</Text>
-            <Icon name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
-          {isFarmer && (
-            <TouchableOpacity
-              style={styles.row}
-              onPress={() => navigation.navigate("Farmer Guide")}
-            >
-              <Text style={styles.rowText}>Farmer Guide</Text>
-              <Icon name="chevron-right" size={20} color="#6B7280" />
-            </TouchableOpacity>
-          )}
-        </View>
-
         {/* Sign Out */}
         <View style={styles.section}>
           <TouchableOpacity

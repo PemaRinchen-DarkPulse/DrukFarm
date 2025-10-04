@@ -1637,22 +1637,6 @@ export default function TshogpasDashboard({ navigation }) {
                 ))}
             </View>
 
-            {/* Filter Dropdown for Earning/Dispatched */}
-            <View style={styles.filterContainer}>
-              <Text style={styles.filterLabel}>View:</Text>
-              <View style={styles.dropdownWrapper}>
-                <CustomDropdown 
-                  options={[
-                    { label: "Earning", value: "Earning" },
-                    { label: "Dispatched", value: "Dispatched" }
-                  ]}
-                  value={paymentFilter}
-                  onChange={(option) => setPaymentFilter(option.value)}
-                  placeholder="Select View"
-                />
-              </View>
-            </View>
-
             {/* Payment Table */}
             {paymentLoading ? (
               <View style={styles.centered}>
@@ -1716,7 +1700,21 @@ export default function TshogpasDashboard({ navigation }) {
           <Icon name="arrow-left" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tshogpas Dashboard</Text>
-        <View style={{ width: 24 }} />
+        {activeTab === "Payments" ? (
+          <View style={styles.headerDropdownWrapper}>
+            <CustomDropdown 
+              options={[
+                { label: "Earning", value: "Earning" },
+                { label: "Dispatched", value: "Dispatched" }
+              ]}
+              value={paymentFilter}
+              onChange={(option) => setPaymentFilter(option.value)}
+              placeholder="Select View"
+            />
+          </View>
+        ) : (
+          <View style={{ width: 24 }} />
+        )}
       </View>
 
       <View style={styles.tabs}>
@@ -2009,6 +2007,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     marginLeft: 12,
+    flex: 1,
+  },
+  headerDropdownWrapper: {
+    minWidth: 120,
+    maxWidth: 140,
   },
   tabs: {
     flexDirection: "row",

@@ -8,7 +8,9 @@ import {
   Linking,
   StyleSheet,
   Alert,
+  Dimensions,
 } from "react-native";
+import MapView, { Marker } from "react-native-maps";
 import {
   Mail,
   Phone,
@@ -128,14 +130,30 @@ export default function Contact() {
 
       {/* Map Section */}
       <View style={styles.mapContainer}>
-        <Text
-          style={styles.mapLink}
+        <Text style={styles.mapTitle}>Our Location</Text>
+        <MapView
+          style={styles.map}
+          initialRegion={{
+            latitude: 27.4712,
+            longitude: 89.6339,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
+        >
+          <Marker
+            coordinate={{ latitude: 27.4712, longitude: 89.6339 }}
+            title="DrukFarm"
+            description="Thimphu, Bhutan"
+          />
+        </MapView>
+        <TouchableOpacity
+          style={styles.mapLinkButton}
           onPress={() =>
-            Linking.openURL("https://www.google.com/maps?q=thimphu,+bhutan")
+            Linking.openURL("https://www.google.com/maps?q=27.4712,89.6339")
           }
         >
-          View Thimphu on Google Maps
-        </Text>
+          <Text style={styles.mapLinkText}>Open in Google Maps</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -222,11 +240,30 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
-    alignItems: "center",
     elevation: 2,
   },
-  mapLink: {
-    color: "#047857",
-    textDecorationLine: "underline",
+  mapTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 12,
+    color: "#111",
+  },
+  map: {
+    width: "100%",
+    height: 200,
+    borderRadius: 16,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  mapLinkButton: {
+    backgroundColor: "#047857",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  mapLinkText: {
+    color: "#fff",
+    fontWeight: "600",
   },
 });

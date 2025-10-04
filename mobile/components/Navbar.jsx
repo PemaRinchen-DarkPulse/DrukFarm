@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Mic, LayoutDashboard, Heart } from 'lucide-react-native';
+import { Search, Mic, LayoutDashboard, Heart, Menu } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { getCurrentUser, onAuthChange } from '../lib/auth';
+import OffCanvasMenu from './OffCanvasMenu';
 
 export default function Navbar() {
   const navigation = useNavigation();
   const [user, setUser] = useState(() => getCurrentUser());
   const [search, setSearch] = useState('');
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
 
   useEffect(() => {
     const off = onAuthChange(setUser);
@@ -26,8 +28,25 @@ export default function Navbar() {
   const canAccessDashboard = !!user && ['farmer', 'transporter', 'tshogpas'].includes(String(user.role || '').toLowerCase());
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
+    <>
+      <OffCanvasMenu 
+        visible={isMenuVisible} 
+        onClose={() => setIsMenuVisible(false)} 
+      />
+      
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.header}>
+
+        {/* Hamburger Menu Icon */}
+        <TouchableOpacity 
+          style={styles.menuButton}
+          onPress={() => setIsMenuVisible(true)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuIconContainer}>
+            <Menu size={20} color="#ffffff" strokeWidth={2.5} />
+          </View>
+        </TouchableOpacity>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
@@ -74,6 +93,7 @@ export default function Navbar() {
 
       </View>
     </SafeAreaView>
+    </>
   );
 }
 
@@ -91,6 +111,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 64,
   },
+  menuButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  menuIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -99,7 +140,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 24,
-    marginRight: 12,
+    marginRight: 4,
   },
   searchInput: {
     flex: 1,
