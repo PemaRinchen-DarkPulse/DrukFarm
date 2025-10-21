@@ -30,7 +30,8 @@ export default function Products({ navigation }) {
       try {
         setLoading(true);
         setError('');
-        const data = await fetchProducts();
+        const cid = getCurrentCid();
+        const data = await fetchProducts({ cid, includeOwn: false });
         if (!Array.isArray(data)) return;
         const mapped = data.map((p) => ({
           id: String(p.productId || p._id || ''),

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '@/lib/api'
+import { getCurrentCid } from '@/lib/auth'
 
 export default function ShopByCategory(){
   const [items, setItems] = useState([])
@@ -19,7 +20,8 @@ export default function ShopByCategory(){
     }
 
     setLoading(true)
-  Promise.all([api.fetchCategories(), api.fetchProducts()])
+    const cid = getCurrentCid()
+  Promise.all([api.fetchCategories(), api.fetchProducts({ cid, includeOwn: false })])
       .then(([cats = [], prods = []]) => {
         const countMap = prods.reduce((acc, p) => {
           const key = String(p.categoryId || '')

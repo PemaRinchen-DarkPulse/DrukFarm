@@ -91,8 +91,15 @@ router.post('/', authCid, async (req, res) => {
     const product = await Product.findById(productId)
     if (!product) return res.status(404).json({ error: 'Product not found' })
 
-    let wl = await Wishlist.findOne({ userCid: req.user.cid })
-    if (!wl) wl = await Wishlist.create({ userCid: req.user.cid, items: [] })
+    const userCid = req.user.cid
+    
+    // Prevent users from adding their own products to wishlist
+    if (product.createdBy === userCid) {
+      return res.status(403).json({ error: 'You cannot add your own product to wishlist' })
+    }
+
+    let wl = await Wishlist.findOne({ userCid })
+    if (!wl) wl = await Wishlist.create({ userCid, items: [] })
 
     const exists = wl.items.some(i => String(i.productId) === String(productId))
     if (exists) return res.status(409).json({ error: 'Already in wishlist' })

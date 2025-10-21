@@ -3,6 +3,7 @@ import { resolveProductImage } from '@/lib/image'
 import { Button } from '@/components/ui/button'
 import { Package } from 'lucide-react'
 import api from '@/lib/api'
+import { getCurrentCid } from '@/lib/auth'
 import ProductCard from '@/components/ProductCard'
 import AddProductModal from '@/components/AddProductModal'
 
@@ -44,7 +45,7 @@ export default function MyProducts({ onAdd }) {
   useEffect(() => {
     let mounted = true
     setLoading(true)
-    api.fetchProducts()
+    api.fetchProducts({ includeOwn: true })
       .then(list => {
         if (!mounted) return
         const guessMimeFromBase64 = (b64) => {
@@ -58,7 +59,11 @@ export default function MyProducts({ onAdd }) {
           return 'image/jpeg'
         }
 
-        setProducts(list.map(p => ({
+        // Filter to show only user's own products
+        const cid = getCurrentCid()
+        const ownProducts = list.filter(p => p.createdBy === cid)
+        
+        setProducts(ownProducts.map(p => ({
           id: p.productId,
           title: p.productName,
           desc: p.description,

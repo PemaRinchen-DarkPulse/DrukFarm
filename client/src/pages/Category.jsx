@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import api from '@/lib/api'
+import { getCurrentCid } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Search, SlidersHorizontal } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -24,7 +25,8 @@ export default function Category(){
     }
 
     setLoading(true)
-    Promise.all([api.fetchCategories(), api.fetchProducts()])
+    const cid = getCurrentCid()
+    Promise.all([api.fetchCategories(), api.fetchProducts({ cid, includeOwn: false })])
       .then(([cats = [], prods = []]) => {
         const countMap = prods.reduce((acc, p) => {
           const key = String(p.categoryId || '')

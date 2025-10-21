@@ -143,9 +143,26 @@ function mapProduct(p, categoryDoc, sellerDoc) {
 }
 
 // GET /api/products -> Fetch all products
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
 	try {
-		const products = await Product.find().sort({ createdAt: -1 })
+		// Extract CID from query params or headers to filter out user's own products
+		let userCid = req.query.cid || req.query.userCid
+		if (!userCid) {
+			const auth = req.headers['authorization'] || ''
+			if (/^CID\s+\d{11}$/i.test(auth)) userCid = auth.split(/\s+/)[1]
+			if (!userCid && req.headers['x-cid'] && /^\d{11}$/.test(String(req.headers['x-cid']))) {
+				userCid = String(req.headers['x-cid'])
+			}
+		}
+		
+		// Build query - exclude user's own products unless explicitly requested
+		const includeOwn = req.query.includeOwn === 'true'
+		let query = {}
+		if (userCid && !includeOwn) {
+			query.createdBy = { $ne: userCid }
+		}
+		
+		const products = await Product.find(query).sort({ createdAt: -1 })
 		const categoryIds = [...new Set(products.map(p => String(p.categoryId)))]
 		const categories = await Category.find({ _id: { $in: categoryIds } })
 		const map = new Map(categories.map(c => [String(c._id), c]))
@@ -166,7 +183,25 @@ router.get('/category/:categoryId', async (req, res) => {
 		if (!mongoose.Types.ObjectId.isValid(String(categoryId))) {
 			return res.status(400).json({ success: false, error: 'Invalid category id' })
 		}
-		const products = await Product.find({ categoryId }).sort({ createdAt: -1 })
+		
+		// Extract CID to filter out user's own products
+		let userCid = req.query.cid || req.query.userCid
+		if (!userCid) {
+			const auth = req.headers['authorization'] || ''
+			if (/^CID\s+\d{11}$/i.test(auth)) userCid = auth.split(/\s+/)[1]
+			if (!userCid && req.headers['x-cid'] && /^\d{11}$/.test(String(req.headers['x-cid']))) {
+				userCid = String(req.headers['x-cid'])
+			}
+		}
+		
+		// Build query - exclude user's own products unless explicitly requested
+		const includeOwn = req.query.includeOwn === 'true'
+		let query = { categoryId }
+		if (userCid && !includeOwn) {
+			query.createdBy = { $ne: userCid }
+		}
+		
+		const products = await Product.find(query).sort({ createdAt: -1 })
 		const category = await Category.findById(categoryId)
 		const sellerCids = [...new Set(products.map(p => p.createdBy).filter(Boolean))]
 		const sellers = sellerCids.length ? await User.find({ cid: { $in: sellerCids } }).select('cid name phoneNumber location dzongkhag') : []

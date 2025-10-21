@@ -21,7 +21,8 @@ export default function Wishlist({ navigation }) {
     const load = async () => {
       const cid = getCurrentCid();
       if (!cid) {
-        navigation.navigate("Login");
+        // Don't redirect to login, just show empty wishlist
+        setWishlist([]);
         return;
       }
       setLoading(true);
@@ -52,7 +53,7 @@ export default function Wishlist({ navigation }) {
   const removeItem = async (productId) => {
     const cid = getCurrentCid();
     if (!cid) {
-      navigation.navigate("Login");
+      // User not logged in, do nothing
       return;
     }
     try {
@@ -64,7 +65,7 @@ export default function Wishlist({ navigation }) {
   const handleAddToCart = async (productId) => {
     const cid = getCurrentCid();
     if (!cid) {
-      navigation.navigate("Login");
+      // User not logged in, do nothing
       return;
     }
     try {

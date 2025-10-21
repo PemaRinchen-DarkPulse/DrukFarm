@@ -199,7 +199,7 @@ export default function FarmerDashboard({ navigation }) {
   const getProducts = async () => {
     try {
       setLoading(true);
-      const fetched = await fetchProducts();
+      const fetched = await fetchProducts({ includeOwn: true });
       console.log('Fetched products:', JSON.stringify(fetched[0], null, 2)); // Debug log
       const normalized = Array.isArray(fetched) ? fetched
         .filter(p => p.createdBy === user?.cid) // Filter for current seller only

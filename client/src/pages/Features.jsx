@@ -24,20 +24,9 @@ export default function Features(){
 
   const load = () => {
     setLoading(true)
-    api.fetchProducts()
+    const cid = getCurrentCid()
+    api.fetchProducts({ cid, includeOwn: false })
       .then(list => {
-        const getUser = () => {
-          try {
-            const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser')
-            return raw ? JSON.parse(raw) : null
-          } catch { return null }
-        }
-        const user = getUser()
-        const currentCid = user?.cid || getCurrentCid()
-        // Show products to everyone. If a farmer is logged in, hide their own products.
-        const visible = ((user?.role === 'farmer' || user?.role === 'tshogpas') && currentCid)
-          ? list.filter(p => !p.createdBy || p.createdBy !== currentCid)
-          : list
         const guessMimeFromBase64 = (b64) => {
           if (!b64 || typeof b64 !== 'string') return null
           const s = b64.slice(0, 12)
@@ -47,7 +36,7 @@ export default function Features(){
           if (s.startsWith('UklGR') || s.startsWith('RIFF')) return 'image/webp'
           return 'image/jpeg'
         }
-    setProducts(visible.map(p => {
+    setProducts(list.map(p => {
           const mime = p.productImageBase64 ? guessMimeFromBase64(p.productImageBase64) : null
           const vg = (p.sellerLocationVillageGewog || '').trim()
           const dz = (p.sellerDzongkhag || '').trim()

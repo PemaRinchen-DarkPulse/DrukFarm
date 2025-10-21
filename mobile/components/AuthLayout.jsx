@@ -269,7 +269,7 @@ const LoginForm = React.memo(function LoginForm({ formData, setField, showPasswo
   )
 })
 
-export default function AuthLayout({ mode = 'login' }) {
+export default function AuthLayout({ mode = 'login', returnTo }) {
   const navigation = useNavigation()
   const isLoginInitial = mode === 'login'
   const [isLogin, setIsLogin] = useState(isLoginInitial)
@@ -292,6 +292,12 @@ export default function AuthLayout({ mode = 'login' }) {
         console.log('login ok', res)
         // Save in-memory user for app-wide auth state
         if (res && res.user) setCurrentUser(res.user)
+
+        // Check if there's a returnTo parameter to redirect after login
+        if (returnTo) {
+          navigation.reset({ index: 0, routes: [{ name: returnTo }] })
+          return
+        }
 
         // Redirect based on role
         const role = String(res?.user?.role || '').toLowerCase()
@@ -328,7 +334,7 @@ export default function AuthLayout({ mode = 'login' }) {
     } finally {
       setLoading(false)
     }
-  }, [isLogin, formData, navigation])
+  }, [isLogin, formData, navigation, returnTo])
 
   const title = isLogin ? 'Hello Again!' : 'Create Account'
   const subtitle = isLogin

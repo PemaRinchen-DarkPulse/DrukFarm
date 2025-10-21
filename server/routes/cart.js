@@ -96,6 +96,12 @@ router.post('/', authCid, async (req, res) => {
     if (!product) return res.status(404).json({ error: 'Product not found' })
 
     const userCid = req.user.cid
+    
+    // Prevent users from adding their own products to cart
+    if (product.createdBy === userCid) {
+      return res.status(403).json({ error: 'You cannot add your own product to cart' })
+    }
+    
     let cart = await Cart.findOne({ userCid })
     if (!cart) cart = await Cart.create({ userCid, items: [] })
 

@@ -57,7 +57,13 @@ export default function BottomDock() {
         <View style={styles.sideGroup}>
           <TouchableOpacity 
             style={styles.navItem}
-            onPress={() => navigation.navigate('My Orders')}
+            onPress={() => {
+              if (user) {
+                navigation.navigate('My Orders');
+              } else {
+                navigation.navigate('Login', { returnTo: 'My Orders' });
+              }
+            }}
           >
             <MaterialCommunityIcons 
               name="clipboard-list-outline" 

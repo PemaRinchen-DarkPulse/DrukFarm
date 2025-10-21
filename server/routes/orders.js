@@ -176,6 +176,11 @@ router.post('/buy', authCid, async (req, res) => {
 		}
 		const product = validation.product
 
+		// Prevent users from buying their own products
+		if (product.createdBy === req.user.cid) {
+			return res.status(403).json({ error: 'You cannot purchase your own product' })
+		}
+
 		// Atomic decrement to guard against concurrent orders
 		const updated = await tryDecrementStock(product._id, qty)
 		if (!updated) {

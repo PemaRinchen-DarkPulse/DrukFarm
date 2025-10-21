@@ -33,16 +33,26 @@ async function request(path, opts = {}){
   return res.json()
 }
 
-export async function fetchProducts(){
-  return request('/products')
+export async function fetchProducts({ cid, includeOwn = false } = {}){
+  let path = '/products'
+  const params = new URLSearchParams()
+  if (cid) params.append('cid', cid)
+  if (includeOwn) params.append('includeOwn', 'true')
+  if (params.toString()) path += `?${params.toString()}`
+  return request(path)
 }
 
 export async function fetchProductById(id){
   return request(`/products/${id}`)
 }
 
-export async function fetchProductsByCategory(categoryId){
-  return request(`/products/category/${categoryId}`)
+export async function fetchProductsByCategory(categoryId, { cid, includeOwn = false } = {}){
+  let path = `/products/category/${categoryId}`
+  const params = new URLSearchParams()
+  if (cid) params.append('cid', cid)
+  if (includeOwn) params.append('includeOwn', 'true')
+  if (params.toString()) path += `?${params.toString()}`
+  return request(path)
 }
 
 export async function createProduct(dto){

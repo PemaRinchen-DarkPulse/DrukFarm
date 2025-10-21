@@ -27,7 +27,8 @@ export default function FeaturedProducts(){
     }
 
     setLoading(true)
-    api.fetchProducts()
+    const cid = getCurrentCid()
+    api.fetchProducts({ cid, includeOwn: false })
       .then(list => {
         const top3 = [...list]
           .sort((a, b) => (b.rating || 0) - (a.rating || 0))
