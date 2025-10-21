@@ -14,6 +14,7 @@ import { fetchProductById, addToCart, buyProduct } from '../../lib/api';
 import { getCurrentCid } from '../../lib/auth';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import ErrorScreen from '../ui/ErrorScreen';
+import ProductReviews from './ProductReviews';
 
 // Helper: best-effort MIME guess for base64 images
 const guessMimeFromBase64 = (b64) => {
@@ -24,33 +25,6 @@ const guessMimeFromBase64 = (b64) => {
   if (s.startsWith('R0lGODdh') || s.startsWith('R0lGODlh')) return 'image/gif';
   if (s.startsWith('UklGR') || s.startsWith('RIFF')) return 'image/webp';
   return 'image/jpeg';
-};
-
-const reviews = [
-  {
-    id: 1,
-    name: 'Sonam Dema',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1887&auto=format&fit=crop', // Placeholder
-    time: '2 weeks ago',
-    rating: 5,
-    comment: 'The tomatoes were incredibly fresh and flavorful. I used them in a salad, and they were the star of the dish!',
-  },
-  {
-    id: 2,
-    name: 'Jigme Dorji',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1887&auto=format&fit=crop', // Placeholder
-    time: '1 month ago',
-    rating: 4,
-    comment: 'Good quality tomatoes, though a bit smaller than expected. Still, very tasty.',
-  },
-];
-
-const ratingBreakdown = {
-  '5': 40,
-  '4': 30,
-  '3': 15,
-  '2': 10,
-  '1': 5,
 };
 
 // --- Helper Components ---
@@ -71,16 +45,6 @@ const StarRating = ({ rating, size = 16 }) => {
     </View>
   );
 };
-
-const RatingBar = ({ label, percentage }) => (
-  <View style={styles.ratingBarRow}>
-    <Text style={styles.ratingBarLabel}>{label}</Text>
-    <View style={styles.ratingBarContainer}>
-      <View style={[styles.ratingBar, { width: `${percentage}%` }]} />
-    </View>
-    <Text style={styles.ratingBarPercentage}>{percentage}%</Text>
-  </View>
-);
 
 
 // --- Main Screen Component ---
@@ -126,10 +90,16 @@ const ProductDetailScreen = () => {
           reviews: Number(data.reviews ?? 0),
         };
         setUiProduct(mapped);
+        
+        // Set farmer info with profile picture
+        const sellerAvatar = data.sellerProfileImageBase64 && data.sellerProfileImageMime
+          ? `data:${data.sellerProfileImageMime};base64,${data.sellerProfileImageBase64}`
+          : 'https://cdn-icons-png.flaticon.com/512/4140/4140037.png';
+        
         setFarmer({
           name: data.sellerName || (data.sellerCid ? `CID ${data.sellerCid}` : 'Farmer'),
           location: data.sellerLocationLabel || '',
-          avatar: 'https://images.unsplash.com/photo-1560365163-3e8d64e762ef?q=80&w=1964&auto=format&fit=crop',
+          avatar: sellerAvatar,
         });
       } catch (e) {
         setError(e?.message || 'Failed to load product');
@@ -140,10 +110,6 @@ const ProductDetailScreen = () => {
     return () => { active = false };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
-
-  const averageRating = useMemo(() => {
-    return uiProduct?.rating && uiProduct.rating > 0 ? uiProduct.rating : 4.5;
-  }, [uiProduct?.rating]);
 
   if (loading) {
     return (
@@ -221,35 +187,12 @@ const ProductDetailScreen = () => {
 
           <View style={styles.divider} />
 
-          {/* Reviews & Ratings */}
-          <Text style={styles.sectionTitle}>Reviews & Ratings</Text>
-          <View style={styles.ratingsSummary}>
-            <View style={styles.ratingsSummaryLeft}>
-                <Text style={styles.averageRating}>{averageRating}</Text>
-                <StarRating rating={averageRating} size={20} />
-                <Text style={styles.reviewCount}>{uiProduct?.reviews || 25} reviews</Text>
-            </View>
-            <View style={styles.ratingsSummaryRight}>
-                {Object.entries(ratingBreakdown).reverse().map(([label, percentage]) => (
-                    <RatingBar key={label} label={label} percentage={percentage} />
-                ))}
-            </View>
-          </View>
-
-          {/* Individual Reviews */}
-          {reviews.map((review) => (
-            <View key={review.id} style={styles.reviewCard}>
-              <View style={styles.reviewHeader}>
-                <Image source={{ uri: review.avatar }} style={styles.reviewAvatar} />
-                <View style={styles.reviewHeaderText}>
-                  <Text style={styles.reviewName}>{review.name}</Text>
-                  <Text style={styles.reviewTime}>{review.time}</Text>
-                </View>
-              </View>
-              <StarRating rating={review.rating} />
-              <Text style={styles.reviewComment}>{review.comment}</Text>
-            </View>
-          ))}
+          {/* Reviews Section - Using new component */}
+          <ProductReviews 
+            productId={productId} 
+            initialRating={uiProduct?.rating || 0}
+            initialReviewCount={uiProduct?.reviews || 0}
+          />
         </View>
       </ScrollView>
 
@@ -302,47 +245,8 @@ const styles = StyleSheet.create({
   buyNowButton: { backgroundColor: '#e53935', marginLeft: 8 },
   addToCartText: { fontSize: 16, fontWeight: 'bold', color: '#333' },
   buyNowText: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
-
   divider: { height: 1, backgroundColor: '#eee', marginVertical: 24 },
-  sectionTitle: { fontSize: 20, fontWeight: 'bold' },
-  ratingsSummary: { flexDirection: 'row', marginTop: 16 },
-  ratingsSummaryLeft: { alignItems: 'center', justifyContent: 'center', marginRight: 24 },
-  averageRating: { fontSize: 48, fontWeight: 'bold', color: '#222' },
   starContainer: { flexDirection: 'row', gap: 2, marginVertical: 4 },
-  reviewCount: { fontSize: 14, color: '#888' },
-  ratingsSummaryRight: { flex: 1 },
-  ratingBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  ratingBarLabel: { fontSize: 12, color: '#666', width: 15 },
-  ratingBarContainer: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 4,
-    marginHorizontal: 8,
-  },
-  ratingBar: {
-    height: '100%',
-    backgroundColor: '#FFC107',
-    borderRadius: 4,
-  },
-  ratingBarPercentage: { fontSize: 12, color: '#666', width: 30 },
-  reviewCard: {
-    marginTop: 24,
-    borderTopWidth: 1,
-    borderColor: '#eee',
-    paddingTop: 16,
-  },
-  reviewHeader: { flexDirection: 'row', alignItems: 'center' },
-  reviewAvatar: { width: 40, height: 40, borderRadius: 20 },
-  reviewHeaderText: { marginLeft: 10 },
-  reviewName: { fontWeight: 'bold', fontSize: 15 },
-  reviewTime: { fontSize: 12, color: '#999' },
-  reviewComment: { marginTop: 8, fontSize: 14, lineHeight: 20, color: '#333' },
-  // Changed: The fixed footer style is no longer needed
 });
 
 export default ProductDetailScreen;

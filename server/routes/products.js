@@ -97,6 +97,15 @@ function mapProduct(p, categoryDoc, sellerDoc) {
 		// raw base64 without data URI
 		productImageBase64 = img.trim()
 	}
+	// Provide seller profile image
+	let sellerProfileImageBase64, sellerProfileImageMime
+	if (sellerDoc?.profileImageData) {
+		try {
+			sellerProfileImageBase64 = sellerDoc.profileImageData.toString('base64')
+			sellerProfileImageMime = sellerDoc.profileImageMime || 'image/png'
+		} catch(_) {}
+	}
+
 	// Provide both new API shape & legacy fields the mobile UI currently expects
 	return {
 		productId: p.productId,
@@ -119,6 +128,8 @@ function mapProduct(p, categoryDoc, sellerDoc) {
 		sellerLocationVillageGewog: sellerDoc?.location || '',
 		sellerDzongkhag: sellerDoc?.dzongkhag || '',
 		sellerLocationLabel: buildLocationLabel(sellerDoc),
+		sellerProfileImageBase64,
+		sellerProfileImageMime,
 		createdAt: p.createdAt,
 		updatedAt: p.updatedAt,
 		// Legacy fields consumed by current mobile list renderer
@@ -227,7 +238,7 @@ router.get('/:productId', async (req, res) => {
 		const prod = await Product.findById(productId)
 		if (!prod) return res.status(404).json({ success: false, error: 'Product not found' })
 		const category = await Category.findById(prod.categoryId)
-		const seller = await User.findOne({ cid: prod.createdBy }).select('cid name phoneNumber location dzongkhag')
+		const seller = await User.findOne({ cid: prod.createdBy }).select('cid name phoneNumber location dzongkhag profileImageData profileImageMime')
 		res.json(mapProduct(prod, category, seller))
 	} catch (err) {
 		console.error('Fetch product error:', err)

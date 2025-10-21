@@ -82,14 +82,16 @@ export default function Profile({ navigation }) {
     try {
       const dto = { phoneNumber: phoneNumber.replace(/\D/g,'').trim(), location, dzongkhag, gender: gender.toLowerCase() }
       if (profileImageBase64) {
+        // Send the base64 data without data URI prefix
         dto.profileImageBase64 = profileImageBase64
         dto.profileImageMime = profileImageMime || 'image/png'
       }
       const res = await updateUser(cid, dto)
       if (res && res.user){
+        // Ensure the updated user data includes profile image
         applyUser(res.user)
         setCurrentUser(res.user)
-        alert('Profile updated')
+        alert('Profile updated successfully')
       } else {
         alert('Updated')
       }
@@ -207,6 +209,7 @@ export default function Profile({ navigation }) {
                     : 'https://cdn-icons-png.flaticon.com/512/4140/4140037.png',
                 }}
                 style={styles.profilePic}
+                key={profileImageBase64 ? `profile-${profileImageBase64.substring(0, 20)}` : 'default'}
               />
               <TouchableOpacity style={styles.editIconContainer} onPress={pickImage}> 
                 <Ionicons name="pencil" size={20} color="#fff" />

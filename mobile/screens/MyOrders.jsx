@@ -13,6 +13,7 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { fetchMyOrders, cancelMyOrder } from "../lib/api";
 import { getCurrentCid } from "../lib/auth";
 import { resolveProductImage } from '../lib/image';
+import AddReviewModal from '../components/AddReviewModal';
 
 export default function MyOrders({ navigation }) {
   const [orders, setOrders] = useState([]);
@@ -20,6 +21,10 @@ export default function MyOrders({ navigation }) {
   const [error, setError] = useState(null);
   const [currentView, setCurrentView] = useState('summary'); // 'summary' or 'detail'
   const [selectedStatus, setSelectedStatus] = useState(null);
+  
+  // Review modal state
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [selectedOrderForReview, setSelectedOrderForReview] = useState(null);
 
   // Get summary of orders grouped by status
   const getOrdersSummary = () => {
@@ -69,7 +74,7 @@ export default function MyOrders({ navigation }) {
       'cancelled': { status: 'Cancelled', icon: 'close-circle', color: '#EF4444' },
     };
     
-    return statusMap[status] || { status: 'Unknown', icon: 'help-circle', color: '#6B7280' };
+    return statusMap[status] || { status: 'Pending', icon: 'clock-outline', color: '#FACC15' };
   };
 
   // Handle order cancellation
@@ -108,6 +113,18 @@ export default function MyOrders({ navigation }) {
         }
       ]
     );
+  };
+
+  // Handle add review button
+  const handleAddReview = (order) => {
+    setSelectedOrderForReview(order);
+    setReviewModalVisible(true);
+  };
+
+  // Handle review submission callback
+  const handleReviewSubmitted = () => {
+    // Refresh orders to update any review status if needed
+    loadOrders();
   };
 
   // Fetch orders from backend
@@ -239,6 +256,19 @@ export default function MyOrders({ navigation }) {
             </View>
           </View>
           <View style={styles.orderHeaderRight}>
+            {/* Order Date - Moved to right */}
+            {item.createdAt && (
+              <View style={styles.dateInline}>
+                <Icon name="calendar" size={12} color="#9CA3AF" />
+                <Text style={styles.dateTextInline}>
+                  {new Date(item.createdAt).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                  })}
+                </Text>
+              </View>
+            )}
             {/* Cancel Button (only for pending orders) */}
             {item.status === 'pending' && (
               <TouchableOpacity
@@ -275,7 +305,7 @@ export default function MyOrders({ navigation }) {
           {/* Right Column - Product Info */}
           <View style={styles.productInfo}>
             <Text style={styles.productName} numberOfLines={2}>
-              {product.name || 'Unknown Product'}
+              {product.name || 'Product Details Unavailable'}
             </Text>
             <Text style={styles.productPrice}>
               Nu. {displayPrice.toFixed(0)}/{displayUnit}
@@ -302,20 +332,6 @@ export default function MyOrders({ navigation }) {
           </View>
         )}
 
-        {/* Order Date */}
-        {item.createdAt && (
-          <View style={styles.dateSection}>
-            <Icon name="calendar" size={16} color="#6B7280" />
-            <Text style={styles.dateText}>
-              Ordered on {new Date(item.createdAt).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-              })}
-            </Text>
-          </View>
-        )}
-
         {/* Transporter Info (if out for delivery) */}
         {item.transporter && (statusDisplay.status === 'Out for Delivery') && (
           <View style={styles.transporterSection}>
@@ -325,6 +341,20 @@ export default function MyOrders({ navigation }) {
               {item.transporter.phoneNumber ? ` (${item.transporter.phoneNumber})` : ''}
             </Text>
           </View>
+        )}
+
+        {/* Add Review Button (only for delivered orders) */}
+        {statusDisplay.status === 'Delivered' && (
+          <TouchableOpacity
+            style={styles.reviewButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleAddReview(item);
+            }}
+          >
+            <Icon name="star-outline" size={18} color="#059669" />
+            <Text style={styles.reviewButtonText}>Rate & Review</Text>
+          </TouchableOpacity>
         )}
       </TouchableOpacity>
     );
@@ -399,6 +429,17 @@ export default function MyOrders({ navigation }) {
           contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: 4 }}
         />
       )}
+
+      {/* Review Modal */}
+      <AddReviewModal
+        visible={reviewModalVisible}
+        onClose={() => {
+          setReviewModalVisible(false);
+          setSelectedOrderForReview(null);
+        }}
+        order={selectedOrderForReview}
+        onReviewSubmitted={handleReviewSubmitted}
+      />
     </View>
   );
 }
@@ -507,6 +548,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  dateInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  dateTextInline: {
+    fontSize: 11,
+    color: "#9CA3AF",
+  },
   cancelButtonSmall: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -612,19 +662,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  dateSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-    paddingTop: 4,
-    paddingLeft: 8,
-  },
-  dateText: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginLeft: 8,
-  },
-
   transporterSection: {
     flexDirection: "row",
     alignItems: "center",
@@ -632,7 +669,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: "#FEF3E2",
     borderRadius: 8,
-    marginBottom: 0,
+    marginBottom: 6,
   },
   transporterInfo: {
     fontSize: 13,
@@ -640,5 +677,24 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 8,
     flex: 1,
+  },
+
+  reviewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#D1FAE5",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#059669",
+  },
+  reviewButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#059669",
+    marginLeft: 6,
   },
 });

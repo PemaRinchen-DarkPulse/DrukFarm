@@ -20,6 +20,11 @@ export default function AccountSettings({ navigation }) {
   const isFarmer = !!user && (String(user.role || '').toLowerCase() === 'farmer' || String(user.role || '').toLowerCase() === 'tshogpas');
   const isTshogpas = !!user && String(user.role || '').toLowerCase() === 'tshogpas';
 
+  // Build profile image URI
+  const profileImageUri = user?.profileImageBase64 && user?.profileImageMime
+    ? `data:${user.profileImageMime};base64,${user.profileImageBase64}`
+    : "https://cdn-icons-png.flaticon.com/512/4140/4140037.png";
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -36,12 +41,12 @@ export default function AccountSettings({ navigation }) {
         <View style={styles.profile}>
           <Image
             source={{
-              uri: "https://cdn-icons-png.flaticon.com/512/4140/4140037.png",
+              uri: profileImageUri,
             }}
             style={styles.avatar}
+            key={user?.profileImageBase64 ? `avatar-${user.profileImageBase64.substring(0, 20)}` : 'default-avatar'}
           />
-          <Text style={styles.name}>Sonam Wangmo</Text>
-          <Text style={styles.email}>sonam.wangmo@email.com</Text>
+          <Text style={styles.name}>{user?.name || 'User'}</Text>
         </View>
 
         {/* Account Settings */}

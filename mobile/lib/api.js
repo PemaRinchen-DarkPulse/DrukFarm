@@ -505,6 +505,51 @@ export async function saveTshogpasDetails(orderId, cid, dispatchAddress){
   return request(`/orders/${orderId}/tshogpas-details`, { method: 'PATCH', headers, body: JSON.stringify(body) })
 }
 
+// Review APIs
+export async function createReview({ productId, orderId, rating, title, comment, cid }) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  
+  console.log('[API] createReview called with:', { productId, orderId, rating, title, comment, cid });
+  
+  const body = { productId, orderId, rating, title, comment }
+  return request('/reviews', { method: 'POST', headers, body: JSON.stringify(body) })
+}
+
+export async function getProductReviews(productId) {
+  return request(`/reviews/product/${productId}`)
+}
+
+export async function getMyReviews({ cid }) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  return request('/reviews/my', { headers })
+}
+
+export async function getOrderReview({ orderId, cid }) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  return request(`/reviews/order/${orderId}`, { headers })
+}
+
+export async function updateReview({ reviewId, rating, title, comment, cid }) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  
+  const body = {}
+  if (rating !== undefined) body.rating = rating
+  if (title !== undefined) body.title = title
+  if (comment !== undefined) body.comment = comment
+  
+  return request(`/reviews/${reviewId}`, { method: 'PUT', headers, body: JSON.stringify(body) })
+}
+
+export async function deleteReview({ reviewId, cid }) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['x-cid'] = cid
+  return request(`/reviews/${reviewId}`, { method: 'DELETE', headers })
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, fetchOrderById, registerUser, loginUser, fetchUsers,
@@ -519,6 +564,7 @@ export default {
   fetchUserDispatchAddresses, createUserDispatchAddress, updateUserDispatchAddress, deleteUserDispatchAddress, setDefaultUserDispatchAddress,
   fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, saveTshogpasDetails,
   confirmTransporterPayment, confirmTshogpaPayment, confirmFarmerPayment, initializePaymentFlow, getPaymentStatus, autoInitializePaymentFlows,
+  createReview, getProductReviews, getMyReviews, getOrderReview, updateReview, deleteReview,
 }
 
 // Test function to create a sample order for QR code testing
