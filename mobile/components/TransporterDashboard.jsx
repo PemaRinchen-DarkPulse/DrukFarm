@@ -876,6 +876,8 @@ export default function TransporterDashboard({ navigation }) {
     const isPending = paymentTab === "Pending";
     const isDelivered = status === 'delivered';
     const isEvenRow = index % 2 === 0;
+    const filteredOrders = getFilteredPaymentOrders();
+    const isLastRow = index === filteredOrders.length - 1;
     
     // Format order ID to show only last 5 digits with # prefix
     const formatOrderId = (orderId) => {
@@ -907,7 +909,11 @@ export default function TransporterDashboard({ navigation }) {
     };
     
     return (
-      <View style={[styles.paymentTableRow, { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' }]}>
+      <View style={[
+        styles.paymentTableRow, 
+        { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' },
+        isLastRow && { borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }
+      ]}>
         <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
           <Text style={styles.paymentCellText}>{formatOrderId(item.orderId)}</Text>
         </View>
@@ -2030,13 +2036,14 @@ const styles = StyleSheet.create({
   },
   paymentTableRow: {
     flexDirection: 'row',
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#999999',
     paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   paymentTableCell: {
     flex: 1,

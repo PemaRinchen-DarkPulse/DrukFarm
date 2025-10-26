@@ -1480,58 +1480,52 @@ export default function TshogpasDashboard({ navigation }) {
     const isEarningView = paymentFilter === "Earning";
     const isDispatchedView = paymentFilter === "Dispatched";
     const isEvenRow = index % 2 === 0;
+    const filteredData = getFilteredPaymentOrders();
+    const isLastRow = index === filteredData.length - 1;
     
     return (
-      <View style={[styles.paymentTableRow, { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' }]}>
-        <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 8, marginLeft: -4 }]}>
+      <View style={[
+        styles.paymentTableRow, 
+        { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' },
+        isLastRow && { borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }
+      ]}>
+        <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 8 }]}>
           <Text style={styles.paymentCellText}>
             {item.orderId ? `#${item.orderId.slice(-5)}` : 'N/A'}
           </Text>
         </View>
         {isDispatchedView ? (
           <>
-            <View style={[styles.paymentTableCell, { flex: 1.8, marginLeft: 4, marginRight: 4 }]}>
+            <View style={[styles.paymentTableCell, { flex: 2.2, marginLeft: 4, marginRight: 4 }]}>
               <Text style={styles.paymentCellText}>{item.transporter?.name || item.transporterName || 'No Transporter'}</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 6, marginLeft: 2 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 8 }]}>
               <Text style={styles.paymentCellText}>{item.totalPrice || '0'}</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 16 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.8, marginLeft: 8 }]}>
               <Text style={styles.paymentCellText}>{item.farmer?.name || item.sellerName || 'Unknown Farmer'}</Text>
             </View>
-            {isPending ? (
-              <View style={[styles.paymentTableCell, { flex: 1.2, alignItems: 'flex-end', paddingRight: 8, marginLeft: 4 }]}>
+            {isPending && (
+              <View style={[styles.paymentTableCell, { flex: 1.2, alignItems: 'flex-end', paddingRight: 8, marginLeft: 8 }]}>
                 <TouchableOpacity 
                   style={styles.receivedButton}
                   onPress={() => handleMarkPaymentReceived(item.orderId)}
                 >
                   <Icon name="check" size={16} color="#FFFFFF" />
                 </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={[styles.paymentTableCell, { flex: 1.2, marginLeft: 4 }]}>
-                <Text style={[styles.paymentCellText, { 
-                  color: item.status?.toLowerCase() === 'completed' ? '#059669' : 
-                         item.status?.toLowerCase() === 'delivered' ? '#0EA5E9' : 
-                         item.status?.toLowerCase() === 'shipped' ? '#F59E0B' : '#6B7280',
-                  fontSize: 12,
-                  textTransform: 'capitalize'
-                }]} numberOfLines={1}>
-                  {item.status || 'Unknown'}
-                </Text>
               </View>
             )}
           </>
         ) : isEarningView ? (
           <>
-            <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 4 }]}>
               <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 12 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 8 }]}>
               <Text style={styles.paymentCellText}>{item.totalPrice || '0'}</Text>
             </View>
             {isPending ? (
-              <View style={[styles.paymentTableCell, { flex: 1.3, alignItems: 'flex-end', paddingRight: 4 }]}>
+              <View style={[styles.paymentTableCell, { flex: 1.3, alignItems: 'flex-end', paddingRight: 8, marginLeft: 8 }]}>
                 <TouchableOpacity 
                   style={styles.receivedButton}
                   onPress={() => handleMarkPaymentReceived(item.orderId)}
@@ -1540,7 +1534,7 @@ export default function TshogpasDashboard({ navigation }) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
+              <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 8 }]}>
                 <Text style={styles.paymentCellText}>
                   {(() => {
                     // Get settlement date from payment flow or fallback to legacy fields
@@ -1570,17 +1564,17 @@ export default function TshogpasDashboard({ navigation }) {
           </>
         ) : (
           <>
-            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 16 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 4 }]}>
               <Text style={styles.paymentCellText}>{item.farmer?.name || 'Unknown Farmer'}</Text>
             </View>
             <View style={[styles.paymentTableCell, { flex: 1.2, alignItems: 'flex-end', paddingRight: 8 }]}>
               <Text style={styles.paymentCellText}>{item.totalPrice || '0'}</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.8 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.8, marginLeft: 4 }]}>
               <Text style={styles.paymentCellText}>{item.transporter?.name || 'Unknown Transporter'}</Text>
             </View>
             {isPending ? (
-              <View style={[styles.paymentTableCell, { flex: 1.2, alignItems: 'flex-end', paddingRight: 8 }]}>
+              <View style={[styles.paymentTableCell, { flex: 1.2, alignItems: 'flex-end', paddingRight: 8, marginLeft: 8 }]}>
                 <TouchableOpacity 
                   style={styles.receivedButton}
                   onPress={() => handleMarkPaymentReceived(item.orderId)}
@@ -1589,7 +1583,7 @@ export default function TshogpasDashboard({ navigation }) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={[styles.paymentTableCell, { flex: 1.4 }]}>
+              <View style={[styles.paymentTableCell, { flex: 1.2, marginLeft: 8 }]}>
                 <View style={styles.settlementDatesContainer}>
                   <Text style={styles.paymentCellText}>
                     T: {item.transporterSettlementDate 
@@ -1619,35 +1613,35 @@ export default function TshogpasDashboard({ navigation }) {
     
     return (
       <View style={styles.paymentTableHeader}>
-        <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 8, marginLeft: -4 }]}>
+        <View style={[styles.paymentTableCell, { flex: 1.2, marginRight: 8 }]}>
           <Text style={styles.paymentHeaderText}>Order ID</Text>
         </View>
         {isDispatchedView ? (
           <>
-            <View style={[styles.paymentTableCell, { flex: 1.8, marginLeft: 4, marginRight: 4 }]}>
+            <View style={[styles.paymentTableCell, { flex: 2.2, marginLeft: 4, marginRight: 4 }]}>
               <Text style={styles.paymentHeaderText}>Transporter</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 6, marginLeft: 2 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 8 }]}>
               <Text style={styles.paymentHeaderText}>Price</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 16 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.8, marginLeft: 8 }]}>
               <Text style={styles.paymentHeaderText}>Farmer</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.2, marginLeft: 4 }]}>
-              <Text style={styles.paymentHeaderText}>
-                {isPending ? 'Action' : 'Status'}
-              </Text>
-            </View>
+            {isPending && (
+              <View style={[styles.paymentTableCell, { flex: 1.2, marginLeft: 8 }]}>
+                <Text style={styles.paymentHeaderText}>Action</Text>
+              </View>
+            )}
           </>
         ) : isEarningView ? (
           <>
-            <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 4 }]}>
               <Text style={styles.paymentHeaderText}>Tshogpa</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 12 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1, alignItems: 'flex-end', paddingRight: 8 }]}>
               <Text style={styles.paymentHeaderText}>Amount (NU)</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 8 }]}>
               <Text style={styles.paymentHeaderText}>
                 {isPending ? 'Action' : 'Settlement Date'}
               </Text>
@@ -1655,16 +1649,16 @@ export default function TshogpasDashboard({ navigation }) {
           </>
         ) : (
           <>
-            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 16 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.3, marginLeft: 4 }]}>
               <Text style={styles.paymentHeaderText}>Farmer</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.2, alignItems: 'flex-end', paddingRight: 8 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.2, alignaddItems: 'flex-end', paddingRight: 8 }]}>
               <Text style={styles.paymentHeaderText}>Amount</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.8 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.8, marginLeft: 4 }]}>
               <Text style={styles.paymentHeaderText}>Transporter</Text>
             </View>
-            <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
+            <View style={[styles.paymentTableCell, { flex: 1.2, marginLeft: 8 }]}>
               <Text style={styles.paymentHeaderText}>Action</Text>
             </View>
           </>
@@ -3022,22 +3016,26 @@ const styles = StyleSheet.create({
   paymentTableHeader: {
     flexDirection: 'row',
     backgroundColor: '#4C7C59',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
     paddingVertical: 14,
     paddingHorizontal: 0,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   paymentTableRow: {
     flexDirection: 'row',
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#999999',
     paddingVertical: 14,
     paddingHorizontal: 8,
     backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   paymentTableCell: {
     flex: 1,

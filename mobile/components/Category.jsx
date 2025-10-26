@@ -8,7 +8,7 @@ import {
   Image,
   SafeAreaView,
 } from 'react-native';
-import { AntDesign } from '@expo/vector-icons'; // Assuming you use @expo/vector-icons for the back arrow
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { fetchCategories } from '../lib/api';
 
 const PLACEHOLDER_IMG = 'https://via.placeholder.com/300x300.png?text=Category';
@@ -70,7 +70,7 @@ const Category = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <AntDesign name="arrowleft" size={24} color="#333" />
+          <Icon name="arrow-left" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Categories</Text>
         <View style={styles.placeholder} />
