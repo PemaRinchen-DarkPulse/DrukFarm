@@ -10,7 +10,9 @@ import {
   Platform,
 } from 'react-native'
 import { Eye, EyeOff, ChevronDown, Check } from 'lucide-react-native'
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useNavigation } from '@react-navigation/native'
+import { LinearGradient } from 'expo-linear-gradient'
 import api from '../lib/api'
 import { setCurrentUser } from '../lib/auth'
 
@@ -75,7 +77,28 @@ function CustomDropdown({ options, value, onChange, placeholder = 'Select…', o
   )
 }
 
-const RegisterStep1 = React.memo(function RegisterStep1({ formData, setField, nextStep, onDropdownOpenChange }) {
+const RegisterStep1 = React.memo(function RegisterStep1({ formData, setField, nextStep, onDropdownOpenChange, setError }) {
+  const handleNext = () => {
+    if (!formData.cid) {
+      setError('Please enter your CID')
+      return
+    }
+    if (!formData.name) {
+      setError('Please enter your full name')
+      return
+    }
+    if (!formData.role) {
+      setError('Please select your role')
+      return
+    }
+    if (!formData.phoneNumber) {
+      setError('Please enter your phone number')
+      return
+    }
+    setError('')
+    nextStep()
+  }
+
   return (
     <View style={{ gap: 8 }}>
       {/* CID */}
@@ -105,45 +128,18 @@ const RegisterStep1 = React.memo(function RegisterStep1({ formData, setField, ne
         />
       </View>
 
-      {/* Location */}
+      {/* Role */}
       <View>
-        <Text style={styles.label}>Location</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Location"
-          placeholderTextColor="#9ca3af"
-          value={formData.location}
-          onChangeText={(v) => setField('location', v)}
-        />
-      </View>
-
-      {/* Dzongkhag */}
-      <View>
-        <Text style={[styles.label, { marginBottom: 4 }]}>Dzongkhag</Text>
+        <Text style={[styles.label, { marginBottom: 4 }]}>Role</Text>
         <CustomDropdown
-          options={dzongkhags}
-          value={formData.dzongkhag}
-          onChange={(v) => setField('dzongkhag', v)}
-          placeholder="Select Dzongkhag"
+          options={["Farmer", "Consumer", "Transporter"]}
+          value={formData.role}
+          onChange={(v) => setField('role', v)}
+          placeholder="Select Role"
           onOpenChange={onDropdownOpenChange}
         />
       </View>
 
-      <TouchableOpacity
-        style={[styles.button, { marginTop: 12 }, (!formData.cid || !formData.name || !formData.location || !formData.dzongkhag) && styles.buttonDisabled]}
-        activeOpacity={0.9}
-        disabled={!formData.cid || !formData.name || !formData.location || !formData.dzongkhag}
-        onPress={nextStep}
-      >
-        <Text style={styles.buttonText}>Next</Text>
-      </TouchableOpacity>
-    </View>
-  )
-})
-
-const RegisterStep2 = React.memo(function RegisterStep2({ formData, setField, showPassword, showConfirm, togglePassword, toggleConfirm, prevStep, loading, onSubmit, onDropdownOpenChange }) {
-  return (
-    <View style={{ gap: 8 }}>
       {/* Phone */}
       <View>
         <Text style={styles.label}>Phone Number</Text>
@@ -158,18 +154,36 @@ const RegisterStep2 = React.memo(function RegisterStep2({ formData, setField, sh
         />
       </View>
 
-      {/* Role */}
-      <View>
-        <Text style={[styles.label, { marginBottom: 4 }]}>Role</Text>
-        <CustomDropdown
-          options={["Farmer", "Consumer", "Transporter", "Tshogpas"]}
-          value={formData.role}
-          onChange={(v) => setField('role', v)}
-          placeholder="Select Role"
-          onOpenChange={onDropdownOpenChange}
-        />
-      </View>
+      <TouchableOpacity
+        style={[styles.button, { marginTop: 12 }]}
+        activeOpacity={0.9}
+        onPress={handleNext}
+      >
+        <LinearGradient
+          colors={['#059669', '#047857']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.buttonGradient}
+        >
+          <Text style={styles.buttonText}>Next</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
+  )
+})
 
+const RegisterStep2 = React.memo(function RegisterStep2({ formData, setField, showPassword, showConfirm, togglePassword, toggleConfirm, prevStep, loading, onSubmit, agreedToTerms, setAgreedToTerms, setError, navigation }) {
+  const handleSubmit = () => {
+    if (!agreedToTerms) {
+      setError('Please agree to the Terms & Conditions and Privacy Policy')
+      return
+    }
+    setError('')
+    onSubmit()
+  }
+
+  return (
+    <View style={{ gap: 8 }}>
       {/* Password */}
       <View>
         <Text style={styles.label}>Password</Text>
@@ -208,15 +222,45 @@ const RegisterStep2 = React.memo(function RegisterStep2({ formData, setField, sh
         </View>
       </View>
 
-      {/* Actions */}
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.buttonOutline, { flex: 1 }]} onPress={prevStep} activeOpacity={0.9}>
-          <Text style={styles.buttonOutlineText}>Back</Text>
+      {/* Terms & Conditions Checkbox */}
+      <View style={styles.checkboxContainer}>
+        <TouchableOpacity 
+          onPress={() => setAgreedToTerms(!agreedToTerms)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+            {agreedToTerms && <Check size={16} color="#fff" />}
+          </View>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.button, { flex: 1 }, loading && styles.buttonDisabled]} onPress={onSubmit} disabled={loading} activeOpacity={0.9}>
-          <Text style={styles.buttonText}>{loading ? 'Creating...' : 'Create Account'}</Text>
-        </TouchableOpacity>
+        <Text style={styles.checkboxLabel}>
+          I agree to the{' '}
+          <Text 
+            style={styles.checkboxLink}
+            onPress={() => navigation.navigate('Terms of Service')}
+          >
+            Terms & Conditions
+          </Text>
+          {' '}and{' '}
+          <Text 
+            style={styles.checkboxLink}
+            onPress={() => navigation.navigate('Privacy Policy')}
+          >
+            Privacy Policy
+          </Text>
+        </Text>
       </View>
+
+      {/* Submit Button */}
+      <TouchableOpacity style={[styles.button, { marginTop: 12 }, loading && styles.buttonDisabled]} onPress={handleSubmit} disabled={loading} activeOpacity={0.9}>
+        <LinearGradient
+          colors={['#059669', '#047857']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.buttonGradient}
+        >
+          <Text style={styles.buttonText}>{loading ? 'Creating...' : 'Create Account'}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
     </View>
   )
 })
@@ -259,11 +303,18 @@ const LoginForm = React.memo(function LoginForm({ formData, setField, showPasswo
 
       {/* Forgot link */}
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={styles.linkMuted}>Forgot Password?</Text>
+        <Text style={styles.linkMuted}>Forgot your password?</Text>
       </View>
 
       <TouchableOpacity style={[styles.button, { marginTop: 12 }]} onPress={onSubmit} disabled={loading} activeOpacity={0.9}>
-        <Text style={styles.buttonText}>{loading ? 'Logging in...' : 'Login'}</Text>
+        <LinearGradient
+          colors={['#059669', '#047857']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.buttonGradient}
+        >
+          <Text style={styles.buttonText}>{loading ? 'Logging in...' : 'Sign In'}</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   )
@@ -280,6 +331,7 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [scrollLocked, setScrollLocked] = useState(false)
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   const setField = useCallback((key, val) => setFormData(prev => ({ ...prev, [key]: val })), [])
 
@@ -336,21 +388,62 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
     }
   }, [isLogin, formData, navigation, returnTo])
 
-  const title = isLogin ? 'Hello Again!' : 'Create Account'
+  const title = isLogin ? 'Welcome Back' : 'Welcome'
   const subtitle = isLogin
-    ? 'Login to continue managing your orders and products.'
-    : (step === 1 ? 'Step 1: Enter your basic details.' : 'Step 2: Set your contact and password.')
+    ? 'Enter your details below'
+    : (step === 1 ? 'Step 1: Enter your details and select your role.' : 'Step 2: Set your password.')
 
   return (
     <View style={styles.page}>
-      <ScrollView
-        contentContainerStyle={styles.center}
-        keyboardShouldPersistTaps="handled"
-        scrollEnabled={!scrollLocked}
+      {/* Purple Gradient Background */}
+      <LinearGradient
+        colors={['#059669', '#047857']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradientBg}
       >
-        <View style={styles.card}>
+        {/* Header Section */}
+        <View style={styles.headerSection}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack()
+              } else {
+                navigation.navigate('Products')
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Icon name="arrow-left" size={24} color="#fff" />
+          </TouchableOpacity>
+          
+          <View style={styles.headerRight}>
+            <Text style={styles.headerQuestion}>
+              {isLogin ? "Don't have an account?" : "Already have an account?"}
+            </Text>
+            <TouchableOpacity 
+              style={styles.getStartedBtn}
+              onPress={() => { setIsLogin(v => !v); setStep(1); setError(''); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.getStartedText}>
+                {isLogin ? 'Get Started' : 'Sign In'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* App Name */}
+        <Text style={styles.appName}>DrukFarm</Text>
+      </LinearGradient>
+
+      {/* White Card Container */}
+      <View style={styles.curvedCard}>
+        <View style={styles.formWrapper}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
+          
           {!!error && (
             <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>
           )}
@@ -371,6 +464,7 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
               setField={setField}
               nextStep={() => setStep(2)}
               onDropdownOpenChange={setScrollLocked}
+              setError={setError}
             />
           ) : (
             <RegisterStep2
@@ -383,82 +477,303 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
               prevStep={() => setStep(1)}
               loading={loading}
               onSubmit={handleSubmit}
-              onDropdownOpenChange={setScrollLocked}
+              agreedToTerms={agreedToTerms}
+              setAgreedToTerms={setAgreedToTerms}
+              setError={setError}
+              navigation={navigation}
             />
           )}
-
-          {/* Footer switch text */}
-          <TouchableOpacity
-            onPress={() => { setIsLogin(v => !v); setStep(1); setError(''); }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.footerSwitch}>
-              {isLogin ? "Don't have an account? " : 'Already have an account? '}
-              <Text style={styles.footerLink}>{isLogin ? 'Sign Up' : 'Login'}</Text>
-            </Text>
-          </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F5F7FB' },
-  center: { minHeight: Dimensions.get('window').height, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  card: {
-    width: '100%', maxWidth: 384, backgroundColor: '#fff', borderRadius: 16, padding: 20,
-    height: 450,
-    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+  page: { 
+    flex: 1, 
+    backgroundColor: '#059669',
+  },
+  
+  gradientBg: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 40,
+    paddingBottom: 60,
+    paddingHorizontal: 20,
+  },
+  
+  headerSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 40,
+    paddingHorizontal: 5,
+  },
+  
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontSize: 22, fontWeight: '600', textAlign: 'center' },
-  subtitle: { fontSize: 14, color: '#64748b', textAlign: 'center', marginTop: 8, marginBottom: 12 },
-  errorBox: { backgroundColor: '#fee2e2', borderRadius: 8, padding: 8, marginBottom: 8 },
-  errorText: { color: '#dc2626', textAlign: 'center', fontSize: 13 },
+  
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  
+  headerQuestion: {
+    color: '#fff',
+    fontSize: 13,
+    opacity: 0.9,
+  },
+  
+  getStartedBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  
+  getStartedText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  
+  appName: {
+    fontSize: 42,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    letterSpacing: 1,
+  },
+  
+  curvedCard: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    paddingTop: 10,
+  },
+  
+  formWrapper: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
+    justifyContent: 'center',
+    marginTop: -40,
+  },
+  
+  title: { 
+    fontSize: 28, 
+    fontWeight: '700', 
+    textAlign: 'center',
+    color: '#1f2937',
+  },
+  
+  subtitle: { 
+    fontSize: 14, 
+    color: '#6b7280', 
+    textAlign: 'center', 
+    marginTop: 8, 
+    marginBottom: 20,
+  },
+  
+  errorBox: { 
+    backgroundColor: '#fee2e2', 
+    borderRadius: 12, 
+    padding: 12, 
+    marginBottom: 16,
+  },
+  
+  errorText: { 
+    color: '#dc2626', 
+    textAlign: 'center', 
+    fontSize: 13,
+  },
 
-  label: { fontSize: 12, fontWeight: '500', color: '#374151' },
-  input: { marginTop: 3, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: '#111827' },
+  label: { 
+    fontSize: 12, 
+    fontWeight: '600', 
+    color: '#6b7280',
+    marginBottom: 6,
+  },
+  
+  input: { 
+    borderWidth: 1, 
+    borderColor: '#e5e7eb', 
+    borderRadius: 12, 
+    paddingHorizontal: 14, 
+    paddingVertical: 12, 
+    fontSize: 15, 
+    color: '#111827',
+    backgroundColor: '#f9fafb',
+  },
 
-  passwordWrap: { marginTop: 3, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingLeft: 10, paddingRight: 8, flexDirection: 'row', alignItems: 'center' },
-  passwordInput: { flex: 1, paddingVertical: 8, fontSize: 14, color: '#111827' },
-  eyeBtn: { padding: 4 },
+  passwordWrap: { 
+    borderWidth: 1, 
+    borderColor: '#e5e7eb', 
+    borderRadius: 12, 
+    paddingLeft: 14, 
+    paddingRight: 10, 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+  },
+  
+  passwordInput: { 
+    flex: 1, 
+    paddingVertical: 12, 
+    fontSize: 15, 
+    color: '#111827',
+  },
+  
+  eyeBtn: { 
+    padding: 6,
+  },
 
-  button: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontWeight: '600' },
-  buttonOutline: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
-  buttonOutlineText: { color: '#374151', fontWeight: '500' },
+  button: { 
+    borderRadius: 12, 
+    overflow: 'hidden',
+  },
+  
+  buttonGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  buttonDisabled: { 
+    opacity: 0.5,
+  },
+  
+  buttonText: { 
+    color: '#fff', 
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  
+  buttonOutline: { 
+    borderWidth: 1.5, 
+    borderColor: '#e5e7eb', 
+    borderRadius: 12, 
+    paddingVertical: 14, 
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  
+  buttonOutlineText: { 
+    color: '#6b7280', 
+    fontWeight: '600',
+    fontSize: 15,
+  },
 
-  linkMuted: { fontSize: 12, color: '#2563eb' },
+  linkMuted: { 
+    fontSize: 13, 
+    color: '#059669',
+    fontWeight: '500',
+  },
 
-  dropdownTrigger: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  dropdownText: { fontSize: 14, color: '#111827', flex: 1, marginRight: 8 },
-  placeholder: { color: '#9ca3af' },
-  dropdownWrap: { position: 'relative' },
+  dropdownTrigger: { 
+    borderWidth: 1, 
+    borderColor: '#e5e7eb', 
+    borderRadius: 12, 
+    paddingHorizontal: 14, 
+    paddingVertical: 12, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    backgroundColor: '#f9fafb',
+  },
+  
+  dropdownText: { 
+    fontSize: 15, 
+    color: '#111827', 
+    flex: 1, 
+    marginRight: 8,
+  },
+  
+  placeholder: { 
+    color: '#9ca3af',
+  },
+  
+  dropdownWrap: { 
+    position: 'relative',
+  },
+  
   dropdownList: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: '100%',
-    marginTop: 6,
+    marginTop: 8,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 12,
     zIndex: 20,
   },
-  dropdownItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12 },
-  dropdownItemActive: { backgroundColor: '#ecfdf5' },
-  dropdownItemText: { fontSize: 14, color: '#111827' },
-
-  footerSwitch: { marginTop: 16, fontSize: 13, color: '#374151', textAlign: 'center' },
-  footerLink: { color: '#059669', fontWeight: '600' },
+  
+  dropdownItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingVertical: 12, 
+    paddingHorizontal: 14,
+  },
+  
+  dropdownItemActive: { 
+    backgroundColor: '#d1fae5',
+  },
+  
+  dropdownItemText: { 
+    fontSize: 15, 
+    color: '#111827',
+  },
+  
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 10,
+  },
+  
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  
+  checkboxChecked: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 18,
+  },
+  
+  checkboxLink: {
+    color: '#059669',
+    fontWeight: '600',
+  },
 })
