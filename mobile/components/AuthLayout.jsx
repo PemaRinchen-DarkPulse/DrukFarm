@@ -360,6 +360,8 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
           routeName = 'TshogpasDashboard'
         } else if (role === 'transporter') {
           routeName = 'TransporterDashboard'
+        } else if (role === 'superadmin') {
+          routeName = 'SuperAdminDashboard'
         }
         navigation.reset({ index: 0, routes: [{ name: routeName }] })
       } else {
@@ -377,6 +379,8 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
           routeName = 'TshogpasDashboard'
         } else if (role === 'transporter') {
           routeName = 'TransporterDashboard'
+        } else if (role === 'superadmin') {
+          routeName = 'SuperAdminDashboard'
         }
         navigation.reset({ index: 0, routes: [{ name: routeName }] })
       }

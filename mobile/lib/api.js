@@ -560,6 +560,61 @@ export async function deleteReview({ reviewId, cid }) {
   return request(`/reviews/${reviewId}`, { method: 'DELETE', headers })
 }
 
+// Super Admin APIs
+export async function getSuperAdminStats() {
+  const { cid } = await import('./auth').then(m => ({ cid: m.getCurrentCid() }))
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['Authorization'] = `CID ${cid}`
+  return request('/superadmin/stats', { headers })
+}
+
+export async function getSuperAdminUsers(params = {}) {
+  const { cid } = await import('./auth').then(m => ({ cid: m.getCurrentCid() }))
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['Authorization'] = `CID ${cid}`
+  
+  const queryParams = new URLSearchParams()
+  if (params.role) queryParams.append('role', params.role)
+  if (params.search) queryParams.append('search', params.search)
+  if (params.page) queryParams.append('page', params.page)
+  if (params.limit) queryParams.append('limit', params.limit)
+  
+  const path = `/superadmin/users${queryParams.toString() ? `?${queryParams}` : ''}`
+  return request(path, { headers })
+}
+
+export async function createSuperAdminUser(userData) {
+  const { cid } = await import('./auth').then(m => ({ cid: m.getCurrentCid() }))
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['Authorization'] = `CID ${cid}`
+  return request('/superadmin/users', { 
+    method: 'POST', 
+    headers, 
+    body: JSON.stringify(userData) 
+  })
+}
+
+export async function updateSuperAdminUser(userCid, userData) {
+  const { cid } = await import('./auth').then(m => ({ cid: m.getCurrentCid() }))
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['Authorization'] = `CID ${cid}`
+  return request(`/superadmin/users/${userCid}`, { 
+    method: 'PATCH', 
+    headers, 
+    body: JSON.stringify(userData) 
+  })
+}
+
+export async function deleteSuperAdminUser(userCid) {
+  const { cid } = await import('./auth').then(m => ({ cid: m.getCurrentCid() }))
+  const headers = { 'Content-Type': 'application/json' }
+  if (cid) headers['Authorization'] = `CID ${cid}`
+  return request(`/superadmin/users/${userCid}`, { 
+    method: 'DELETE', 
+    headers 
+  })
+}
+
 export default {
   fetchProducts, fetchProductById, fetchProductsByCategory, createProduct, updateProduct, saveProduct, deleteProduct,
   fetchCategories, createCategory, fetchOrders, fetchOrderById, registerUser, loginUser, fetchUsers,
@@ -575,6 +630,7 @@ export default {
   fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, saveTshogpasDetails,
   confirmTransporterPayment, confirmTshogpaPayment, confirmFarmerPayment, initializePaymentFlow, getPaymentStatus, autoInitializePaymentFlows,
   createReview, getProductReviews, getMyReviews, getOrderReview, updateReview, deleteReview,
+  getSuperAdminStats, getSuperAdminUsers, createSuperAdminUser, updateSuperAdminUser, deleteSuperAdminUser,
 }
 
 // Test function to create a sample order for QR code testing

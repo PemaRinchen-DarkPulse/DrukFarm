@@ -45,7 +45,7 @@ router.post('/register', async (req, res) => {
 		if (!name || typeof name !== 'string' || !name.trim()) {
 			return res.status(400).json({ error: 'Name is required' })
 		}
-		const validRoles = ['consumer', 'farmer', 'transporter', 'tshogpas']
+		const validRoles = ['consumer', 'farmer', 'transporter']
 		const validDzongkhags = new Set([
 			'Bumthang',
 			'Chhukha',

@@ -19,21 +19,29 @@ pnpm-lock.yaml
 
 # Environment Variables
 .env
+.env.*
+!.env.example
 .env.local
 .env.development.local  
 .env.test.local
 .env.production.local
 client/.env
+client/.env.*
+!client/.env.example
 client/.env.local
 client/.env.development.local
 client/.env.test.local
 client/.env.production.local
 server/.env
+server/.env.*
+!server/.env.example
 server/.env.local
 server/.env.development.local
 server/.env.test.local
 server/.env.production.local
 mobile/.env
+mobile/.env.*
+!mobile/.env.example
 mobile/.env.local
 
 # Build Outputs & Distribution
@@ -91,11 +99,31 @@ expo-env.d.ts
 web-build/
 dist/
 
+# EAS Build
+eas-build-*.tar.gz
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
 # iOS
 ios/build/
 ios/Pods/
 ios/UserInterfaceState.xcuserstate
 ios/.xcode.env.local
+ios/*.xcworkspace
+ios/*.xcuserdata
+ios/Podfile.lock
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
 
 # Android
 android/app/build/
@@ -105,8 +133,23 @@ android/captures/
 android/gradlew
 android/gradlew.bat
 android/local.properties
+android/.cxx/
+android/.externalNativeBuild/
+android/app/release/
+android/app/debug/
 *.keystore
 !debug.keystore
+*.apk
+*.aab
+*.dex
+*.ap_
+*.class
+bin/
+gen/
+out/
+.gradle/
+local.properties
+proguard/
 
 # React Native
 .metro-health-check*
@@ -121,6 +164,11 @@ android/local.properties
 *.key
 *.mobileprovision
 *.hprof
+*.ipa
+
+# React Native Debugger
+rn-cli.config.js
+.packager-info
 
 # ==============================================
 # SERVER (Node.js + Express + MongoDB)
@@ -133,6 +181,13 @@ server/temp/*
 server/uploads/
 uploads/
 temp/
+public/uploads/
+public/temp/
+
+# QR Code generated files
+server/public/qrcodes/
+public/qrcodes/
+qrcodes/
 
 # Database files
 *.sqlite
@@ -140,6 +195,21 @@ temp/
 *.db
 *.sql
 *.mdb
+*.dump
+
+# MongoDB local database files
+data/
+db/
+mongodb/
+
+# Sensitive utility scripts with hardcoded credentials
+server/utils/createSuperAdmin.js
+server/utils/testIntegration.js
+server/utils/testPaymentWorkflow.js
+**/createSuperAdmin.js
+**/test*.js
+# Keep example files
+!**/test*.example.js
 
 # ==============================================
 # CLIENT (React + Vite + TailwindCSS)
@@ -257,11 +327,28 @@ docker-compose.override.yml
 *.key
 *.p12
 *.pfx
+*.cer
 
 # API keys and secrets
 .secrets/
 secrets/
 config/secrets/
+credentials/
+.credentials/
+
+# EAS credentials
+eas-credentials/
+credentials.json
+
+# Authentication tokens
+.auth-token
+auth.json
+token.json
+
+# Private configuration files
+*-private.json
+*-secret.json
+*.secret.*
 
 # ==============================================
 # MISCELLANEOUS
@@ -270,11 +357,15 @@ config/secrets/
 *.bak
 *.backup
 *.tmp
+*~.nib
+*.swp
+*.swo
 
 # Archive files
 *.zip
 *.tar.gz
 *.rar
+*.7z
 
 # Optional REPL history
 .node_repl_history
@@ -302,3 +393,24 @@ config/secrets/
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+
+# TypeScript incremental compilation
+*.tsbuildinfo
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Local development context files (this file contains API URLs and should not be committed)
+context.json
+
+# Screenshot/screen recording files
+screenshots/
+recordings/
+*.mov
+*.mp4
+*.avi
+
+# Test output files
+test-results/
+test-reports/
+*.spec.results.json

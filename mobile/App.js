@@ -39,6 +39,7 @@ import DispatchAddress from './components/DispatchAddress';
 import Payouts from './components/setting/Payouts';
 import TransporterDashboard from './components/TransporterDashboard';
 import TshogpasDashboard from './components/TshogpasDashboard';
+import SuperAdminDashboard from './components/SuperAdminDashboard';
 
 
 const Stack = createNativeStackNavigator();
@@ -110,6 +111,7 @@ export default function App() {
           <Stack.Screen name="Payouts" component={withMainLayout(Payouts)} />
           <Stack.Screen name="TransporterDashboard" component={withMainLayout(TransporterDashboard)} />
           <Stack.Screen name="TshogpasDashboard" component={withMainLayout(TshogpasDashboard)} />
+          <Stack.Screen name="SuperAdminDashboard" component={withMainLayout(SuperAdminDashboard)} />
 
 
           {/* Public screens without dock/navbar */}

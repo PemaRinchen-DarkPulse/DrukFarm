@@ -1,7 +1,5 @@
 const mongoose = require('mongoose')
-
-// Include 'transporter' role; keep 'restaurant' and legacy 'transported' for backward-compatibility
-const roles = ['consumer', 'farmer', 'transporter', 'transported', 'restaurant', 'tshogpas']
+const roles = ['consumer', 'farmer', 'transporter', 'superadmin']
 
 const UserSchema = new mongoose.Schema(
 	{
