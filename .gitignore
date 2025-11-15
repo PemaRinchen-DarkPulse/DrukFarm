@@ -414,3 +414,202 @@ recordings/
 test-results/
 test-reports/
 *.spec.results.json
+
+# ==============================================
+# AI SERVICES & DATA SCIENCE
+# ==============================================
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual Environments
+ai_services/drukFarmVenv/
+ai_services/venv/
+ai_services/env/
+ai_services/ENV/
+ai_services/.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+*.virtualenv
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+profile_default/
+ipython_config.py
+*.ipynb
+
+# PyCharm
+.idea/
+*.iml
+
+# Spyder
+.spyderproject
+.spyproject
+
+# ==============================================
+# DATASETS & MACHINE LEARNING
+# ==============================================
+# Dataset folders (large image datasets)
+ai_services/myDatasets/
+ai_services/datasets/
+**/datasets/
+**/myDatasets/
+data/raw/
+data/processed/
+data/external/
+
+# Dataset analysis outputs
+ai_services/dataset_analysis_output/
+ai_services/dataset_analysis_*/
+dataset_analysis_output/
+dataset_analysis_*/
+
+# Dataset backups
+ai_services/dataset_backups/
+dataset_backups/
+*_backup/
+*_backups/
+
+# Model files (trained models can be large)
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.ckpt
+*.pb
+*.onnx
+*.tflite
+*.mlmodel
+*.caffemodel
+saved_models/
+checkpoints/
+models/
+*.model
+
+# Training outputs
+training_logs/
+tensorboard_logs/
+wandb/
+mlruns/
+experiments/
+runs/
+
+# Large data files
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.npy
+*.npz
+*.mat
+# Keep small example/config CSVs
+!**/example*.csv
+!**/config*.csv
+!**/sample*.csv
+
+# Image datasets (exclude but keep gitkeep)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+*.svg
+*.ico
+# Keep small logo/icon files in specific folders
+!mobile/assets/**/*.png
+!mobile/assets/**/*.jpg
+!mobile/assets/**/*.jpeg
+!mobile/assets/**/*.svg
+!mobile/assets/**/*.webp
+!server/public/**/*.png
+!server/public/**/*.jpg
+!server/public/**/*.svg
+
+# Video and audio files
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv
+*.mp3
+*.wav
+*.flac
+
+# Compressed archives (datasets often come zipped)
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.bz2
+*.gz
+*.xz
+
+# ==============================================
+# DOCUMENTATION & REPORTS
+# ==============================================
+# Keep markdown documentation but ignore generated reports
+ai_services/*.txt
+ai_services/reports/
+ai_services/*_report.txt
+ai_services/*_summary.txt
+# Keep README files
+!ai_services/README*.md
+!ai_services/DATASET*.md
+!ai_services/COMPLETE*.md
+!ai_services/QUICK*.md
+!ai_services/IMPLEMENTATION*.md
+!ai_services/INDEX.md
+!ai_services/VISUAL*.md
+
+# Generated visualizations
+ai_services/visualizations/
+visualizations/
+plots/
+figures/
+*.png
+*.jpg
+# Keep documentation images
+!docs/**/*.png
+!docs/**/*.jpg
+!README*.png
+!README*.jpg
+
+# ==============================================
+# BATCH SCRIPTS & AUTOMATION
+# ==============================================
+# Keep batch files but ignore their logs
+*.bat.log
+*.sh.log
