@@ -48,7 +48,7 @@ drukFarmVenv\Scripts\activate
 
 3. **Install dependencies**
 ```cmd
-pip install -r requirements_curator.txt
+pip install -r requirements.txt
 ```
 
 **Dependencies installed:**
@@ -177,7 +177,7 @@ Based on your cleaned dataset:
 | File | Purpose | Edit When |
 |------|---------|-----------|
 | `curator_config.json` | Analysis parameters | Customize thresholds, paths |
-| `requirements_curator.txt` | Python dependencies | Add new libraries |
+| `requirements.txt` | Python dependencies | Add new libraries |
 
 ### Documentation
 

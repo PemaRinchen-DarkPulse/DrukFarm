@@ -104,7 +104,7 @@ Dry-Run Mode                       ✅      (Safety feature)
    │      └─ QUICK_REFERENCE.md
    │
    ├──► Install Dependencies
-   │      └─ pip install -r requirements_curator.txt
+   │      └─ pip install -r requirements.txt
    │
    ├──► Run Analysis
    │      └─ python dataset_curator.py && python dataset_visualizer.py
@@ -248,7 +248,7 @@ python dataset_visualizer.py
 python dataset_cleaner.py
 
 # Install dependencies
-pip install -r requirements_curator.txt
+pip install -r requirements.txt
 
 # Activate environment
 drukFarmVenv\Scripts\activate

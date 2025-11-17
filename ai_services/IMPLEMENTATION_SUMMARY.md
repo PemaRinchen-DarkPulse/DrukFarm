@@ -32,7 +32,7 @@
 
 ### Configuration Files
 1. **`curator_config.json`** - Advanced settings and thresholds
-2. **`requirements_curator.txt`** - Python dependencies
+2. **`requirements.txt`** - Unified Python dependencies
 
 ### Documentation (4 Markdown Files)
 1. **`COMPLETE_GUIDE.md`** - Full walkthrough (this file's sibling)
@@ -351,7 +351,7 @@ By using this system, you'll:
 
 **Configuration:** 2
 - curator_config.json
-- requirements_curator.txt
+- requirements.txt (unified)
 
 **Documentation:** 4
 - COMPLETE_GUIDE.md

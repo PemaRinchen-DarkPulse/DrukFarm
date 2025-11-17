@@ -23,7 +23,7 @@ drukFarmVenv\Scripts\activate
 
 ### 2. Install Dependencies
 ```cmd
-pip install -r requirements_curator.txt
+pip install -r requirements.txt
 ```
 
 ## Usage

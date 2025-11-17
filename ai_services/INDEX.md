@@ -1,21 +1,29 @@
-# 🌿 Dataset Curation & Taxonomy System - START HERE
+# 🌿 AI Services for Plant Disease Dataset Management - START HERE
 
-> **Comprehensive Plant Disease Dataset Analysis, Curation & Label Taxonomy Design**
+> **Comprehensive Plant Disease Dataset Analysis, Curation, Merging & Label Taxonomy Design**
 
 ---
 
 ## 🚀 Quick Start
 
-### Step 1: Analyze Datasets (30 seconds to start)
+### Step 1: Merge All Datasets (NEW! Recommended First Step)
 ```cmd
 cd ai_services
 drukFarmVenv\Scripts\activate
+pip install -r requirements.txt
+python validate_merger.py
+python dataset_merger.py
+```
+Wait ~10-40 minutes (depends on dataset size). Check `merged_output/` folder.
+
+### Step 2: Analyze Datasets (30 seconds to start)
+```cmd
 python dataset_curator.py
 python dataset_visualizer.py
 ```
 Wait 10-30 minutes. Check `dataset_analysis_output/` folder.
 
-### Step 2: Design Label Taxonomy (5 minutes to start)
+### Step 3: Design Label Taxonomy (5 minutes to start)
 ```cmd
 python label_taxonomy_designer.py
 ```
@@ -26,6 +34,32 @@ Wait 5-15 minutes. Check `taxonomy_output/` folder.
 ## 📚 Documentation Guide
 
 **New to the system?** Read in this order:
+
+### 🔄 Dataset Merger (NEW!)
+1. **DATASET_MERGER_SUMMARY.md** ← **START HERE for merging!**
+   - Executive overview
+   - Quick 3-step guide
+   - What you get
+   
+2. **DATASET_MERGER_QUICKSTART.md**
+   - 5-minute setup
+   - Basic usage
+   - Configuration
+
+3. **DATASET_MERGER_INDEX.md**
+   - Complete navigation hub
+   - All features indexed
+   - Common tasks
+
+4. **DATASET_MERGER_README.md**
+   - Full documentation
+   - Advanced features
+   - Customization
+
+5. **DATASET_MERGER_VISUAL.md**
+   - Architecture diagrams
+   - Visual workflows
+   - System design
 
 ### Dataset Curation
 1. **IMPLEMENTATION_SUMMARY.md** ← **Start here for dataset analysis!**
@@ -63,6 +97,16 @@ Wait 5-15 minutes. Check `taxonomy_output/` folder.
 
 ## 🎯 What This Does
 
+### 🔄 Dataset Merger (NEW!)
+Merges **all datasets** in `myDatasets/` into a unified, production-ready dataset:
+- ✅ Removes duplicates (MD5 + perceptual hashing)
+- ✅ Scores image quality (0-100)
+- ✅ Tracks complete provenance
+- ✅ Clusters similar images
+- ✅ Creates stratified train/val/test/holdout splits
+- ✅ Generates comprehensive reports
+
+### 📊 Dataset Curator
 Analyzes **11 plant disease datasets** (~50k images) and generates:
 
 ✅ **Manifests** - Complete image inventory (CSV)  
@@ -78,6 +122,12 @@ Analyzes **11 plant disease datasets** (~50k images) and generates:
 
 ## 📂 Files Overview
 
+### 🔄 Dataset Merger (NEW!)
+- `dataset_merger.py` - **Main merger implementation** ⭐
+- `validate_merger.py` - Validation test suite
+- `merger_config.json` - Configuration settings
+- `requirements.txt` - Unified dependencies
+
 ### Python Scripts
 - `dataset_curator.py` - **Core analysis engine** ⭐
 - `dataset_visualizer.py` - Generate charts/graphs
@@ -87,24 +137,55 @@ Analyzes **11 plant disease datasets** (~50k images) and generates:
 
 ### Configuration
 - `curator_config.json` - Customize settings
-- `requirements_curator.txt` - Dependencies
+- `requirements.txt` - Unified dependencies
 
-### Documentation
+### 📚 Dataset Merger Documentation
+- `DATASET_MERGER_SUMMARY.md` - **Start here!**
+- `DATASET_MERGER_QUICKSTART.md` - 5-min guide
+- `DATASET_MERGER_INDEX.md` - Navigation hub
+- `DATASET_MERGER_README.md` - Full docs
+- `DATASET_MERGER_VISUAL.md` - Diagrams
+
+### 📚 Curator Documentation
 - `IMPLEMENTATION_SUMMARY.md` - **Read first!**
 - `QUICK_REFERENCE.md` - Task cheat sheet
 - `COMPLETE_GUIDE.md` - Full walkthrough
 - `DATASET_CURATOR_README.md` - Technical reference
+
+### 📚 Taxonomy Documentation
+- `TAXONOMY_IMPLEMENTATION_SUMMARY.md` - Overview
+- `TAXONOMY_DESIGNER_GUIDE.md` - Complete guide
+
+### Navigation
 - `INDEX.md` - This file
 
 ---
 
 ## 💡 Common Tasks
 
+### 🔄 Merge All Datasets (NEW!)
+```cmd
+cd ai_services
+drukFarmVenv\Scripts\activate
+
+# Install dependencies (first time only)
+pip install -r requirements.txt
+
+# Validate setup
+python validate_merger.py
+
+# Run merger
+python dataset_merger.py
+
+# Check results
+cat merged_output\reports\MERGE_SUMMARY.md
+```
+
 ### First Time Setup
 ```cmd
 cd ai_services
 drukFarmVenv\Scripts\activate
-pip install -r requirements_curator.txt
+pip install -r requirements.txt
 ```
 
 ### Run Analysis
@@ -151,10 +232,11 @@ dataset_analysis_output/
 
 ## 🔧 Dependencies
 
-Automatically installed via `requirements_curator.txt`:
+Automatically installed via `requirements.txt`:
 - pandas, numpy - Data processing
 - opencv-python, Pillow - Image analysis
 - ImageHash - Duplicate detection
+- scikit-learn - Machine learning
 - matplotlib, seaborn - Visualizations
 - tqdm - Progress bars
 
