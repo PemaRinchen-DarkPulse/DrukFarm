@@ -105,7 +105,7 @@ export default function About({ navigation }) {
               />
             </View>
             <Text style={styles.memberName}>Pema Rinchen</Text>
-            <Text style={styles.memberRole}>Co-Founder & CEO</Text>
+            <Text style={styles.memberRole}>Founder</Text>
             
             <View style={styles.socialIcons}>
               <TouchableOpacity 

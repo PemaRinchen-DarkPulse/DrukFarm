@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Mic, LayoutDashboard, Heart, Menu } from 'lucide-react-native';
+import { Search, Mic, LayoutDashboard, Heart, Menu, HelpCircle } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { getCurrentUser, onAuthChange } from '../lib/auth';
 import OffCanvasMenu from './OffCanvasMenu';
+import SupportOffCanvas from './SupportOffCanvas';
 
 export default function Navbar() {
   const navigation = useNavigation();
   const [user, setUser] = useState(() => getCurrentUser());
   const [search, setSearch] = useState('');
   const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [isSupportVisible, setIsSupportVisible] = useState(false);
 
   useEffect(() => {
     const off = onAuthChange(setUser);
@@ -32,6 +34,11 @@ export default function Navbar() {
       <OffCanvasMenu 
         visible={isMenuVisible} 
         onClose={() => setIsMenuVisible(false)} 
+      />
+      
+      <SupportOffCanvas 
+        visible={isSupportVisible} 
+        onClose={() => setIsSupportVisible(false)} 
       />
       
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -89,6 +96,15 @@ export default function Navbar() {
           >
             <Heart size={26} color="#DC2626" />
           </TouchableOpacity>
+
+          {!user && (
+            <TouchableOpacity 
+              style={styles.navItem}
+              onPress={() => setIsSupportVisible(true)}
+            >
+              <HelpCircle size={26} color="#10b981" />
+            </TouchableOpacity>
+          )}
         </View>
 
       </View>
