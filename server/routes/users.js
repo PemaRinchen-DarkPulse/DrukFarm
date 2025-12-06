@@ -45,7 +45,7 @@ router.post('/register', async (req, res) => {
 		if (!name || typeof name !== 'string' || !name.trim()) {
 			return res.status(400).json({ error: 'Name is required' })
 		}
-		const validRoles = ['consumer', 'farmer', 'transporter']
+		const validRoles = ['vegetable_vendor', 'farmer', 'transporter']
 		const validDzongkhags = new Set([
 			'Bumthang',
 			'Chhukha',
@@ -73,7 +73,7 @@ router.post('/register', async (req, res) => {
 		}
 		// Map legacy roles to the new one for backward-compatibility
 		if (role === 'restaurant' || role === 'transported') role = 'transporter'
-		const userRole = validRoles.includes(role) ? role : 'consumer'
+		const userRole = validRoles.includes(role) ? role : 'vegetable_vendor'
 
 		// Check duplicate
 		const existingUser = await User.findOne({
@@ -241,7 +241,7 @@ router.patch('/:cid', async (req, res) => {
 			if (location !== undefined) user.location = location
 			if (dzongkhag !== undefined) user.dzongkhag = dzongkhag
 			if (role) {
-				const allowedRoles = ['consumer','farmer','transporter','tshogpas']
+				const allowedRoles = ['vegetable_vendor','farmer','transporter','tshogpas']
 				if (allowedRoles.includes(role)) user.role = role
 			}
 			if (gender) {

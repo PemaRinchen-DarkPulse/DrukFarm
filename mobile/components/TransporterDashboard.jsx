@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useAuth } from '../lib/auth';
-import { fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, fetchDzongkhags, fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, fetchTownsByDzongkhag, setOutForDelivery, confirmTransporterPayment, getPaymentStatus, autoInitializePaymentFlows } from '../lib/api';
+import { fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, fetchDzongkhags, fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, fetchTownsByDzongkhag, setOutForDelivery } from '../lib/api';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -66,11 +66,6 @@ export default function TransporterDashboard({ navigation }) {
   // Date filter state
   const [dateFilter, setDateFilter] = useState("All");
   const dateFilterOptions = ["All", "Today", "Last 7 Days", "Last 30 Days"];
-
-  // Payment-related state
-  const [paymentOrders, setPaymentOrders] = useState([]);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentTab, setPaymentTab] = useState("Pending");
 
   const loadOrders = useCallback(async () => {
     // Don't load orders if user is not logged in or not a transporter
@@ -127,158 +122,11 @@ export default function TransporterDashboard({ navigation }) {
     }
   }, [user?.cid, user?.id]);
 
-  const loadPaymentOrders = useCallback(async () => {
-    if (!user || !user.cid || String(user.role || '').toLowerCase() !== 'transporter') {
-      console.log('User not logged in or not a transporter, skipping payment order load');
-      setPaymentOrders([]);
-      return;
-    }
-    
-    try {
-      setPaymentLoading(true);
-      
-      // Auto-initialize payment flows for orders that need them
-      try {
-        await autoInitializePaymentFlows({ cid: user?.cid });
-        console.log('Auto-initialized payment flows for transporter');
-      } catch (error) {
-        console.warn('Failed to auto-initialize payment flows:', error);
-      }
-      
-      // Fetch transporter orders for payment tracking
-      const response = await fetchTransporterOrders({ 
-        cid: user?.cid, 
-        transporterId: user?.id || user?.cid 
-      });
-      
-      // Show ALL orders assigned to this transporter regardless of status
-      // This allows transporters to see their complete order history and payment tracking
-      const paymentRelevantOrders = (response?.orders || []).filter(order => {
-        // Include orders assigned to this transporter
-        const isAssignedToTransporter = (
-          (order.transporterId && (order.transporterId === user?.id || order.transporterId === user?.cid)) ||
-          (order.transporter && (order.transporter.cid === user?.cid || order.transporter.cid === user?.id))
-        );
-        
-        // Also include orders with payment-relevant statuses that might not have transporter assigned yet
-        const status = order.status?.toLowerCase() || '';
-        const isPaymentRelevant = ['out for delivery', 'delivered', 'completed', 'payment pending', 'shipped'].includes(status);
-        
-        return isAssignedToTransporter || isPaymentRelevant;
-      }).map(o => ({
-        orderId: String(o.orderId || o._id || ''),
-        id: String(o.id || o._id || ''),
-        product: {
-          name: o.product?.name || o.product?.productName || 'Unknown Product',
-          price: o.product?.price || 0,
-          sellerCid: o.product?.sellerCid
-        },
-        buyer: {
-          name: o.buyer?.name || o.customerName || 'Unknown Buyer',
-          cid: o.buyer?.cid || o.customerCid
-        },
-        quantity: o.quantity || 1,
-        totalPrice: o.totalAmount || (o.product?.price * (o.quantity || 1)) || 0,
-        status: o.status || 'unknown',
-        
-        // Preserve all payment-related fields from server response
-        paymentFlow: o.paymentFlow || [],
-        isPaid: o.isPaid || false,
-        paymentCompletedAt: o.paymentCompletedAt,
-        paymentStatusHistory: o.paymentStatusHistory || [],
-        paymentConfirmedBy: o.paymentConfirmedBy,
-        paymentConfirmedAt: o.paymentConfirmedAt,
-        settlementDate: o.settlementDate || o.transporterSettlementDate,
-        tshogpasCid: o.tshogpasCid,
-        transporter: o.transporter,
-        
-        // Keep legacy fields for compatibility
-        paymentStatus: o.paymentStatus || 'pending collection',
-        deliveryMethod: o.deliveryMethod || 'Cash on Delivery'
-      }));
-      
-      console.log('Payment relevant orders found:', paymentRelevantOrders.length);
-      console.log('Sample payment orders:', paymentRelevantOrders.slice(0, 3).map(order => ({
-        orderId: order.orderId,
-        status: order.status,
-        totalPrice: order.totalPrice,
-        isAssigned: !!(order.transporterId || order.transporter)
-      })));
-      
-      setPaymentOrders(paymentRelevantOrders);
-    } catch (error) {
-      console.error('Error loading payment orders:', error);
-      Alert.alert('Error', 'Failed to load payment orders');
-    } finally {
-      setPaymentLoading(false);
-    }
-  }, [user?.cid, user?.id]);
-
-  const getFilteredPaymentOrders = () => {
-    if (!paymentOrders) return [];
-    
-    if (paymentTab === "Pending") {
-      // Show orders where transporter payment is still pending
-      return paymentOrders.filter(order => {
-        const status = order.status?.toLowerCase() || '';
-        
-        // Must be delivered to be eligible for payment
-        if (status !== 'delivered') return false;
-        
-        // Check payment flow for transporter step completion
-        if (order.paymentFlow && order.paymentFlow.length > 0) {
-          const transporterStep = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
-          if (transporterStep) {
-            // Pending if transporter step exists but not completed
-            return transporterStep.status !== 'completed';
-          }
-        }
-        
-        // Fallback to legacy field checks
-        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
-        const isPaymentCompleted = ['payment received', 'completed', 'settled'].includes(status);
-        const isPaid = order.isPaid === true;
-        const paymentConfirmedBy = order.paymentConfirmedBy;
-        
-        // Order is pending if delivered but payment not yet confirmed
-        return !isPaymentCompleted && !hasSettlementDate && !isPaid && !paymentConfirmedBy;
-      });
-    } else if (paymentTab === "Completed") {
-      // Show orders where transporter payment has been completed
-      return paymentOrders.filter(order => {
-        // Check payment flow for transporter step completion
-        if (order.paymentFlow && order.paymentFlow.length > 0) {
-          const transporterStep = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
-          if (transporterStep) {
-            // Completed if transporter step is completed
-            return transporterStep.status === 'completed';
-          }
-        }
-        
-        // Fallback to legacy field checks
-        const status = order.status?.toLowerCase() || '';
-        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
-        const isPaymentCompleted = ['payment received', 'completed', 'settled'].includes(status);
-        const isPaid = order.isPaid === true;
-        const paymentConfirmedBy = order.paymentConfirmedBy;
-        
-        // Order is completed if payment confirmed or has settlement date or is marked as paid
-        return isPaymentCompleted || hasSettlementDate || isPaid || paymentConfirmedBy;
-      });
-    }
-    return paymentOrders; // Return all orders if no specific tab
-  };
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      if (activeTab === "Payments") {
-        console.log('[Transporter] Refreshing payment orders...');
-        await loadPaymentOrders();
-      } else {
-        console.log('[Transporter] Refreshing orders...');
-        await loadOrders();
-      }
+      console.log('[Transporter] Refreshing orders...');
+      await loadOrders();
     } catch (error) {
       console.error('[Transporter] Refresh error:', error);
     } finally {
@@ -310,7 +158,7 @@ export default function TransporterDashboard({ navigation }) {
 
       Alert.alert(
         'Confirm Payment Receipt',
-        `Confirm that you have received payment for Order #${(orderId || '').slice(-6)}?\n\nThis will complete the consumer → transporter payment step.`,
+        `Confirm that you have received payment for Order #${(orderId || '').slice(-6)}?\n\nThis will complete the vegetable vendor → transporter payment step.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -343,7 +191,7 @@ export default function TransporterDashboard({ navigation }) {
                           paymentConfirmedAt: new Date().toISOString(),
                           // Update payment flow to mark transporter step as completed
                           paymentFlow: (order.paymentFlow || []).map(step => 
-                            step.step === 'consumer_to_transporter' 
+                            step.step === 'vegetable_vendor_to_transporter' 
                               ? { ...step, status: 'completed', timestamp: new Date().toISOString() }
                               : step
                           )
@@ -890,7 +738,7 @@ export default function TransporterDashboard({ navigation }) {
     const getSettlementDate = () => {
       // First check payment flow for transporter step completion
       if (item.paymentFlow && item.paymentFlow.length > 0) {
-        const transporterStep = item.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+        const transporterStep = item.paymentFlow.find(s => s.step === 'vegetable_vendor_to_transporter');
         if (transporterStep && transporterStep.status === 'completed' && transporterStep.timestamp) {
           return new Date(transporterStep.timestamp).toLocaleDateString();
         }
@@ -967,73 +815,6 @@ export default function TransporterDashboard({ navigation }) {
   };
 
   const renderContent = () => {
-    if (activeTab === "Payments") {
-      return (
-        <>
-          {/* Payment Tabs */}
-          <View style={styles.paymentTabs}>
-            {["Pending", "Completed"].map((tab) => (
-              <TouchableOpacity 
-                key={tab} 
-                onPress={() => setPaymentTab(tab)}
-                style={[
-                  styles.paymentTab,
-                  paymentTab === tab && styles.activePaymentTab
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.paymentTabText,
-                    paymentTab === tab && styles.activePaymentTabText
-                  ]}
-                >
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Payment Table */}
-          {paymentLoading ? (
-            <View style={styles.centered}>
-              <ActivityIndicator size="large" color="#059669" />
-              <Text style={styles.loadingText}>Loading payments...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={getFilteredPaymentOrders()}
-              renderItem={renderPaymentTableRow}
-          keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Icon name="credit-card" size={64} color="#D1D5DB" />
-                  <Text style={styles.emptyText}>No {paymentTab.toLowerCase()} payments found</Text>
-                  <Text style={styles.emptySubtext}>
-                    {paymentTab === "Pending" 
-                      ? "Orders requiring payment collection will appear here"
-                      : "Your completed payment history will show here"
-                    }
-                  </Text>
-                </View>
-              }
-              ListHeaderComponent={
-                getFilteredPaymentOrders().length > 0 ? (
-                  <View style={styles.paymentTableContainer}>
-                    {renderPaymentTableHeader()}
-                  </View>
-                ) : null
-              }
-            />
-          )}
-        </>
-      );
-    }
-
-    // Default content for other tabs (Available, My Delivery, Completed)
     return loading ? (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#059669" />
@@ -1065,7 +846,7 @@ export default function TransporterDashboard({ navigation }) {
     );
   };
 
-  const tabs = ["Available", "My Delivery", "Completed", "Payments"];
+  const tabs = ["Available", "My Delivery", "Completed"];
 
   return (
     <View style={styles.container}>

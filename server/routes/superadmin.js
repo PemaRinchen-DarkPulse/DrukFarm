@@ -19,7 +19,7 @@ router.get('/users', async (req, res) => {
 		const query = {}
 		
 		if (role) {
-			const validRoles = ['consumer', 'farmer', 'transporter', 'superadmin']
+			const validRoles = ['vegetable_vendor', 'farmer', 'transporter', 'superadmin']
 			if (validRoles.includes(role)) {
 				query.role = role
 			}
@@ -88,7 +88,7 @@ router.post('/users', async (req, res) => {
 			return res.status(400).json({ error: 'Password must be at least 8 characters' })
 		}
 		
-		const validRoles = ['consumer', 'farmer', 'transporter', 'superadmin']
+		const validRoles = ['vegetable_vendor', 'farmer', 'transporter', 'superadmin']
 		if (!role || !validRoles.includes(role)) {
 			return res.status(400).json({ 
 				error: `Role must be one of: ${validRoles.join(', ')}` 
@@ -191,7 +191,7 @@ router.patch('/users/:cid', async (req, res) => {
 		}
 		
 		if (role) {
-			const validRoles = ['consumer', 'farmer', 'transporter', 'superadmin']
+			const validRoles = ['vegetable_vendor', 'farmer', 'transporter', 'superadmin']
 			if (!validRoles.includes(role)) {
 				return res.status(400).json({ 
 					error: `Role must be one of: ${validRoles.join(', ')}` 
@@ -260,9 +260,9 @@ router.delete('/users/:cid', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
 	try {
-		const [totalUsers, consumers, farmers, transporters, superadmins] = await Promise.all([
+		const [totalUsers, vegetableVendors, farmers, transporters, superadmins] = await Promise.all([
 			User.countDocuments(),
-			User.countDocuments({ role: 'consumer' }),
+			User.countDocuments({ role: 'vegetable_vendor' }),
 			User.countDocuments({ role: 'farmer' }),
 			User.countDocuments({ role: 'transporter' }),
 			User.countDocuments({ role: 'superadmin' }),
@@ -271,7 +271,7 @@ router.get('/stats', async (req, res) => {
 		res.json({
 			totalUsers,
 			usersByRole: {
-				consumer: consumers,
+				vegetable_vendor: vegetableVendors,
 				farmer: farmers,
 				transporter: transporters,
 				superadmin: superadmins,

@@ -16,7 +16,7 @@ export default function TermsOfService({ navigation }) {
       {/* Content */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <Text style={styles.paragraph}>
-          Welcome to DrukFarm, a platform connecting Bhutanese farmers with consumers.
+          Welcome to DrukFarm, a platform connecting Bhutanese farmers with vegetable vendors.
           By using our app, you agree to these terms. Please read them carefully.
         </Text>
 
@@ -37,7 +37,7 @@ export default function TermsOfService({ navigation }) {
         <Text style={styles.sectionTitle}>3. Products and Sales</Text>
         <Text style={styles.paragraph}>
           DrukFarm facilitates the sale of agricultural products directly from farmers to
-          consumers. We do not guarantee the quality, safety, or legality of the products
+          vegetable vendors. We do not guarantee the quality, safety, or legality of the products
           listed on our platform. Farmers are solely responsible for the accuracy of their
           product descriptions and the fulfillment of orders.
         </Text>

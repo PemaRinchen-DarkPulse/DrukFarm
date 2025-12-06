@@ -12,7 +12,7 @@ const steps = [
   {
     icon: UserCheck,
     title: "Sign up & create profile",
-    desc: "Farmers, restaurants and consumers create accounts and set preferences.",
+    desc: "Farmers, restaurants and vegetable vendors create accounts and set preferences.",
   },
   {
     icon: Box,
@@ -78,7 +78,7 @@ export default function How() {
 
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>
-            For Buyers (Consumers, Restaurants, Hotels)
+            For Buyers (Vegetable Vendors, Restaurants, Hotels)
           </Text>
           <View style={styles.list}>
             <Text style={styles.listItem}>

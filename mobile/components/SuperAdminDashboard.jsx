@@ -254,12 +254,12 @@ export default function SuperAdminDashboard({ navigation }) {
                 onPress={() => setActiveTab('users')}
               />
               <StatCard
-                title="Consumers"
-                value={stats?.usersByRole?.consumer || 0}
+                title="Vegetable Vendors"
+                value={stats?.usersByRole?.vegetable_vendor || 0}
                 icon="cart"
                 color="#3B82F6"
                 onPress={() => {
-                  setFilterRole('consumer');
+                  setFilterRole('vegetable_vendor');
                   setActiveTab('users');
                 }}
               />
@@ -388,7 +388,7 @@ export default function SuperAdminDashboard({ navigation }) {
                 showsHorizontalScrollIndicator={false}
                 style={styles.filterScroll}
               >
-                {['all', 'consumer', 'farmer', 'transporter', 'superadmin'].map(role => (
+                {['all', 'vegetable_vendor', 'farmer', 'transporter', 'superadmin'].map(role => (
                   <TouchableOpacity
                     key={role}
                     style={[
@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
   },
-  role_consumer: {
+  role_vegetable_vendor: {
     backgroundColor: '#DBEAFE',
   },
   role_farmer: {

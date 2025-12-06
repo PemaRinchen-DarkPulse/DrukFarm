@@ -130,7 +130,7 @@ export default function Scanner() {
       }
 
       // Get current user role and CID
-      const userRole = user?.role || 'consumer'
+      const userRole = user?.role || 'vegetable_vendor'
       const userCid = currentUserCid
 
       // Process based on user role and order conditions
@@ -167,7 +167,7 @@ export default function Scanner() {
     switch (userRole) {
       case 'farmer':
       case 'transporter':
-      case 'consumer':
+      case 'vegetable_vendor':
         // If order belongs to user (either as buyer or seller), update status to 'delivered'
         if (orderUserCid === userCid || sellerCid === userCid) {
           await updateOrderStatus({ orderId, status: 'delivered', cid: userCid })
@@ -309,15 +309,6 @@ export default function Scanner() {
         <Text style={styles.hint}>
           {processing ? 'Processing...' : 'Align the QR code within the frame to scan'}
         </Text>
-        
-        {/* Test button for development */}
-        <TouchableOpacity 
-          style={styles.testBtn} 
-          onPress={handleCreateTestOrder}
-          disabled={processing}
-        >
-          <Text style={styles.testBtnText}>Create Test Order</Text>
-        </TouchableOpacity>
       </View>
     </View>
   )

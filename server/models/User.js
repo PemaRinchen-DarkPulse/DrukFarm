@@ -1,5 +1,5 @@
 const mongoose = require('mongoose')
-const roles = ['consumer', 'farmer', 'transporter', 'superadmin']
+const roles = ['vegetable_vendor', 'farmer', 'transporter', 'superadmin']
 
 const UserSchema = new mongoose.Schema(
 	{
@@ -15,7 +15,7 @@ const UserSchema = new mongoose.Schema(
 		},
 		name: { type: String, required: true, trim: true },
 		password: { type: String, required: true }, // hashed
-		role: { type: String, enum: roles, required: true, default: 'consumer' },
+		role: { type: String, enum: roles, required: true, default: 'vegetable_vendor' },
 		location: { type: String, default: '', trim: true },
 		dzongkhag: { type: String, default: '', trim: true },
 		phoneNumber: {
