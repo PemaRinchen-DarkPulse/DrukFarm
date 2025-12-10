@@ -8,6 +8,7 @@ import {
   Animated,
   Dimensions,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
@@ -16,7 +17,7 @@ import { getCurrentUser, onAuthChange } from '../lib/auth';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const MENU_WIDTH = SCREEN_WIDTH * 0.75;
 
-export default function OffCanvasMenu({ visible, onClose }) {
+export default function SupportOffCanvas({ visible, onClose }) {
   const navigation = useNavigation();
   const [slideAnim] = useState(new Animated.Value(-MENU_WIDTH));
   const [user, setUser] = useState(() => getCurrentUser());
@@ -74,8 +75,8 @@ export default function OffCanvasMenu({ visible, onClose }) {
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.headerTitle}>AI Services</Text>
-              <Text style={styles.headerSubtitle}>Smart farming solutions</Text>
+              <Text style={styles.headerTitle}>Support</Text>
+              <Text style={styles.headerSubtitle}>We're here to help</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Icon name="close" size={24} color="#6B7280" />
@@ -83,50 +84,99 @@ export default function OffCanvasMenu({ visible, onClose }) {
           </View>
 
           {/* Menu Content */}
-          <View style={styles.menuContent}>
-            
+          <ScrollView style={styles.menuContent}>
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => handleNavigate('Crop Disease Detection')}
+              onPress={() => handleNavigate('About')}
               activeOpacity={0.7}
             >
-              <View style={[styles.iconContainer, styles.aiIconContainer]}>
-                <Icon name="leaf" size={22} color="#8b5cf6" />
+              <View style={styles.iconContainer}>
+                <Icon name="information-outline" size={22} color="#10b981" />
               </View>
               <View style={styles.textContainer}>
-                <Text style={styles.menuItemText}>Crop Disease Detection</Text>
-                <Text style={styles.menuItemSubtext}>Identify crop diseases with AI</Text>
+                <Text style={styles.menuItemText}>About Us</Text>
+                <Text style={styles.menuItemSubtext}>Learn more about DrukFarm</Text>
               </View>
+              <Icon name="chevron-right" size={20} color="#6B7280" />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => handleNavigate('Crop Recommendation')}
+              onPress={() => handleNavigate('Contact')}
               activeOpacity={0.7}
             >
-              <View style={[styles.iconContainer, styles.aiIconContainer]}>
-                <Icon name="sprout" size={22} color="#8b5cf6" />
+              <View style={styles.iconContainer}>
+                <Icon name="email-outline" size={22} color="#10b981" />
               </View>
               <View style={styles.textContainer}>
-                <Text style={styles.menuItemText}>Crop Recommendation</Text>
-                <Text style={styles.menuItemSubtext}>Get AI-powered crop suggestions</Text>
+                <Text style={styles.menuItemText}>Contact</Text>
+                <Text style={styles.menuItemSubtext}>Get in touch with us</Text>
               </View>
+              <Icon name="chevron-right" size={20} color="#6B7280" />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => handleNavigate('Weather Prediction')}
+              onPress={() => handleNavigate('Help Center')}
               activeOpacity={0.7}
             >
-              <View style={[styles.iconContainer, styles.aiIconContainer]}>
-                <Icon name="weather-partly-cloudy" size={22} color="#8b5cf6" />
+              <View style={styles.iconContainer}>
+                <Icon name="help-circle-outline" size={22} color="#10b981" />
               </View>
               <View style={styles.textContainer}>
-                <Text style={styles.menuItemText}>Weather Prediction</Text>
-                <Text style={styles.menuItemSubtext}>AI-based weather forecasting</Text>
+                <Text style={styles.menuItemText}>Help Center</Text>
+                <Text style={styles.menuItemSubtext}>Find answers to common questions</Text>
               </View>
+              <Icon name="chevron-right" size={20} color="#6B7280" />
             </TouchableOpacity>
-          </View>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleNavigate('Terms of Service')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.iconContainer}>
+                <Icon name="file-document-outline" size={22} color="#10b981" />
+              </View>
+              <View style={styles.textContainer}>
+                <Text style={styles.menuItemText}>Terms of Service</Text>
+                <Text style={styles.menuItemSubtext}>Read our terms and conditions</Text>
+              </View>
+              <Icon name="chevron-right" size={20} color="#6B7280" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleNavigate('Privacy Policy')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.iconContainer}>
+                <Icon name="shield-lock-outline" size={22} color="#10b981" />
+              </View>
+              <View style={styles.textContainer}>
+                <Text style={styles.menuItemText}>Privacy Policy</Text>
+                <Text style={styles.menuItemSubtext}>How we protect your data</Text>
+              </View>
+              <Icon name="chevron-right" size={20} color="#6B7280" />
+            </TouchableOpacity>
+
+            {isFarmer && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleNavigate('Farmer Guide')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.iconContainer}>
+                  <Icon name="book-open-variant" size={22} color="#10b981" />
+                </View>
+                <View style={styles.textContainer}>
+                  <Text style={styles.menuItemText}>Farmer Guide</Text>
+                  <Text style={styles.menuItemSubtext}>Essential farming resources</Text>
+                </View>
+                <Icon name="chevron-right" size={20} color="#6B7280" />
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         </Animated.View>
       </View>
     </Modal>
@@ -186,16 +236,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 12,
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#374151',
-    marginTop: 8,
-    marginBottom: 12,
-    marginLeft: 14,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -221,9 +261,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-  },
-  aiIconContainer: {
-    backgroundColor: '#f3e8ff',
   },
   textContainer: {
     flex: 1,

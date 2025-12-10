@@ -27,7 +27,7 @@ import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { ensureMediaLibraryImagePermission } from '../utils/imageDownloadSimple';
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, updateOrderStatus, confirmFarmerPayment, getPaymentStatus } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory, fetchSellerOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, updateOrderStatus } from '../lib/api';
 import { downloadOrderImageToGallery } from '../utils/imageDownloadSimple';
 
 import { resolveProductImage } from '../lib/image';
@@ -130,11 +130,6 @@ export default function FarmerDashboard({ navigation }) {
   const [activeTab, setActiveTab] = useState("Orders");
   const [orderSubTab, setOrderSubTab] = useState("All");
   const [showAddProductModal, setShowAddProductModal] = useState(false);
-  
-  // Payment-related state
-  const [paymentTab, setPaymentTab] = useState("Pending");
-  const [paymentOrders, setPaymentOrders] = useState([]);
-  const [paymentLoading, setPaymentLoading] = useState(false);
   
   // Filter state
   const [isFilterVisible, setIsFilterVisible] = useState(false);
@@ -245,30 +240,6 @@ export default function FarmerDashboard({ navigation }) {
     }
   }, [user?.cid]);
 
-  const getPaymentOrders = useCallback(async () => {
-    try {
-      setPaymentLoading(true);
-      // Fetch ALL orders for payment dashboard (show all orders related to farmer's products)
-      const response = await fetchSellerOrders({ cid: user?.cid });
-      const ordersList = response?.orders || [];
-      console.log('Fetched payment orders with payment fields:', ordersList.map(o => ({
-        orderId: o.orderId,
-        status: o.status,
-        isPaid: o.isPaid,
-        paymentCompletedAt: o.paymentCompletedAt,
-        settlementDate: o.settlementDate,
-        paymentConfirmedBy: o.paymentConfirmedBy
-      })));
-      // Show ALL orders, not just payment-relevant ones
-      setPaymentOrders(ordersList);
-    } catch (error) {
-      console.log('Failed to fetch payment orders:', error);
-      Alert.alert('Error', 'Failed to fetch payment orders.');
-    } finally {
-      setPaymentLoading(false);
-    }
-  }, [user?.cid]);
-
   // Bottom sheet functions
   const openBottomSheet = () => {
     setIsFilterVisible(true);
@@ -360,170 +331,21 @@ export default function FarmerDashboard({ navigation }) {
       } else if (activeTab === "Orders") {
         console.log('[Farmer] Refreshing orders...');
         await getOrders();
-      } else if (activeTab === "Payments") {
-        console.log('[Farmer] Refreshing payment orders...');
-        await getPaymentOrders();
       }
     } catch (error) {
       console.error('[Farmer] Refresh error:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [activeTab, getOrders, getPaymentOrders]);
-
-  const handleMarkPaymentReceived = async (orderId) => {
-    try {
-      // Find the specific order to validate
-      const order = paymentOrders.find(o => o.orderId === orderId || o.id === orderId);
-      if (!order) {
-        Alert.alert('Error', 'Order not found');
-        return;
-      }
-
-      // Enhanced validation for order status
-      if (order.status?.toLowerCase() !== 'delivered') {
-        Alert.alert(
-          'Cannot Confirm Payment', 
-          `Order must be delivered before payment can be confirmed.\n\nCurrent status: ${order.status || 'Unknown'}`
-        );
-        return;
-      }
-
-      // FRONTEND HIERARCHY VALIDATION: Check if all previous steps are completed
-      if (order.paymentFlow && order.paymentFlow.length > 0) {
-        // Find the farmer's step (final step)
-        const finalSteps = ['tshogpa_to_farmer', 'transporter_to_farmer', 'consumer_to_farmer'];
-        const farmerStep = order.paymentFlow.find(s => finalSteps.includes(s.step));
-        
-        if (farmerStep) {
-          const allSteps = order.paymentFlow;
-          const currentStepIndex = allSteps.findIndex(s => s.step === farmerStep.step);
-          
-          // Check ALL previous steps are completed
-          for (let i = 0; i < currentStepIndex; i++) {
-            const previousStep = allSteps[i];
-            if (previousStep.status !== 'completed') {
-              let contactPerson = 'the previous level';
-              if (previousStep.step.includes('transporter')) {
-                contactPerson = 'the transporter';
-              } else if (previousStep.step.includes('tshogpa')) {
-                contactPerson = 'the tshogpa';
-              }
-              
-              Alert.alert(
-                'Cannot Confirm Payment',
-                `Payment workflow must be completed in order. Please contact ${contactPerson} to confirm their payment first.\n\nPending step: ${previousStep.step.replace(/_/g, ' → ')}`,
-                [{ text: 'OK' }]
-              );
-              return;
-            }
-          }
-        }
-      }
-
-      Alert.alert(
-        'Confirm Final Payment',
-        `Confirm that you have received the final payment for Order #${(orderId || '').slice(-6)}?\n\nThis will complete the entire payment workflow and mark the order as fully paid.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Confirm Final Payment',
-            style: 'default',
-            onPress: async () => {
-              try {
-                // Show loading state
-                console.log(`[Farmer Payment] Confirming final payment for order: ${orderId}`);
-                
-                // Use the payment workflow API with enhanced error handling
-                await confirmFarmerPayment({ orderId, cid: user?.cid });
-                
-                console.log(`[Farmer Payment] Final payment confirmed successfully for order: ${orderId}`);
-                
-                // Refresh payment data from server to get latest status
-                await getPaymentOrders();
-                
-                // Update local state to move from Pending to Completed tab
-                setPaymentOrders(prevOrders => 
-                  prevOrders.map(order => 
-                    (order.orderId === orderId || order.id === orderId)
-                      ? { 
-                          ...order, 
-                          status: 'completed', 
-                          settlementDate: new Date().toISOString(),
-                          paymentConfirmedBy: 'farmer',
-                          paymentConfirmedAt: new Date().toISOString(),
-                          isPaid: true, // Mark as fully paid (final step)
-                          paymentCompletedAt: new Date().toISOString()
-                        }
-                      : order
-                  )
-                );
-                
-                // Switch to Completed tab to show the result
-                setPaymentTab('Completed');
-                
-                Alert.alert(
-                  'Payment Workflow Complete!', 
-                  'Final payment has been confirmed. The entire payment workflow is now complete and the order is marked as fully paid.',
-                  [{ text: 'OK' }]
-                );
-              } catch (error) {
-                console.error('[Farmer Payment] Confirmation error:', error);
-                
-                // Enhanced error handling with specific messages
-                const errorMessage = error.body?.error || error.message || 'Unknown error occurred';
-                
-                if (errorMessage.includes('Order has not been delivered')) {
-                  Alert.alert(
-                    'Cannot Confirm Payment',
-                    'Order status indicates it has not been delivered yet. Please ensure the order is marked as delivered before confirming payment.'
-                  );
-                } else if (errorMessage.includes('Payment already confirmed')) {
-                  Alert.alert(
-                    'Already Confirmed',
-                    'This payment has already been confirmed. Check the Completed tab to see the status.'
-                  );
-                } else if (errorMessage.includes('Only the product seller')) {
-                  Alert.alert(
-                    'Permission Denied',
-                    'You are not authorized to confirm payment for this order.'
-                  );
-                } else if (errorMessage.includes('Farmer payment step not found')) {
-                  Alert.alert(
-                    'Payment Step Not Found',
-                    'The final payment step for this order could not be found. The payment flow may not be properly initialized.'
-                  );
-                } else if (errorMessage.includes('Previous step') && errorMessage.includes('must be completed first')) {
-                  Alert.alert(
-                    'Payment Step Order Error',
-                    'The payment workflow must be completed in order. Previous payment steps are still pending.'
-                  );
-                } else {
-                  Alert.alert(
-                    'Payment Confirmation Failed',
-                    `Unable to confirm final payment: ${errorMessage}`
-                  );
-                }
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('[Farmer Payment] Unexpected error:', error);
-      Alert.alert('Error', 'An unexpected error occurred while processing payment confirmation.');
-    }
-  };
+  }, [activeTab, getOrders]);
 
   useEffect(() => {
     if (activeTab === "Products") {
       getProducts();
     } else if (activeTab === "Orders") {
       getOrders();
-    } else if (activeTab === "Payments") {
-      getPaymentOrders();
     }
-  }, [activeTab, getOrders, getPaymentOrders]);
+  }, [activeTab, getOrders]);
 
   useEffect(() => {
     (async () => {
@@ -1244,7 +1066,7 @@ export default function FarmerDashboard({ navigation }) {
     const canShip = item.status?.toLowerCase() === 'order confirmed';
     const isShipped = item.status?.toLowerCase() === 'shipped';
     
-    // Special case: if consumer buys their own product, they can accept it directly
+    // Special case: if vegetable vendor buys their own product, they can accept it directly
     const isSelfPurchase = item.buyer?.cid === item.product?.sellerCid;
 
     // Check if order status should be displayed
@@ -1436,135 +1258,6 @@ export default function FarmerDashboard({ navigation }) {
       product.categoryName === productCategoryFilter
     );
   };
-  
-  const getFilteredPaymentOrders = () => {
-    if (!paymentOrders) return [];
-    
-    // Only show delivered orders in payment tabs (payment is only relevant after delivery)
-    const deliveredOrders = paymentOrders.filter(order => {
-      const status = order.status?.toLowerCase() || '';
-      return status === 'delivered';
-    });
-    
-    if (paymentTab === "Pending") {
-      // Show delivered orders where final payment is still pending
-      return deliveredOrders.filter(order => {
-        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
-        const isPaid = order.isPaid === true;
-        const paymentCompletedAt = order.paymentCompletedAt;
-        
-        // Order is pending if it's delivered but final payment not yet confirmed by farmer
-        return !hasSettlementDate && !isPaid && !paymentCompletedAt;
-      });
-    } else if (paymentTab === "Completed") {
-      // Show delivered orders where final payment has been received/completed
-      return deliveredOrders.filter(order => {
-        const hasSettlementDate = order.settlementDate || order.paymentConfirmedAt;
-        const isPaid = order.isPaid === true;
-        const paymentConfirmedBy = order.paymentConfirmedBy;
-        const paymentCompletedAt = order.paymentCompletedAt;
-        
-        // Order is completed if final payment confirmed or has settlement date or is marked as paid
-        return hasSettlementDate || isPaid || paymentConfirmedBy || paymentCompletedAt;
-      });
-    }
-    return deliveredOrders; // Return all delivered orders if no specific tab
-  };
-
-  const renderPaymentTableRow = ({ item, index }) => {
-    const isPending = paymentTab === "Pending";
-    const isEvenRow = index % 2 === 0;
-    const filteredOrders = getFilteredPaymentOrders();
-    const isLastRow = index === filteredOrders.length - 1;
-    
-    // Format order ID to show only last 5 digits with # prefix
-    const formatOrderId = (orderId) => {
-      if (!orderId) return 'N/A';
-      const lastFive = orderId.slice(-5);
-      return `#${lastFive}`;
-    };
-    
-    return (
-      <View style={[
-        styles.paymentTableRow, 
-        { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' },
-        isLastRow && { borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }
-      ]}>
-        <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-          <Text style={styles.paymentCellText}>{formatOrderId(item.orderId)}</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-          <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentCellText}>{item.totalPrice || '0'}</Text>
-        </View>
-        {isPending ? (
-          <View style={[styles.paymentTableCell, { flex: 1.3, alignItems: 'flex-end', paddingRight: 8 }]}>
-            <TouchableOpacity 
-              style={styles.receivedButton}
-              onPress={() => handleMarkPaymentReceived(item.orderId)}
-            >
-              <Icon name="check" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-            <Text style={styles.paymentCellText}>
-              {(() => {
-                // Get settlement date from payment flow or fallback to legacy fields
-                if (item.paymentFlow && item.paymentFlow.length > 0) {
-                  const finalSteps = ['tshogpa_to_farmer', 'transporter_to_farmer', 'consumer_to_farmer'];
-                  const farmerStep = item.paymentFlow.find(s => finalSteps.includes(s.step));
-                  if (farmerStep && farmerStep.status === 'completed' && farmerStep.timestamp) {
-                    return new Date(farmerStep.timestamp).toLocaleDateString();
-                  }
-                }
-                
-                // Fallback to legacy settlement date fields
-                if (item.settlementDate) {
-                  return new Date(item.settlementDate).toLocaleDateString();
-                }
-                
-                if (item.paymentConfirmedAt) {
-                  return new Date(item.paymentConfirmedAt).toLocaleDateString();
-                }
-                
-                if (item.paymentCompletedAt) {
-                  return new Date(item.paymentCompletedAt).toLocaleDateString();
-                }
-                
-                return 'N/A';
-              })()}
-            </Text>
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  const renderPaymentTableHeader = () => {
-    const isPending = paymentTab === "Pending";
-    
-    return (
-      <View style={styles.paymentTableHeader}>
-        <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-          <Text style={styles.paymentHeaderText}>Order ID</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-          <Text style={styles.paymentHeaderText}>Tshogpa</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentHeaderText}>Amount (NU)</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-          <Text style={styles.paymentHeaderText}>
-            {isPending ? 'Action' : 'Settlement Date'}
-          </Text>
-        </View>
-      </View>
-    );
-  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -1747,70 +1440,6 @@ export default function FarmerDashboard({ navigation }) {
             </Text>
           </View>
         );
-      case "Payments":
-        return (
-          <>
-            {/* Payment Tabs */}
-            <View style={styles.paymentTabs}>
-              {["Pending", "Completed"].map((tab) => (
-                <TouchableOpacity 
-                  key={tab} 
-                  onPress={() => setPaymentTab(tab)}
-                  style={[
-                    styles.paymentTab,
-                    paymentTab === tab && styles.activePaymentTab
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.paymentTabText,
-                      paymentTab === tab && styles.activePaymentTabText
-                    ]}
-                  >
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Payment Table */}
-            {paymentLoading ? (
-              <View style={styles.centered}>
-                <ActivityIndicator size="large" color="#059669" />
-                <Text style={styles.loadingText}>Loading payments...</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={getFilteredPaymentOrders()}
-                renderItem={renderPaymentTableRow}
-                keyExtractor={(item) => (item.orderId || item.id || item._id || Math.random().toString())}
-                contentContainerStyle={styles.listContainer}
-                refreshControl={
-                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                }
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Icon name="credit-card" size={64} color="#D1D5DB" />
-                    <Text style={styles.emptyText}>No {paymentTab.toLowerCase()} payments found</Text>
-                    <Text style={styles.emptySubtext}>
-                      {paymentTab === "Pending" 
-                        ? "Your pending payments will show here"
-                        : "Your completed payment history will show here"
-                      }
-                    </Text>
-                  </View>
-                }
-                ListHeaderComponent={
-                  getFilteredPaymentOrders().length > 0 ? (
-                    <View style={styles.paymentTableContainer}>
-                      {renderPaymentTableHeader()}
-                    </View>
-                  ) : null
-                }
-              />
-            )}
-          </>
-        );
       default:
         return null;
     }
@@ -1838,7 +1467,7 @@ export default function FarmerDashboard({ navigation }) {
       </View>
 
       <View style={styles.tabs}>
-        {["Products", "Orders", "Payments"].map((tab) => (
+        {["Products", "Orders"].map((tab) => (
           <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}>
             <Text
               style={[styles.tab, activeTab === tab && styles.activeTab]}

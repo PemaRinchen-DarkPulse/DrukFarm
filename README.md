@@ -1,14 +1,14 @@
 # 🌾 DrukFarm
 
-> A comprehensive agricultural marketplace platform connecting farmers, consumers, transporters, and Tshogpas (cooperative groups) in Bhutan.
+> A comprehensive agricultural marketplace platform connecting farmers, vegetable vendors, transporters, and Tshogpas (cooperative groups) in Bhutan.
 
 ## 📋 Overview
 
 DrukFarm is a full-stack e-commerce platform designed for Bhutan's agricultural sector, featuring:
 
-- **Multi-role system**: Consumers, Farmers, Transporters, and Tshogpas (cooperatives)
+- **Multi-role system**: Vegetable Vendors, Farmers, Transporters, and Tshogpas (cooperatives)
 - **QR-based order tracking**: Unique QR codes for every order with verification
-- **3-step payment workflow**: Consumer → Transporter → Tshogpa → Farmer
+- **3-step payment workflow**: Vegetable Vendor → Transporter → Tshogpa → Farmer
 - **Mobile & Web support**: React Native mobile app + React web application
 - **Geolocation features**: Dzongkhag-based address management and drop-off locations
 
@@ -78,7 +78,7 @@ See `ai_services/INDEX.md` for complete guide.
 
 ## 👥 User Roles
 
-### Consumer
+### Vegetable Vendor
 Browse products, manage cart/wishlist, place orders, track deliveries, write reviews
 
 ### Farmer

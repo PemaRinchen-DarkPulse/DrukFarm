@@ -880,7 +880,7 @@ export default function Dashboard({ navigation }) {
     const canShip = item.status?.toLowerCase() === 'order confirmed';
     const isShipped = item.status?.toLowerCase() === 'shipped';
     
-    // Special case: if consumer buys their own product, they can accept it directly
+    // Special case: if vegetable vendor buys their own product, they can accept it directly
     const isSelfPurchase = item.buyer?.cid === item.product?.sellerCid;
 
     // Get product image - check multiple possible fields

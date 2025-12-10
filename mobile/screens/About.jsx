@@ -67,7 +67,7 @@ export default function About({ navigation }) {
           <View style={styles.valueItem}>
             <View style={styles.valueText}>
               <Text style={styles.valueTitle}>Community-first</Text>
-              <Text style={styles.valueDesc}>We prioritize farmer and consumer needs</Text>
+              <Text style={styles.valueDesc}>We prioritize farmer and vegetable vendor needs</Text>
             </View>
           </View>
           <View style={styles.valueItem}>
@@ -105,7 +105,7 @@ export default function About({ navigation }) {
               />
             </View>
             <Text style={styles.memberName}>Pema Rinchen</Text>
-            <Text style={styles.memberRole}>Co-Founder & CEO</Text>
+            <Text style={styles.memberRole}>Founder</Text>
             
             <View style={styles.socialIcons}>
               <TouchableOpacity 

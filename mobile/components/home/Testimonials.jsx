@@ -15,7 +15,7 @@ const testimonials = [
   {
     quote: "The app is easy to use and the delivery is surprisingly fast.",
     author: "Pema",
-    role: "Consumer",
+    role: "Vegetable Vendor",
   },
 ];
 
@@ -25,7 +25,7 @@ export default function Testimonials() {
       <View style={styles.header}>
         <Text style={styles.title}>What Our Community Says</Text>
         <Text style={styles.subtitle}>
-          Hear from farmers, restaurants, and consumers who trust DrukFarm
+          Hear from farmers, restaurants, and vegetable vendors who trust DrukFarm
         </Text>
       </View>
       

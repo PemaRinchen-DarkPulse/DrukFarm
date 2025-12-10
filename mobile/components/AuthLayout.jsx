@@ -132,7 +132,7 @@ const RegisterStep1 = React.memo(function RegisterStep1({ formData, setField, ne
       <View>
         <Text style={[styles.label, { marginBottom: 4 }]}>Role</Text>
         <CustomDropdown
-          options={["Farmer", "Consumer", "Transporter"]}
+          options={["Farmer", "Vegetable Vendor", "Transporter"]}
           value={formData.role}
           onChange={(v) => setField('role', v)}
           placeholder="Select Role"
@@ -353,7 +353,7 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
 
         // Redirect based on role
         const role = String(res?.user?.role || '').toLowerCase()
-        let routeName = 'Products' // Default for consumers
+        let routeName = 'Products' // Default for vegetable vendors
         if (role === 'farmer') {
           routeName = 'Dashboard'
         } else if (role === 'tshogpas') {
@@ -366,13 +366,20 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
         navigation.reset({ index: 0, routes: [{ name: routeName }] })
       } else {
         if (formData.password !== formData.confirm) { setError('Passwords do not match.'); return }
-        const res = await api.registerUser({ ...formData, role: String(formData.role || '').toLowerCase() })
+        // Map UI role names to backend role values
+        const roleMap = {
+          'Vegetable Vendor': 'vegetable_vendor',
+          'Farmer': 'farmer',
+          'Transporter': 'transporter'
+        }
+        const backendRole = roleMap[formData.role] || String(formData.role || '').toLowerCase()
+        const res = await api.registerUser({ ...formData, role: backendRole })
         console.log('register ok', res)
         if (res && res.user) setCurrentUser(res.user)
 
         // Redirect based on role
         const role = String(res?.user?.role || '').toLowerCase()
-        let routeName = 'Products' // Default for consumers
+        let routeName = 'Products' // Default for vegetable vendors
         if (role === 'farmer') {
           routeName = 'Dashboard'
         } else if (role === 'tshogpas') {
@@ -393,9 +400,6 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
   }, [isLogin, formData, navigation, returnTo])
 
   const title = isLogin ? 'Welcome Back' : 'Welcome'
-  const subtitle = isLogin
-    ? 'Enter your details below'
-    : (step === 1 ? 'Step 1: Enter your details and select your role.' : 'Step 2: Set your password.')
 
   return (
     <View style={styles.page}>
@@ -446,10 +450,11 @@ export default function AuthLayout({ mode = 'login', returnTo }) {
       <View style={styles.curvedCard}>
         <View style={styles.formWrapper}>
           <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
           
-          {!!error && (
+          {!!error ? (
             <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>
+          ) : (
+            <View style={{ marginBottom: 24 }} />
           )}
 
           {/* Forms */}

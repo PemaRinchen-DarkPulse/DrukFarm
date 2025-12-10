@@ -106,7 +106,7 @@ Content-Type: application/json
   "cid": "12345678901",           # 11 digits, unique
   "name": "Tashi Dorji",
   "password": "Pass@123",          # 8+ chars, upper, lower, digit, special
-  "role": "farmer",                # consumer | farmer | transporter | tshogpas
+  "role": "farmer",                # vegetable_vendor | farmer | transporter | tshogpas
   "location": "Thimphu",
   "dzongkhag": "Thimphu",
   "phoneNumber": "17123456",       # 8 digits, unique
@@ -394,7 +394,7 @@ POST /api/orders/:orderId/confirm-farmer-payment
 GET /api/orders/:orderId/payment-status
 
 # Returns 3-step payment flow details:
-# - consumer_to_transporter
+# - vegetable_vendor_to_transporter
 # - transporter_to_tshogpa
 # - tshogpa_to_farmer
 ```
@@ -629,7 +629,7 @@ PUT /api/drop-off-locations/:id
   cid: String (11 digits, unique, indexed),
   name: String,
   password: String (bcrypt hashed),
-  role: Enum ['consumer', 'farmer', 'transporter', 'tshogpas'],
+  role: Enum ['vegetable_vendor', 'farmer', 'transporter', 'tshogpas'],
   location: String,
   dzongkhag: String (20 valid dzongkhags),
   phoneNumber: String (8 digits, unique, indexed),
@@ -722,7 +722,7 @@ await Product.findOneAndUpdate(
 Prevents race conditions and overselling.
 
 ### 3-Step Payment Flow
-1. **Consumer → Transporter**: Order payment
+1. **Vegetable Vendor → Transporter**: Order payment
 2. **Transporter → Tshogpa**: Commission deduction
 3. **Tshogpa → Farmer**: Final payout
 

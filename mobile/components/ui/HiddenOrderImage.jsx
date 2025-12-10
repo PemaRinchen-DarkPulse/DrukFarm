@@ -80,7 +80,7 @@ const HiddenOrderImage = forwardRef((props, ref) => {
         // Enhanced order details with all required information
         const details = {
           orderId: String(ord.orderId || ord._id || ''),
-          // Consumer information
+          // Vegetable vendor information
           consumerName: ord?.buyer?.name || ord?.userSnapshot?.name || 'N/A',
           consumerPhone: ord?.buyer?.phoneNumber || ord?.userSnapshot?.phoneNumber || 'N/A',
           // Product information
@@ -266,9 +266,9 @@ const HiddenOrderImage = forwardRef((props, ref) => {
                 <Row label="Seller Name" value={order?.sellerName || ''} />
                 <Row label="Phone Number" value={order?.sellerPhone || ''} />
                 
-                {/* Consumer Information */}
-                <SectionHeader title="CONSUMER" />
-                <Row label="Consumer Name" value={order?.consumerName || ''} />
+                {/* Vegetable Vendor Information */}
+                <SectionHeader title="VEGETABLE VENDOR" />
+                <Row label="Vegetable Vendor Name" value={order?.consumerName || ''} />
                 <Row label="Phone Number" value={order?.consumerPhone || ''} />
                 
                 {/* Delivery Address */}

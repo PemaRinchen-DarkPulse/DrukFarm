@@ -27,7 +27,7 @@ import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { ensureMediaLibraryImagePermission } from '../utils/imageDownloadSimple';
 import * as ImagePicker from 'expo-image-picker';
-import { createProduct, fetchProducts, fetchCategories, createCategory, fetchTshogpasOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, fetchUserDispatchAddresses, updateOrderStatus, confirmTshogpaPayment, getPaymentStatus, autoInitializePaymentFlows } from '../lib/api';
+import { createProduct, fetchProducts, fetchCategories, createCategory, fetchTshogpasOrders, markOrderShipped, markOrderConfirmed, downloadOrderImage, fetchUserDispatchAddresses, updateOrderStatus } from '../lib/api';
 import { downloadOrderImageToGallery } from '../utils/imageDownloadSimple';
 
 import { resolveProductImage } from '../lib/image';
@@ -181,12 +181,6 @@ export default function TshogpasDashboard({ navigation }) {
   const hiddenImgRef = useRef(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Payment-related state for Tshogpas
-  const [paymentTab, setPaymentTab] = useState("Pending");
-  const [paymentFilter, setPaymentFilter] = useState("Earning"); // "Earning" or "Dispatched"
-  const [paymentOrders, setPaymentOrders] = useState([]);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-
   // Filter state
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
@@ -201,15 +195,6 @@ export default function TshogpasDashboard({ navigation }) {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showPriceDropdown, setShowPriceDropdown] = useState(false);
-  const [showPaymentViewDropdown, setShowPaymentViewDropdown] = useState(false);
-
-  // Debug: Log when paymentFilter changes
-  useEffect(() => {
-    console.log('PaymentFilter changed to:', paymentFilter);
-    if (paymentFilter === "Dispatched") {
-      console.log('Dispatched filter active - should show all shipped orders');
-    }
-  }, [paymentFilter]);
 
   // Filter functions
   const openBottomSheet = () => {
@@ -662,7 +647,7 @@ export default function TshogpasDashboard({ navigation }) {
       // FRONTEND HIERARCHY VALIDATION: Check if prerequisites are met
       if (!isTshogpaSeller && order.transporter?.cid && order.paymentFlow) {
         // If there's a transporter and tshogpa is not the seller, check hierarchy
-        const transporterStep = order.paymentFlow.find(s => s.step === 'consumer_to_transporter');
+        const transporterStep = order.paymentFlow.find(s => s.step === 'vegetable_vendor_to_transporter');
         if (transporterStep && transporterStep.status !== 'completed') {
           Alert.alert(
             'Cannot Confirm Payment',
@@ -714,7 +699,7 @@ export default function TshogpasDashboard({ navigation }) {
                             settlementDate: new Date().toISOString(),
                             // Ensure paymentFlow shows completion
                             paymentFlow: (order.paymentFlow || []).map(step => {
-                              if (step.step === 'transporter_to_tshogpa' || step.step === 'consumer_to_tshogpa') {
+                              if (step.step === 'transporter_to_tshogpa' || step.step === 'vegetable_vendor_to_tshogpa') {
                                 return { ...step, status: 'completed', timestamp: step.timestamp || new Date().toISOString() };
                               }
                               return step;
@@ -1403,7 +1388,7 @@ export default function TshogpasDashboard({ navigation }) {
     // So show download button for shipped orders (which appear in Confirmed tab)
     const canDownload = isShipped;
     
-    // Special case: if consumer buys their own product, they can accept it directly
+    // Special case: if vegetable vendor buys their own product, they can accept it directly
     const isSelfPurchase = item.buyer?.cid === item.product?.sellerCid;
 
     // Get product image - check multiple possible fields
@@ -1540,7 +1525,7 @@ export default function TshogpasDashboard({ navigation }) {
                     // Get settlement date from payment flow or fallback to legacy fields
                     if (item.paymentFlow && item.paymentFlow.length > 0) {
                       const tshogpaStep = item.paymentFlow.find(s => 
-                        s.step === 'transporter_to_tshogpa' || s.step === 'consumer_to_tshogpa'
+                        s.step === 'transporter_to_tshogpa' || s.step === 'vegetable_vendor_to_tshogpa'
                       );
                       if (tshogpaStep && tshogpaStep.status === 'completed' && tshogpaStep.timestamp) {
                         return new Date(tshogpaStep.timestamp).toLocaleDateString();
@@ -1845,7 +1830,7 @@ export default function TshogpasDashboard({ navigation }) {
       </View>
 
       <View style={styles.tabs}>
-        {["Products", "Orders", "Payments"].map((tab) => (
+        {["Products", "Orders"].map((tab) => (
           <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}>
             <Text
               style={[styles.tab, activeTab === tab && styles.activeTab]}

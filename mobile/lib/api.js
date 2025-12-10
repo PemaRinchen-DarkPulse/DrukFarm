@@ -467,43 +467,6 @@ export async function updateOrderStatus({ orderId, status, cid }){
   return request(`/orders/${orderId}/status`, { method: 'PATCH', headers, body: JSON.stringify(body) })
 }
 
-// Payment workflow API functions
-export async function confirmTransporterPayment({ orderId, cid }) {
-  const headers = { 'Content-Type': 'application/json' }
-  if (cid) headers['x-cid'] = cid
-  return request(`/orders/${orderId}/payment/transporter-confirm`, { method: 'POST', headers })
-}
-
-export async function confirmTshogpaPayment({ orderId, cid }) {
-  const headers = { 'Content-Type': 'application/json' }
-  if (cid) headers['x-cid'] = cid
-  return request(`/orders/${orderId}/payment/tshogpa-confirm`, { method: 'POST', headers })
-}
-
-export async function confirmFarmerPayment({ orderId, cid }) {
-  const headers = { 'Content-Type': 'application/json' }
-  if (cid) headers['x-cid'] = cid
-  return request(`/orders/${orderId}/payment/farmer-confirm`, { method: 'POST', headers })
-}
-
-export async function initializePaymentFlow({ orderId, cid }) {
-  const headers = { 'Content-Type': 'application/json' }
-  if (cid) headers['x-cid'] = cid
-  return request(`/orders/${orderId}/payment/initialize`, { method: 'POST', headers })
-}
-
-export async function getPaymentStatus({ orderId, cid }) {
-  const headers = { 'Content-Type': 'application/json' }
-  if (cid) headers['x-cid'] = cid
-  return request(`/orders/${orderId}/payment/status`, { headers })
-}
-
-export async function autoInitializePaymentFlows({ cid }) {
-  const headers = { 'Content-Type': 'application/json' }
-  if (cid) headers['x-cid'] = cid
-  return request('/orders/payment/auto-initialize', { method: 'POST', headers })
-}
-
 export async function saveTshogpasDetails(orderId, cid, dispatchAddress){
   const headers = { 'Content-Type': 'application/json' }
   if (cid) headers['x-cid'] = cid
@@ -628,7 +591,6 @@ export default {
   fetchDispatchAddresses, fetchGewogsByDzongkhag, fetchVillagesByGewog, createDispatchAddress,
   fetchUserDispatchAddresses, createUserDispatchAddress, updateUserDispatchAddress, deleteUserDispatchAddress, setDefaultUserDispatchAddress,
   fetchTransporterOrders, fetchShippedOrders, updateOrderStatus, saveTshogpasDetails,
-  confirmTransporterPayment, confirmTshogpaPayment, confirmFarmerPayment, initializePaymentFlow, getPaymentStatus, autoInitializePaymentFlows,
   createReview, getProductReviews, getMyReviews, getOrderReview, updateReview, deleteReview,
   getSuperAdminStats, getSuperAdminUsers, createSuperAdminUser, updateSuperAdminUser, deleteSuperAdminUser,
 }
