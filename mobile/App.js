@@ -40,6 +40,10 @@ import Payouts from './components/setting/Payouts';
 import TransporterDashboard from './components/TransporterDashboard';
 import TshogpasDashboard from './components/TshogpasDashboard';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
+import SmartTools from './screens/SmartTools';
+import WeatherForecast from './screens/WeatherForecast';
+import CropRecommendation from './screens/CropRecommendation';
+import CropDiseaseDetection from './screens/CropDiseaseDetection';
 
 
 const Stack = createNativeStackNavigator();
@@ -97,6 +101,10 @@ export default function App() {
           <Stack.Screen name="Checkout" component={withMainLayout(Checkout)} />
           <Stack.Screen name="My Orders" component={withMainLayout(MyOrders)} />
           <Stack.Screen name="Wishlist" component={withMainLayout(Wishlist)} />
+          <Stack.Screen name="Smart Tools" component={withMainLayout(SmartTools)} />
+          <Stack.Screen name="Weather Prediction" component={withMainLayout(WeatherForecast)} />
+          <Stack.Screen name="Crop Recommendation" component={withMainLayout(CropRecommendation)} />
+          <Stack.Screen name="Crop Disease Detection" component={withMainLayout(CropDiseaseDetection)} />
           <Stack.Screen name="Help Center" component={withMainLayout(HelpCenter)} />
           <Stack.Screen name="Terms of Service" component={withMainLayout(TermsOfService)} />
           <Stack.Screen name="Privacy Policy" component={withMainLayout(PrivacyPolicy)} />

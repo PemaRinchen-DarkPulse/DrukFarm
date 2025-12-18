@@ -1,18 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Mic, LayoutDashboard, Heart, Menu, HelpCircle } from 'lucide-react-native';
+import { Search, Mic, LayoutDashboard, Heart, Sparkles } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { getCurrentUser, onAuthChange } from '../lib/auth';
-import OffCanvasMenu from './OffCanvasMenu';
-import SupportOffCanvas from './SupportOffCanvas';
 
 export default function Navbar() {
   const navigation = useNavigation();
   const [user, setUser] = useState(() => getCurrentUser());
   const [search, setSearch] = useState('');
-  const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const [isSupportVisible, setIsSupportVisible] = useState(false);
 
   useEffect(() => {
     const off = onAuthChange(setUser);
@@ -27,33 +23,26 @@ export default function Navbar() {
     navigation.navigate('Wishlist'); // replace with your Wishlist screen
   };
 
+  const navigateToSmartTools = () => {
+    navigation.navigate('Smart Tools');
+  };
+
   const canAccessDashboard = !!user && ['farmer', 'transporter', 'tshogpas'].includes(String(user.role || '').toLowerCase());
 
   return (
-    <>
-      <OffCanvasMenu 
-        visible={isMenuVisible} 
-        onClose={() => setIsMenuVisible(false)} 
-      />
-      
-      <SupportOffCanvas 
-        visible={isSupportVisible} 
-        onClose={() => setIsSupportVisible(false)} 
-      />
-      
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.header}>
 
-        {/* Hamburger Menu Icon */}
-        <TouchableOpacity 
-          style={styles.menuButton}
-          onPress={() => setIsMenuVisible(true)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.menuIconContainer}>
-            <Menu size={20} color="#ffffff" strokeWidth={2.5} />
-          </View>
-        </TouchableOpacity>
+      {/* AI Icon */}
+      <TouchableOpacity 
+        style={styles.aiButton}
+        onPress={navigateToSmartTools}
+        activeOpacity={0.7}
+      >
+        <View style={styles.aiIconContainer}>
+          <Sparkles size={20} color="#ffffff" strokeWidth={2.5} />
+        </View>
+      </TouchableOpacity>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
@@ -96,20 +85,10 @@ export default function Navbar() {
           >
             <Heart size={26} color="#DC2626" />
           </TouchableOpacity>
-
-          {!user && (
-            <TouchableOpacity 
-              style={styles.navItem}
-              onPress={() => setIsSupportVisible(true)}
-            >
-              <HelpCircle size={26} color="#10b981" />
-            </TouchableOpacity>
-          )}
         </View>
 
       </View>
     </SafeAreaView>
-    </>
   );
 }
 
@@ -127,19 +106,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 64,
   },
-  menuButton: {
+  aiButton: {
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
-  menuIconContainer: {
+  aiIconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#10b981',
+    backgroundColor: '#8b5cf6',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#10b981',
+    shadowColor: '#8b5cf6',
     shadowOffset: {
       width: 0,
       height: 2,
