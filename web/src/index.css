@@ -1,0 +1,28 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Druk Green */
+  --color-druk-green-50: #f0fdf4;
+  --color-druk-green-100: #dcfce7;
+  --color-druk-green-200: #bbf7d0;
+  --color-druk-green-300: #86efac;
+  --color-druk-green-400: #4ade80;
+  --color-druk-green-500: #22c55e;
+  --color-druk-green-600: #16a34a;
+  --color-druk-green-700: #15803d;
+  --color-druk-green-800: #166534;
+  --color-druk-green-900: #14532d;
+  --color-druk-green-950: #052e16;
+
+  /* Earth Tones */
+  --color-earth-50: #fdf8f6;
+  --color-earth-100: #f2e8e5;
+  --color-earth-200: #eaddd7;
+  --color-earth-300: #e0cec7;
+  --color-earth-400: #d2bab0;
+  --color-earth-500: #a18072;
+  --color-earth-600: #8a6a5c;
+  --color-earth-700: #72554a;
+  --color-earth-800: #5e453c;
+  --color-earth-900: #4d3b36;
+}
