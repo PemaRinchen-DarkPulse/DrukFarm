@@ -554,6 +554,10 @@ runs/
 !server/public/**/*.png
 !server/public/**/*.jpg
 !server/public/**/*.svg
+!web/src/assets/**/*.png
+!web/src/assets/**/*.jpg
+!web/src/assets/**/*.svg
+!web/src/assets/**/*.webp
 
 # Video and audio files
 *.mp4
