@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sprout, ShoppingCart, Truck, GraduationCap, ChevronRight, Leaf, Users, BarChart3, Clock, CheckCircle2, Menu, X, Heart, Globe, ShieldCheck, Smartphone } from 'lucide-react';
-import logo from './assets/logo.png';
+import logo from './assets/druk_logo.png';
 
 const LandingPage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
