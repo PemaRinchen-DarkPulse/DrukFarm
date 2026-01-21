@@ -460,7 +460,7 @@ venv.bak/
 */.ipynb_checkpoints/*
 profile_default/
 ipython_config.py
-*.ipynb
+# *.ipynb  # Removed to allow pushing Jupyter notebooks
 
 # PyCharm
 .idea/

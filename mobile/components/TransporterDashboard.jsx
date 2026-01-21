@@ -132,126 +132,9 @@ export default function TransporterDashboard({ navigation }) {
     } finally {
       setRefreshing(false);
     }
-  }, [loadOrders, loadPaymentOrders, activeTab]);
+  }, [loadOrders, activeTab]);
 
-  const handleMarkPaymentReceived = async (orderId) => {
-    try {
-      // Find the specific order to validate
-      const order = paymentOrders.find(o => o.orderId === orderId || o.id === orderId);
-      if (!order) {
-        Alert.alert('Error', 'Order not found');
-        return;
-      }
 
-      // Enhanced validation for order status
-      if (order.status?.toLowerCase() !== 'delivered') {
-        Alert.alert(
-          'Cannot Confirm Payment', 
-          `Order must be delivered before payment can be confirmed.\n\nCurrent status: ${order.status || 'Unknown'}`
-        );
-        return;
-      }
-
-      // HIERARCHY VALIDATION: Transporter is at the TOP of the hierarchy
-      // No prerequisites needed - transporter can always mark if order is delivered
-      // This is the first step in the payment workflow
-
-      Alert.alert(
-        'Confirm Payment Receipt',
-        `Confirm that you have received payment for Order #${(orderId || '').slice(-6)}?\n\nThis will complete the vegetable vendor → transporter payment step.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Confirm Payment',
-            style: 'default',
-            onPress: async () => {
-              try {
-                // Show loading state
-                console.log(`[Transporter Payment] Confirming payment for order: ${orderId}`);
-                
-                // Use the payment workflow API with enhanced error handling
-                await confirmTransporterPayment({ orderId, cid: user?.cid });
-                
-                console.log(`[Transporter Payment] Payment confirmed successfully for order: ${orderId}`);
-                
-                // Refresh payment data from server to get latest status
-                await loadPaymentOrders();
-                
-                console.log('[Transporter Payment] Payment orders after refresh:', paymentOrders?.length || 0);
-                
-                // Update local state to move from Pending to Completed tab
-                setPaymentOrders(prevOrders => {
-                  const updatedOrders = prevOrders.map(order => 
-                    (order.orderId === orderId || order.id === orderId)
-                      ? { 
-                          ...order, 
-                          status: 'payment received', 
-                          settlementDate: new Date().toISOString(),
-                          paymentConfirmedBy: 'transporter',
-                          paymentConfirmedAt: new Date().toISOString(),
-                          // Update payment flow to mark transporter step as completed
-                          paymentFlow: (order.paymentFlow || []).map(step => 
-                            step.step === 'vegetable_vendor_to_transporter' 
-                              ? { ...step, status: 'completed', timestamp: new Date().toISOString() }
-                              : step
-                          )
-                        }
-                      : order
-                  );
-                  console.log('[Transporter Payment] Updated orders count:', updatedOrders.length);
-                  return updatedOrders;
-                });
-                
-                // Switch to Completed tab to show the result
-                setPaymentTab('Completed');
-                
-                Alert.alert(
-                  'Payment Confirmed', 
-                  'Payment has been successfully confirmed and recorded in the system.',
-                  [{ text: 'OK' }]
-                );
-              } catch (error) {
-                console.error('[Transporter Payment] Confirmation error:', error);
-                
-                // Enhanced error handling with specific messages
-                const errorMessage = error.body?.error || error.message || 'Unknown error occurred';
-                
-                if (errorMessage.includes('Order has not been delivered')) {
-                  Alert.alert(
-                    'Cannot Confirm Payment',
-                    'Order status indicates it has not been delivered yet. Please ensure the order is marked as delivered before confirming payment.'
-                  );
-                } else if (errorMessage.includes('Payment already confirmed')) {
-                  Alert.alert(
-                    'Already Confirmed',
-                    'This payment has already been confirmed. Check the Completed tab to see the status.'
-                  );
-                } else if (errorMessage.includes('Only the assigned transporter')) {
-                  Alert.alert(
-                    'Permission Denied',
-                    'You are not authorized to confirm payment for this order.'
-                  );
-                } else if (errorMessage.includes('Previous step') && errorMessage.includes('must be completed first')) {
-                  Alert.alert(
-                    'Payment Step Order Error',
-                    'The payment workflow must be completed in order. A previous payment step is still pending.'
-                  );
-                } else {
-                  Alert.alert(
-                    'Payment Confirmation Failed',
-                    `Unable to confirm payment: ${errorMessage}`
-                  );
-                }
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('[Transporter Payment] Unexpected error:', error);
-      Alert.alert('Error', 'An unexpected error occurred while processing payment confirmation.');
-    }
-  };
 
   // Data loading functions
   const loadDzongkhags = useCallback(async () => {
@@ -438,18 +321,7 @@ export default function TransporterDashboard({ navigation }) {
     loadOrders();
   }, [loadOrders]);
 
-  useEffect(() => {
-    if (activeTab === "Payments") {
-      loadPaymentOrders();
-    }
-  }, [activeTab, loadPaymentOrders]);
 
-  // Load payment orders when payment tab changes
-  useEffect(() => {
-    if (activeTab === "Payments") {
-      loadPaymentOrders();
-    }
-  }, [paymentTab, activeTab, loadPaymentOrders]);
 
   // Debug effect to track modal visibility
   useEffect(() => {
@@ -719,100 +591,7 @@ export default function TransporterDashboard({ navigation }) {
     return filteredOrders;
   };
 
-  const renderPaymentTableRow = ({ item, index }) => {
-    const status = item.status?.toLowerCase() || '';
-    const isPending = paymentTab === "Pending";
-    const isDelivered = status === 'delivered';
-    const isEvenRow = index % 2 === 0;
-    const filteredOrders = getFilteredPaymentOrders();
-    const isLastRow = index === filteredOrders.length - 1;
-    
-    // Format order ID to show only last 5 digits with # prefix
-    const formatOrderId = (orderId) => {
-      if (!orderId) return 'N/A';
-      const lastFive = orderId.slice(-5);
-      return `#${lastFive}`;
-    };
-    
-    // Get settlement date from payment flow or fallback to legacy fields
-    const getSettlementDate = () => {
-      // First check payment flow for transporter step completion
-      if (item.paymentFlow && item.paymentFlow.length > 0) {
-        const transporterStep = item.paymentFlow.find(s => s.step === 'vegetable_vendor_to_transporter');
-        if (transporterStep && transporterStep.status === 'completed' && transporterStep.timestamp) {
-          return new Date(transporterStep.timestamp).toLocaleDateString();
-        }
-      }
-      
-      // Fallback to legacy settlement date fields
-      if (item.settlementDate) {
-        return new Date(item.settlementDate).toLocaleDateString();
-      }
-      
-      if (item.paymentConfirmedAt) {
-        return new Date(item.paymentConfirmedAt).toLocaleDateString();
-      }
-      
-      return 'N/A';
-    };
-    
-    return (
-      <View style={[
-        styles.paymentTableRow, 
-        { backgroundColor: isEvenRow ? '#FFFFFF' : '#F8FAFC' },
-        isLastRow && { borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }
-      ]}>
-        <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-          <Text style={styles.paymentCellText}>{formatOrderId(item.orderId)}</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-          <Text style={styles.paymentCellText}>{item.buyer?.name || 'Unknown Tshogpa'}</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentCellText}>{item.totalPrice || '0'}</Text>
-        </View>
-        {isPending ? (
-          <View style={[styles.paymentTableCell, { flex: 1.3, alignItems: 'flex-end', paddingRight: 8 }]}>
-            <TouchableOpacity 
-              style={styles.receivedButton}
-              onPress={() => handleMarkPaymentReceived(item.orderId)}
-            >
-              <Icon name="check" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-            <Text style={styles.paymentCellText}>
-              {getSettlementDate()}
-            </Text>
-          </View>
-        )}
-      </View>
-    );
-  };
 
-  const renderPaymentTableHeader = () => {
-    const isPending = paymentTab === "Pending";
-    
-    return (
-      <View style={styles.paymentTableHeader}>
-        <View style={[styles.paymentTableCell, { flex: 1.2 }]}>
-          <Text style={styles.paymentHeaderText}>Order ID</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-          <Text style={styles.paymentHeaderText}>Tshogpa</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1 }]}>
-          <Text style={styles.paymentHeaderText}>Amount (NU)</Text>
-        </View>
-        <View style={[styles.paymentTableCell, { flex: 1.3 }]}>
-          <Text style={styles.paymentHeaderText}>
-            {isPending ? 'Action' : 'Settlement Date'}
-          </Text>
-        </View>
-      </View>
-    );
-  };
 
   const renderContent = () => {
     return loading ? (
@@ -1744,10 +1523,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  paymentsContainer: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
   placeholder: {
     flex: 1,
     justifyContent: 'center',
@@ -1765,105 +1540,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     paddingHorizontal: 16,
-  },
-
-  // Payment Styles
-  paymentTabs: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    padding: 4,
-  },
-  paymentTab: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  activePaymentTab: {
-    backgroundColor: '#059669',
-  },
-  paymentTabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  activePaymentTabText: {
-    color: '#FFFFFF',
-  },
-  paymentTableContainer: {
-    flex: 1,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-
-  },
-  paymentTableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#4C7C59',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-  },
-  paymentTableRow: {
-    flexDirection: 'row',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  paymentTableCell: {
-    flex: 1,
-    paddingHorizontal: 6,
-    justifyContent: 'center',
-  },
-  paymentHeaderText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  paymentCellText: {
-    fontSize: 13,
-    color: '#475569',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  receivedButton: {
-    backgroundColor: '#10B981',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 4,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  paymentListContainer: {
-    flexGrow: 1,
   },
 });
