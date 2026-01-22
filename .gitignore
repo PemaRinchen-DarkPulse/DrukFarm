@@ -604,7 +604,11 @@ visualizations/
 plots/
 figures/
 *.png
+!web/src/assets/**/*.png
+!mobile/assets/**/*.png
 *.jpg
+!web/src/assets/**/*.jpg
+!mobile/assets/**/*.jpg
 # Keep documentation images
 !docs/**/*.png
 !docs/**/*.jpg
