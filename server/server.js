@@ -110,8 +110,14 @@ async function getApp() {
 }
 
 async function handler(req, res) {
-  const app = await getApp();
-  return app(req, res);
+  try {
+    const app = await getApp();
+    return app(req, res);
+  } catch (err) {
+    console.error("CRITICAL: Serverless handler initialization failed:", err);
+    // Vercel might not see the response if we crash too hard, but let's try to send one.
+    res.status(500).send("Internal Server Error: Initialization Failed. Check logs.");
+  }
 }
 
 module.exports = handler;
