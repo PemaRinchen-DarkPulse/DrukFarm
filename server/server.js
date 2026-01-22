@@ -74,12 +74,8 @@ async function getApp() {
     const nosrv = process.env.MONGODB_NOSRV_URI || "";
     const fallback = process.env.MONGODB_FALLBACK_URI || "mongodb://127.0.0.1:27017/drukfarm";
     const isSrv = /^mongodb\+srv:/i.test(uri);
-    const connectOptions = {
-        serverSelectionTimeoutMS: 5000, // Fail fast if DNS/Network issues
-        socketTimeoutMS: 45000,
-    };
     try {
-      __conn = mongoose.connect(uri, connectOptions);
+      __conn = mongoose.connect(uri);
       await __conn;
       console.log("✅ MongoDB connected (serverless)");
     } catch (err) {
