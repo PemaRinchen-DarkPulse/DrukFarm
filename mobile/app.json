@@ -9,7 +9,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "extra": {
-      "API_DEV": "http://192.168.0.92:5000/api",
+      "API_DEV": "http://172.16.48.181:5000/api",
       "API_PROD": "https://druk-farm-backend.vercel.app/api",
       "eas": {
         "projectId": "f15a4069-339a-4a91-a313-695d8e616d12"
