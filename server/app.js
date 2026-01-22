@@ -24,7 +24,7 @@ function createApp() {
   // Config
   const FRONTEND_URL = process.env.FRONTEND_URL || process.env.FRONTEND_URLS || ''
   const ALLOWED_ORIGINS = FRONTEND_URL
-    ? FRONTEND_URL.split(',').map(s => s.trim()).filter(Boolean)
+    ? FRONTEND_URL.split(',').map(s => s.trim().replace(/\/$/, '')).filter(Boolean)
     : ['http://localhost:5173', 'http://localhost:3000']
 
   // Middleware
