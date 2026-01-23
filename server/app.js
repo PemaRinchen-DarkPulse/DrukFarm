@@ -30,12 +30,35 @@ function createApp() {
   // Middleware
   app.use(express.json({ limit: '12mb' }))
   app.use(morgan('dev'))
+  
+  // CORS configuration with dynamic origin checking for Vercel
   app.use(
     cors({
-      origin: ALLOWED_ORIGINS,
+      origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl, Postman)
+        if (!origin) return callback(null, true);
+        
+        // Check if origin is in allowed list
+        if (ALLOWED_ORIGINS.includes(origin)) {
+          return callback(null, true);
+        }
+        
+        // Allow any Vercel preview/deployment URLs
+        if (origin.includes('.vercel.app')) {
+          return callback(null, true);
+        }
+        
+        // Otherwise, allow it (you can make this stricter in production)
+        callback(null, true);
+      },
       credentials: false,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
     })
   )
+
+  // Explicit OPTIONS handling for preflight requests
+  app.options('*', cors())
 
   // Root - helpful landing for the API base
   app.get('/', (_req, res) => {
