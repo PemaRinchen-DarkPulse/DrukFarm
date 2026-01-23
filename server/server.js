@@ -62,78 +62,63 @@ if (require.main === module) {
 }
 
 // Vercel serverless-compatible handler
-let cachedDb = null;
-let cachedApp = null;
+let __conn = null;
+let __app = null;
 
-async function connectDatabase() {
-  if (cachedDb && mongoose.connection.readyState === 1) {
-    console.log("♻️ Using cached database connection");
-    return cachedDb;
-  }
-
-  if (!process.env.MONGODB_URI) {
-    throw new Error("❌ MONGODB_URI environment variable is not set");
-  }
-
-  const uri = process.env.MONGODB_URI;
-  const nosrv = process.env.MONGODB_NOSRV_URI || "";
-  const isSrv = /^mongodb\+srv:/i.test(uri);
-
-  try {
-    await mongoose.connect(uri, {
-      bufferCommands: false, // Disable mongoose buffering for serverless
-    });
-    console.log("✅ MongoDB connected (serverless)");
-    cachedDb = mongoose.connection;
-    return cachedDb;
-  } catch (err) {
-    // Handle DNS SRV lookup failures
-    const srvFailure = isSrv && (
-      err?.code === 'ESERVFAIL' ||
-      /querySrv/i.test(String(err?.syscall || '')) ||
-      /ENOTFOUND|EAI_AGAIN/i.test(String(err?.code || ''))
-    );
-    
-    if (srvFailure && nosrv) {
-      console.warn("⚠️  SRV lookup failed, trying non-SRV URI...");
-      await mongoose.connect(nosrv, {
-        bufferCommands: false,
-      });
-      console.log("✅ MongoDB connected (serverless non-SRV)");
-      cachedDb = mongoose.connection;
-      return cachedDb;
+async function getApp() {
+  if (!__conn) {
+    if (!process.env.MONGODB_URI) {
+      throw new Error("❌ MONGODB_URI is not set");
     }
-    
-    console.error("❌ Database connection failed:", err.message);
-    throw err;
+    const uri = process.env.MONGODB_URI;
+    const nosrv = process.env.MONGODB_NOSRV_URI || "";
+    const fallback = process.env.MONGODB_FALLBACK_URI || "mongodb://127.0.0.1:27017/drukfarm";
+    const isSrv = /^mongodb\+srv:/i.test(uri);
+    try {
+      __conn = mongoose.connect(uri);
+      await __conn;
+      console.log("✅ MongoDB connected (serverless)");
+    } catch (err) {
+      const srvFailure = isSrv && (
+        err?.code === 'ESERVFAIL' ||
+        /querySrv/i.test(String(err?.syscall || '')) ||
+        /ENOTFOUND|EAI_AGAIN/i.test(String(err?.code || ''))
+      );
+      if (!srvFailure) throw err;
+      if (nosrv) {
+        console.warn("⚠️  DNS SRV lookup failed for mongodb+srv (serverless). Trying non-SRV URI...");
+        try {
+          __conn = mongoose.connect(nosrv);
+          await __conn;
+          console.log("✅ MongoDB connected (serverless non-SRV)");
+        } catch (e2) {
+          console.warn("Serverless non-SRV URI connection failed:", e2?.message || e2);
+        }
+      }
+      if (!__conn) {
+        console.warn("⚠️  Falling back to local Mongo (serverless):", fallback);
+        __conn = mongoose.connect(fallback);
+        await __conn;
+        console.log("✅ MongoDB connected (serverless fallback)");
+      }
+    }
   }
+  if (!__app) {
+    __app = createApp();
+  }
+  return __app;
 }
 
 async function handler(req, res) {
   try {
-    // Connect to database
-    await connectDatabase();
-
-    // Create or reuse Express app
-    if (!cachedApp) {
-      cachedApp = createApp();
-      console.log("✅ Express app created");
-    }
-
-    // Invoke Express app as a function (correct for serverless)
-    return cachedApp(req, res);
+    const app = await getApp();
+    return app(req, res);
   } catch (err) {
-    console.error("❌ Serverless handler error:", err);
-    
-    // Send error response if headers not sent
-    if (!res.headersSent) {
-      res.status(500).json({ 
-        error: "Internal Server Error",
-        message: process.env.NODE_ENV === 'production' ? 'Function invocation failed' : err.message
-      });
-    }
+    console.error("CRITICAL: Serverless handler initialization failed:", err);
+    // Vercel might not see the response if we crash too hard, but let's try to send one.
+    res.status(500).send("Internal Server Error: Initialization Failed. Check logs.");
   }
 }
 
 module.exports = handler;
-module.exports.default = handler;
+module.exports.start = start;

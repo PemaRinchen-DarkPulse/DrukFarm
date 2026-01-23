@@ -495,23 +495,23 @@ dataset_backups/
 *_backups/
 
 # Model files (trained models can be large)
-*.h5
-*.hdf5
-*.pkl
-*.pickle
-*.joblib
-*.pt
-*.pth
-*.ckpt
-*.pb
-*.onnx
-*.tflite
-*.mlmodel
-*.caffemodel
-saved_models/
-checkpoints/
-models/
-*.model
+ai_services/**/*.h5
+ai_services/**/*.hdf5
+ai_services/**/*.pkl
+ai_services/**/*.pickle
+ai_services/**/*.joblib
+ai_services/**/*.pt
+ai_services/**/*.pth
+ai_services/**/*.ckpt
+ai_services/**/*.pb
+ai_services/**/*.onnx
+ai_services/**/*.tflite
+ai_services/**/*.mlmodel
+ai_services/**/*.caffemodel
+ai_services/saved_models/
+ai_services/checkpoints/
+ai_services/models/
+ai_services/**/*.model
 
 # Training outputs
 training_logs/
@@ -535,29 +535,36 @@ runs/
 !**/sample*.csv
 
 # Image datasets (exclude but keep gitkeep)
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.tiff
-*.tif
-*.webp
-*.svg
-*.ico
+# Exclude images in dataset directories only
+ai_services/**/*.jpg
+ai_services/**/*.jpeg
+ai_services/**/*.png
+ai_services/**/*.gif
+ai_services/**/*.bmp
+ai_services/**/*.tiff
+ai_services/**/*.tif
+ai_services/**/*.webp
 # Keep small logo/icon files in specific folders
 !mobile/assets/**/*.png
 !mobile/assets/**/*.jpg
 !mobile/assets/**/*.jpeg
 !mobile/assets/**/*.svg
 !mobile/assets/**/*.webp
+!mobile/assets/**/*.ico
 !server/public/**/*.png
 !server/public/**/*.jpg
 !server/public/**/*.svg
+!server/public/**/*.ico
+!web/public/**/*.png
+!web/public/**/*.jpg
+!web/public/**/*.svg
+!web/public/**/*.ico
+!web/public/**/*.webp
 !web/src/assets/**/*.png
 !web/src/assets/**/*.jpg
 !web/src/assets/**/*.svg
 !web/src/assets/**/*.webp
+!web/src/assets/**/*.ico
 
 # Video and audio files
 *.mp4
@@ -600,15 +607,8 @@ ai_services/*_summary.txt
 
 # Generated visualizations
 ai_services/visualizations/
-visualizations/
-plots/
-figures/
-*.png
-!web/src/assets/**/*.png
-!mobile/assets/**/*.png
-*.jpg
-!web/src/assets/**/*.jpg
-!mobile/assets/**/*.jpg
+ai_services/plots/
+ai_services/figures/
 # Keep documentation images
 !docs/**/*.png
 !docs/**/*.jpg

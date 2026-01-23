@@ -31,7 +31,21 @@ const LandingPage = () => {
     setLoading(true);
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      // Handle comma-separated URLs
+      if (apiUrl.includes(',')) {
+        apiUrl = apiUrl.split(',')[0].trim();
+      }
+      
+      // Remove trailing slashes
+      apiUrl = apiUrl.replace(/\/+$/, '');
+
+      // Ensure API URL points to the correct endpoint
+      if (!apiUrl.endsWith('/api')) {
+        apiUrl = `${apiUrl}/api`;
+      }
+
       const response = await fetch(`${apiUrl}/waitlist`, {
         method: 'POST',
         headers: {
