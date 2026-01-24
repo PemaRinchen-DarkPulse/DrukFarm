@@ -1,28 +1,42 @@
 @import 'tailwindcss';
 
 @theme {
-  /* Druk Green */
-  --color-druk-green-50: #f0fdf4;
-  --color-druk-green-100: #dcfce7;
-  --color-druk-green-200: #bbf7d0;
-  --color-druk-green-300: #86efac;
-  --color-druk-green-400: #4ade80;
-  --color-druk-green-500: #22c55e;
-  --color-druk-green-600: #16a34a;
-  --color-druk-green-700: #15803d;
-  --color-druk-green-800: #166534;
-  --color-druk-green-900: #14532d;
-  --color-druk-green-950: #052e16;
+  /* Modern Green Palette */
+  --color-primary-50: #f0fdf9;
+  --color-primary-100: #ccfbef;
+  --color-primary-200: #99f6e0;
+  --color-primary-300: #5fe9d0;
+  --color-primary-400: #2dd4bf;
+  --color-primary-500: #14b8a6;
+  --color-primary-600: #0d9488;
+  --color-primary-700: #0f766e;
+  --color-primary-800: #115e59;
+  --color-primary-900: #134e4a;
+  --color-primary-950: #042f2e;
 
-  /* Earth Tones */
-  --color-earth-50: #fdf8f6;
-  --color-earth-100: #f2e8e5;
-  --color-earth-200: #eaddd7;
-  --color-earth-300: #e0cec7;
-  --color-earth-400: #d2bab0;
-  --color-earth-500: #a18072;
-  --color-earth-600: #8a6a5c;
-  --color-earth-700: #72554a;
-  --color-earth-800: #5e453c;
-  --color-earth-900: #4d3b36;
+  /* Vibrant Accent */
+  --color-accent-50: #ecfdf5;
+  --color-accent-100: #d1fae5;
+  --color-accent-200: #a7f3d0;
+  --color-accent-300: #6ee7b7;
+  --color-accent-400: #34d399;
+  --color-accent-500: #10b981;
+  --color-accent-600: #059669;
+  --color-accent-700: #047857;
+  --color-accent-800: #065f46;
+  --color-accent-900: #064e3b;
+  --color-accent-950: #022c22;
+
+  /* Neutral Grays */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-gray-950: #030712;
 }
