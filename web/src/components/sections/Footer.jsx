@@ -81,7 +81,7 @@ const Footer = () => {
         {/* Bottom */}
         <div className="border-t border-gray-200 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-muted text-sm">
-            © 2026 TravelBu. All rights reserved.
+            © 2026 Druk Farm. All rights reserved.
           </p>Druk Farm
           <div className="flex items-center gap-4">
             {socialIcons.map((social) => (
